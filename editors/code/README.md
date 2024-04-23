@@ -1,13 +1,31 @@
 # sui-move-analyzer
 **Table of Contents**
 * [Introduction](#Introduction)
-* [Installation](#Installation)
 * [Features](#Features)
+* [Installation](#Installation)
 * [Support](#Support)
 
 ## Introduction <span id="Introduction">
 The **sui-move-analyzer** is a Visual Studio Code plugin for **Sui Move** language developed by [MoveBit](https://movebit.xyz). Although this is an alpha release, it has many useful features, such as **highlight, autocomplete, go to definition/references**, and so on.
 
+## Features <span id="Features">
+
+Here are some of the features of the sui-move-analyzer Visual Studio Code extension. To see them, open a
+Move source file (a file with a `.move` file extension) and:
+
+- See Move keywords and types highlighted in appropriate colors.
+- As you type, Move keywords will appear as completion suggestions.
+- If the opened Move source file is located within a buildable project (a `Move.toml` file can be
+  found in one of its parent directories), the following advanced features will also be available:
+  - compiler diagnostics
+  - sui commands line tool(you need install Sui Client CLI locally)
+  - sui project template
+  - go to definition
+  - go to references
+  - type on hover
+  - inlay hints
+  - linter for move file
+  - ...
 
 ## Installation <span id="Installation">
 
@@ -26,16 +44,13 @@ The `sui-move-analyzer` Visual Studio Code extension works via two components: t
 
 #### A. Download the precompiled binaries for the sui-move-analyzer language server(Recommended)
 
-```Windows```  
-> Download [sui-move-analyzer-win-installer-v1.1.2.msi](https://github.com/movebit/move/releases/tag/release_sui_move_analyzerV1.1.2), and proceed with the installation. This installation program will automatically add the path of `sui-move-analyzer` to the **PATH** environment variable.
-
-```MacOS & Ubuntu```
+```Windows & MacOS & Ubuntu```
  
- > 1.Download binary files for the corresponding platform from [sui-move-analyzer-releases-pages](https://github.com/movebit/move/releases/tag/sui_move_analyzer_release_v1.1.3).
+ > 1.Download the newest binary files for the corresponding platform from [sui-move-analyzer-releases-pages](https://github.com/movebit/sui-move-analyzer/releases).
  >
- > 2.Rename it to `sui-move-analyzer`. 
+ > 2.Rename it to `sui-move-analyzer` or `sui-move-analyzer.exe`. 
  > 
- > 3.Make sure `sui-move-analyzer` can be found in your **PATH** environment.
+ > 3.Make sure `sui-move-analyzer`/`sui-move-analyzer.exe` can be found in your **PATH** environment.
 
 After completing the above steps, **restart** VSCode.
 
@@ -131,26 +146,6 @@ thread 'main' panicked at 'Unable to find libclang: "couldn't find any valid sha
 ```
 
 It's because it relies on `MystenLabs/sui_move_build` library, which requires an LLVM environment. You can refer to [llvm-project](https://github.com/llvm/llvm-project) go and install llvm.
-
-
-## Features <span id="Features">
-
-Here are some of the features of the sui-move-analyzer Visual Studio Code extension. To see them, open a
-Move source file (a file with a `.move` file extension) and:
-
-- See Move keywords and types highlighted in appropriate colors.
-- As you type, Move keywords will appear as completion suggestions.
-- If the opened Move source file is located within a buildable project (a `Move.toml` file can be
-  found in one of its parent directories), the following advanced features will also be available:
-  - compiler diagnostics
-  - sui commands line tool(you need install Sui Client CLI locally)
-  - sui project template
-  - go to definition
-  - go to references
-  - type on hover
-  - inlay hints
-  - linter for move file
-  - ...
 
 
 ## Support <span id="Support">
