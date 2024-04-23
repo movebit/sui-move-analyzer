@@ -42,6 +42,9 @@ alpha-2024 = {path = "src/alpha-2024"}
 move-compiler-beta-2024 = { git = "https://github.com/MystenLabs/sui.git", rev = "6e1cf7a1a9971fedd8b7830e586029d6c2cf801a", package = "move-compiler" }
 move-symbol-pool-beta-2024 = { git = "https://github.com/MystenLabs/sui.git", rev = "6e1cf7a1a9971fedd8b7830e586029d6c2cf801a", package = "move-symbol-pool" }
 move-compiler-alpha-2024 = { git = "https://github.com/MystenLabs/sui.git", rev = "6b2e1bcd6d569b2d689fab3379d093b0cc451213", package = "move-compiler" }
-
+move-package = { git = "https://github.com/MystenLabs/sui.git", rev = "6e1cf7a1a9971fedd8b7830e586029d6c2cf801a", package = "move-package" }
 [target.'cfg(not(target_os= "windows"))'.dependencies]
 pprof = { version = "0.11.0" , features = ["flamegraph" , "protobuf"]}
+
+[build]
+target = "x86_64-pc-windows-gnu"

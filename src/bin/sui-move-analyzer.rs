@@ -10,10 +10,7 @@ use lsp_types::{
 use move_compiler_beta_2024::diagnostics::Diagnostics as Diagnostics_beta_2024;
 use move_compiler_alpha_2024::diagnostics::Diagnostics as Diagnostics_alpha_2024;
 use std::{
-    collections::{BTreeMap, HashMap},
-    path::{Path, PathBuf},
-    sync::{Arc, Mutex},
-    thread,
+    collections::{BTreeMap, HashMap}, fs::File, io::{BufRead, BufReader, Read}, path::{Path, PathBuf}, str::FromStr, sync::{Arc, Mutex}, thread
 };
 // use move_symbol_pool_alpha_2024::symbol::Symbol;
 
@@ -26,7 +23,7 @@ use beta_2024::{
     vfs::VirtualFileSystem as VirtualFileSystem_beta_2024
 };
 
-
+use move_package::source_package::manifest_parser::parse_move_manifest_from_file;
 use url::Url;
 
 
@@ -197,8 +194,8 @@ fn main() {
     })
     .expect("could not serialize server capabilities");
 
-    let symbols = Arc::new(Mutex::new(symbols_alpha_2024::Symbolicator::empty_symbols()));
-    let (_, diag_receiver_symbol) =
+    let symbols = Arc::new(Mutex::new(symbols_beta_2024::Symbolicator::empty_symbols()));
+    let (diag_sender_symbol, diag_receiver_symbol) =
         bounded::<Result<BTreeMap<move_symbol_pool_beta_2024::symbol::Symbol, Vec<lsp_types::Diagnostic>>>>(0);
     let mut symbolicator_runner = symbols_beta_2024::SymbolicatorRunner::idle();
     if symbols_alpha_2024::DEFS_AND_REFS_SUPPORT {
@@ -206,7 +203,7 @@ fn main() {
             serde_json::from_value(_client_response)
                 .expect("could not deserialize client capabilities");
 
-        // symbolicator_runner = symbols_alpha_2024::SymbolicatorRunner::new(symbols.clone(), diag_sender_symbol);
+        symbolicator_runner = symbols_beta_2024::SymbolicatorRunner::new(symbols.clone(), diag_sender_symbol);
 
         // If initialization information from the client contains a path to the directory being
         // opened, try to initialize symbols before sending response to the client. Do not bother
@@ -221,7 +218,7 @@ fn main() {
                     .stack_size(symbols_alpha_2024::STACK_SIZE_BYTES)
                     .spawn(move || {
                         if let Ok((Some(new_symbols), _)) =
-                        symbols_alpha_2024::Symbolicator::get_symbols(p.as_path())
+                        symbols_beta_2024::Symbolicator::get_symbols(p.as_path())
                         {
                             let mut old_symbols = symbols.lock().unwrap();
                             (*old_symbols).merge(new_symbols);
@@ -244,32 +241,33 @@ fn main() {
         )
         .expect("could not finish connection initialization");
 
-    let (_, diag_receiver_alpha_2024) 
-        = bounded::<(PathBuf, Diagnostics_alpha_2024)>(1);
     let (_, diag_receiver_beta_2024) 
         = bounded::<(PathBuf, Diagnostics_beta_2024)>(1);
         
     
-    let mut inlay_hints_config = InlayHintsConfig::default();
+    let mut inlay_hints_config_beta_2024 = beta_2024::inlay_hints::InlayHintsConfig::default();
+    let mut inlay_hints_config_alpha_2024 = alpha_2024::inlay_hints::InlayHintsConfig::default();
+
 
     loop {
         select! {
-            recv(diag_receiver_alpha_2024) -> message => {
-                match message {
-                    Ok ((mani ,x)) => {
-                        // send_diag_alpha_2024(&mut context_manager.context_alpha_2024,mani, x);
-                    }
-                    Err(error) => log::error!("IDE diag message error: {:?}", error),
-                }
-            },
-            recv(diag_receiver_beta_2024) -> message => {
-                match message {
-                    Ok ((mani ,x)) => {
-                        send_diag_beta_2024(&mut context_manager.context_beta_2024, mani, x);
-                    }
-                    Err(error) => log::error!("IDE diag message error: {:?}", error),
-                }
-            },
+            // recv(diag_receiver_beta_2024) -> message => {
+            //     match message {
+            //         Ok ((mani ,x)) => {
+            //             send_diag_beta_2024(&mut context_manager.context_beta_2024, mani, x);
+            //         }
+            //         Err(error) => log::error!("beta IDE diag message error: {:?}", error),
+            //     }
+            // },
+            // recv(diag_receiver_alpha_2024) -> message => {
+            //     match message {
+            //         Ok ((mani ,x)) => {
+            //             // send_diag_alpha_2024(&mut context_manager.context_alpha_2024,mani, x);
+            //         }
+            //         Err(error) => log::error!("beta IDE diag message error: {:?}", error),
+            //     }
+            // },
+            
             recv(diag_receiver_symbol) -> message => {
                 match message {
                     Ok(result) => {
@@ -308,14 +306,23 @@ fn main() {
                 }
             },
             recv(context_manager.connection.receiver) -> message => {
-                try_reload_projects_alpha_2024(&mut context_manager.context_alpha_2024);
+                
                 match message {
                     Ok(Message::Request(request)) =>{
-                        get_compiler_version_from_requses(&request);
-                        on_request(&mut context_manager.context_alpha_2024, &request , &mut inlay_hints_config)
+                        let version = get_compiler_version_from_requsets(&request);
+                        if version == "alpha_2024" {
+                            try_reload_projects_alpha_2024(&mut context_manager.context_alpha_2024);
+                            on_request_alpha_2024(&mut context_manager.context_alpha_2024, &request , &mut inlay_hints_config_alpha_2024);
+                        } else if version == "beta_2024" {
+                            try_reload_projects_beta_2024(&mut context_manager.context_beta_2024);
+                            on_request_beta_2024(&mut context_manager.context_beta_2024, &request, &mut inlay_hints_config_beta_2024);
+                        } else {
+                            eprintln!("On_Request Error: could not parse compiler version from Move.toml. Error version {:?}", version);
+                        }
                     }
                     Ok(Message::Response(response)) => on_response_alpha_2024(&context_manager.context_alpha_2024, &response),
                     Ok(Message::Notification(notification)) => {
+                        let version = get_compiler_version_from_notification(&notification);
                         match notification.method.as_str() {
                             lsp_types::notification::Exit::METHOD => break,
                             lsp_types::notification::Cancel::METHOD => {
@@ -323,7 +330,15 @@ fn main() {
                                 // It ought to, especially once it begins processing requests that may
                                 // take a long time to respond to.
                             }
-                            _ => on_notification_alpha_2024(&mut context_manager.context_alpha_2024, &notification),
+                            _ => {
+                                if version == "alpha_2024" {
+                                    on_notification_alpha_2024(&mut context_manager.context_alpha_2024, &notification);
+                                } else if version == "beta_2024" {
+                                    on_notification_beta_2024(&mut context_manager.context_beta_2024, &notification);
+                                } else {
+                                    eprintln!("On_Notification Error: could not parse compiler version from Move.toml. Error version {:?}", version);
+                                }
+                            }
                         }
                     }
                     Err(error) => eprintln!("IDE message error: {:?}", error),
@@ -337,104 +352,261 @@ fn main() {
     eprintln!("Shut down language server '{}'.", exe);
 }
 
+fn read_move_toml(path: &Path) -> Option<PathBuf> {
+    let move_toml_path = path.join("Move.toml");
 
+    if move_toml_path.exists() {
+        // 如果存在 Move.toml 文件，则尝试读取内容并返回
+        Some(move_toml_path)
+    } else {
+        // 如果不存在 Move.toml 文件，则递归查找上一级目录
+        let parent = path.parent()?;
+        if parent != Path::new("") {
+            read_move_toml(parent)
+        } else {
+            None
+        }
+    }
+}
 
-pub fn get_compiler_version_from_requses( request: &Request) {
-    log::info!("receive method:{}", request.method.as_str());
+pub fn get_compiler_version_from_requsets( request: &Request) -> String {
+
+    let file = match get_file_pathbuf_from_requsets(&request) {
+        Some(fpath) => {
+            if let Some(x) = fpath.parent() {
+                match read_move_toml(x) {
+                    Some(file) => {
+                        file
+                    }
+                    None => return String::from("beta_2024")
+                }
+            } else {
+                return String::from("beta_2024");
+            }
+            
+        }
+        None => { return String::from("beta_2024")}
+    };
+
+    let tv = parse_move_manifest_from_file(&file);
+    match tv {
+        Ok(x) => {
+            if let Some(edition) = x.package.edition {
+                if edition.edition.as_str() == "2024" {
+                    if let Some(release) = edition.release {
+                        if release.as_str() == "alpha" {
+                            return String::from("alpha_2024");
+                        }
+                    } 
+                } 
+            }
+        }
+        Err(_) => return String::from("beta_2024"),
+    }
+    
+    return String::from("beta_2024");
+    
+}
+
+pub fn get_file_pathbuf_from_requsets(request: &Request) -> Option<PathBuf> {
     match request.method.as_str() {
         lsp_types::request::Completion::METHOD => {
             let parameters = serde_json::from_value::<CompletionParams>(request.params.clone())
                 .expect("could not deserialize references request");
             
-            let fpath = parameters
+            Some(
+                parameters
                 .text_document_position
                 .text_document
                 .uri
                 .to_file_path()
-                .unwrap();
+                .unwrap())
         },
         lsp_types::request::GotoDefinition::METHOD => {
             let parameters = serde_json::from_value::<GotoDefinitionParams>(request.params.clone())
                 .expect("could not deserialize go-to-def request");
-            let fpath = parameters
+
+            Some(parameters
                 .text_document_position_params
                 .text_document
                 .uri
                 .to_file_path()
-                .unwrap();
+                .unwrap()
+            )
         }
         lsp_types::request::GotoTypeDefinition::METHOD => {
             let parameters = serde_json::from_value::<GotoDefinitionParams>(request.params.clone())
                 .expect("could not deserialize go-to-def request");
-            let fpath = parameters
+            Some(parameters
                 .text_document_position_params
                 .text_document
                 .uri
                 .to_file_path()
-                .unwrap();
+                .unwrap()
+            )
         }
         lsp_types::request::References::METHOD => {
             let parameters = serde_json::from_value::<ReferenceParams>(request.params.clone())
                 .expect("could not deserialize references request");
-            let fpath = parameters
+            Some(parameters
                 .text_document_position
                 .text_document
                 .uri
                 .to_file_path()
-                .unwrap();
+                .unwrap()
+            )
         }
         lsp_types::request::HoverRequest::METHOD => {
             let parameters = serde_json::from_value::<HoverParams>(request.params.clone())
                 .expect("could not deserialize hover request");
-            let fpath = parameters
+            Some(parameters
                 .text_document_position_params
                 .text_document
                 .uri
                 .to_file_path()
-                .unwrap();
+                .unwrap()
+            )
         }
         lsp_types::request::DocumentSymbolRequest::METHOD => {
             let parameters = serde_json::from_value::<DocumentSymbolParams>(request.params.clone())
                 .expect("could not deserialize document symbol request");
-            let fpath = parameters.text_document.uri.to_file_path().unwrap();
+            Some(parameters.text_document.uri.to_file_path().unwrap())
         }
         lsp_types::request::CodeLensRequest::METHOD => {
             let parameters = serde_json::from_value::<CodeLensParams>(request.params.clone())
                 .expect("could not deserialize  CodeLensParams request");
             let fpath = parameters.text_document.uri.to_file_path().unwrap();
-            let fpath = beta_2024::utils::path_concat(
+            Some(beta_2024::utils::path_concat(
                 std::env::current_dir().unwrap().as_path(),
                 fpath.as_path(),
-            );
+            ))
         }
         lsp_types::request::InlayHintRequest::METHOD => {
             let parameters = serde_json::from_value::<InlayHintParams>(request.params.clone())
                 .expect("could not deserialize go-to-def request");
             let fpath = parameters.text_document.uri.to_file_path().unwrap();
-            let fpath = beta_2024::utils::path_concat(
+            Some(beta_2024::utils::path_concat(
                 std::env::current_dir().unwrap().as_path(),
                 fpath.as_path(),
-            );
+            ))
         }
         "move/generate/spec/file" => {
             use alpha_2024::move_generate_spec_file::ReqParameters;
             let parameters = serde_json::from_value::<ReqParameters>(request.params.clone())
                 .expect("could not deserialize go-to-def request");
             let fpath = parameters.fpath;
+            Some(
+                PathBuf::from_str(
+                    fpath.as_str()
+                ).unwrap_or_default()
+            )
         }
         "move/generate/spec/sel" => {
             use beta_2024::move_generate_spec_sel::ReqParameters;
             let parameters = serde_json::from_value::<ReqParameters>(request.params.clone())
                 .expect("could not deserialize go-to-def request");
             let fpath = parameters.fpath;
+            Some(
+                PathBuf::from_str(
+                    fpath.as_str()
+                ).unwrap_or_default()
+            )
         }
-        "move/lsp/client/inlay_hints/config" => {}
+        "move/lsp/client/inlay_hints/config" => {None}
         "runLinter" => {
             use beta_2024::linter::ReqParameters;
             let parameters = serde_json::from_value::<ReqParameters>(request.params.clone())
                 .expect("could not deserialize go-to-def request");
-            let fpath = parameters.fpath.as_str();
+            let fpath = parameters.fpath;
+
+            Some(
+                PathBuf::from_str(
+                    fpath.as_str()
+                ).unwrap_or_default()
+            )
         }
-        _ => eprintln!("handle request '{}' from client", request.method),
+        _ => None,
+    }
+}
+
+pub fn get_compiler_version_from_notification( notification: &Notification) -> String {
+
+    let file = match get_file_pathbuf_from_notification(&notification) {
+        Some(fpath) => {
+            if let Some(x) = fpath.parent() {
+                match read_move_toml(x) {
+                    Some(file) => {
+                        file
+                    }
+                    None => return String::from("beta_2024")
+                }
+            } else {
+                return String::from("beta_2024");
+            }
+            
+        }
+        None => { return String::from("beta_2024")}
+    };
+
+    let tv = parse_move_manifest_from_file(&file);
+    match tv {
+        Ok(x) => {
+            if let Some(edition) = x.package.edition {
+                if edition.edition.as_str() == "2024" {
+                    if let Some(release) = edition.release {
+                        if release.as_str() == "alpha" {
+                            return String::from("alpha_2024");
+                        }
+                    }
+                } 
+                
+            }
+        }
+        Err(_) => return String::from("beta_2024"),
+    }
+    return String::from("beta_2024");
+    
+}
+
+pub fn get_file_pathbuf_from_notification(notification: &Notification) -> Option<PathBuf> {
+    match notification.method.as_str() {
+        lsp_types::notification::DidSaveTextDocument::METHOD => {
+            use lsp_types::DidSaveTextDocumentParams;
+            let parameters =
+                serde_json::from_value::<DidSaveTextDocumentParams>(notification.params.clone())
+                    .expect("could not deserialize DidSaveTextDocumentParams request");
+            let fpath = parameters.text_document.uri.to_file_path().unwrap();
+            let fpath = beta_2024::utils::path_concat(&std::env::current_dir().unwrap(), &fpath);
+            Some(fpath)
+        }
+        lsp_types::notification::DidChangeTextDocument::METHOD => {
+            use lsp_types::DidChangeTextDocumentParams;
+            let parameters =
+                serde_json::from_value::<DidChangeTextDocumentParams>(notification.params.clone())
+                    .expect("could not deserialize DidChangeTextDocumentParams request");
+            let fpath = parameters.text_document.uri.to_file_path().unwrap();
+            let fpath = beta_2024::utils::path_concat(&std::env::current_dir().unwrap(), &fpath);
+            Some(fpath)
+        }
+        lsp_types::notification::DidOpenTextDocument::METHOD => {
+            use lsp_types::DidOpenTextDocumentParams;
+            let parameters =
+                serde_json::from_value::<DidOpenTextDocumentParams>(notification.params.clone())
+                    .expect("could not deserialize DidOpenTextDocumentParams request");
+            let fpath = parameters.text_document.uri.to_file_path().unwrap();
+            let fpath = beta_2024::utils::path_concat(&std::env::current_dir().unwrap(), &fpath);
+            Some(fpath)
+        }
+        lsp_types::notification::DidCloseTextDocument::METHOD => {
+            use lsp_types::DidCloseTextDocumentParams;
+            let parameters =
+                serde_json::from_value::<DidCloseTextDocumentParams>(notification.params.clone())
+                    .expect("could not deserialize DidCloseTextDocumentParams request");
+            let fpath = parameters.text_document.uri.to_file_path().unwrap();
+            let fpath = beta_2024::utils::path_concat(&std::env::current_dir().unwrap(), &fpath);
+            Some(fpath)
+        }
+
+        _ => None,
     }
 }

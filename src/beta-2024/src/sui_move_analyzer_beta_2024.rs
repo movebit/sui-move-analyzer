@@ -94,7 +94,11 @@ pub fn on_response(_context: &Context, _response: &Response) {
 
 type DiagSender = Arc<Mutex<Sender<(PathBuf, Diagnostics)>>>;
 
-pub fn on_notification(context: &mut Context, notification: &Notification, diag_sender: DiagSender) {
+pub fn on_notification(context: &mut Context, notification: &Notification) {
+    let (diag_sender, _) 
+        = bounded::<(PathBuf, move_compiler::diagnostics::Diagnostics)>(1);
+    let diag_sender = Arc::new(Mutex::new(diag_sender));
+
     fn update_defs(context: &mut Context, fpath: PathBuf, content: &str) {
         use crate::syntax::parse_file_string;
         let file_hash = FileHash::new(content);
@@ -142,7 +146,7 @@ pub fn on_notification(context: &mut Context, notification: &Notification, diag_
                 }
             };
             update_defs(context, fpath.clone(), content.as_str());
-            make_diag(context, diag_sender, fpath);
+            // make_diag(context, diag_sender, fpath);
         }
         lsp_types::notification::DidChangeTextDocument::METHOD => {
             use lsp_types::DidChangeTextDocumentParams;
@@ -192,7 +196,7 @@ pub fn on_notification(context: &mut Context, notification: &Notification, diag_
                 }
             };
             context.projects.insert_project(p);
-            make_diag(context, diag_sender, fpath);
+            // make_diag(context, diag_sender, fpath);
         }
         lsp_types::notification::DidCloseTextDocument::METHOD => {
             use lsp_types::DidCloseTextDocumentParams;

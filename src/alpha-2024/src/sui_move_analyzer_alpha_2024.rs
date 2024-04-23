@@ -98,7 +98,7 @@ pub fn on_response(_context: &Context, _response: &Response) {
 type DiagSender = Arc<Mutex<Sender<(PathBuf, move_compiler::diagnostics::Diagnostics)>>>;
 
 pub fn on_notification(context: &mut Context, notification: &Notification) {
-    let (diag_sender, diag_receiver) 
+    let (diag_sender, _) 
         = bounded::<(PathBuf, move_compiler::diagnostics::Diagnostics)>(1);
     let diag_sender = Arc::new(Mutex::new(diag_sender));
 
@@ -150,7 +150,7 @@ pub fn on_notification(context: &mut Context, notification: &Notification) {
                 }
             };
             update_defs(context, fpath.clone(), content.as_str());
-            make_diag(context, diag_sender, fpath);
+            // make_diag(context, diag_sender, fpath);
         }
         lsp_types::notification::DidChangeTextDocument::METHOD => {
             use lsp_types::DidChangeTextDocumentParams;
@@ -200,7 +200,7 @@ pub fn on_notification(context: &mut Context, notification: &Notification) {
                 }
             };
             context.projects.insert_project(p);
-            make_diag(context, diag_sender, fpath);
+            // make_diag(context, diag_sender, fpath);
         }
         lsp_types::notification::DidCloseTextDocument::METHOD => {
             use lsp_types::DidCloseTextDocumentParams;
