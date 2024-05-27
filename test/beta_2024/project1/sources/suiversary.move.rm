@@ -141,7 +141,7 @@ module a::shapes {
 
     public struct Rectangle { base: u64, height: u64 }
     public struct Box { base: u64, height: u64, depth: u64 }
-
+    public struct cclowercaseletters { base: u64 }
     public fun rectangle(base: u64, height: u64): Rectangle {
         Rectangle { base, height }
     }
@@ -206,7 +206,7 @@ module b::examples1 {
 // into_box 被定义为一个别名，它实际上是一个将 Rectangle 转换为 Box 的函数。
 // 在 example 函数中，我们可以直接在 Rectangle 上调用 into_box 方法，而不是显式地调用 a::shapes::box 函数
 module b::examples2 {
-    use a::shapes::{Rectangle, Box};
+    use a::shapes::{Rectangle, Box, cclowercaseletters};
 
     use fun into_box as Rectangle.into_box;
     fun into_box(rectangle: &Rectangle, depth: u64): Box {
@@ -276,3 +276,20 @@ module b::examples4 {
         a::cup::value(cup)
     }
 }
+
+
+    address 0x42 {
+        module M {
+            struct Wrapper1 has copy, drop, store (u64);
+
+            struct Wrapper2(u64) has copy, drop, store;
+
+            public struct Foo { field: u64 } has copy, drop;
+        
+            fun x() {
+                // Error: Positional pack of non-positional struct
+                let _x = Foo(0);
+                abort 0
+            }
+        }
+    }

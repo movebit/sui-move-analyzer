@@ -1,5 +1,5 @@
 [package]
-name = "Suiversary"
+name = "SuiMove2024"
 version = "0.0.1"
 edition = "2024.beta"
 
@@ -7,4 +7,6 @@ edition = "2024.beta"
 Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "mainnet" }
 
 [addresses]
-suiversary = "0x0"
+method_syntax = "0x0"
+a = "0x1"
+b = "0x2"
