@@ -3,45 +3,33 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::Result;
-use clap::Parser;
-use crossbeam::channel::{bounded, select, Sender};
-use log::{Level, Metadata, Record};
-use lsp_server::{Connection, Message, Notification, Request, Response};
-use lsp_types::{
-    notification::Notification as _, request::Request as _, CompletionOptions, Diagnostic,
-    HoverProviderCapability, OneOf, SaveOptions, TextDocumentSyncCapability, TextDocumentSyncKind,
-    TextDocumentSyncOptions, TypeDefinitionProviderCapability, WorkDoneProgressOptions,
-};
+use crossbeam::channel::Sender;
+use lsp_server::{Notification, Request, Response};
+use lsp_types::{notification::Notification as _, request::Request as _};
 use move_command_line_common::files::FileHash;
-use move_compiler::{
-    diagnostics::Diagnostics as Diagnostics_alpha_2024, 
-    shared::*, 
-    PASS_TYPING
-};
+use move_compiler::{shared::*, PASS_HLIR};
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::HashMap,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
-    thread,
 };
 
 use crate::{
     code_lens,
     completion::on_completion_request,
 
-    context::{Context, FileDiags, MultiProject},
+    context::Context,
     goto_definition, hover, inlay_hints, inlay_hints::*,
     move_generate_spec_file::on_generate_spec_file,
     move_generate_spec_sel::on_generate_spec_sel,
     project::ConvertLoc,
     references, symbols,
     utils::*,
-    vfs::VirtualFileSystem,
     linter,
 };
-use move_symbol_pool::Symbol;
 use url::Url;
 
+pub type DiagnosticsAlpha2024 = move_compiler::diagnostics::Diagnostics;
 
 pub fn try_reload_projects(context: &mut Context) {
     context.projects.try_reload_projects(&context.connection);
@@ -95,12 +83,12 @@ pub fn on_response(_context: &Context, _response: &Response) {
     eprintln!("handle response from client");
 }
 
-type DiagSender = Arc<Mutex<Sender<(PathBuf, move_compiler::diagnostics::Diagnostics)>>>;
+type DiagSender = Arc<Mutex<Sender<(PathBuf, DiagnosticsAlpha2024)>>>;
 
-pub fn on_notification(context: &mut Context, notification: &Notification) {
-    let (diag_sender, _) 
-        = bounded::<(PathBuf, move_compiler::diagnostics::Diagnostics)>(1);
-    let diag_sender = Arc::new(Mutex::new(diag_sender));
+pub fn on_notification(context: &mut Context, diag_sender: DiagSender, notification: &Notification) {
+    // let (diag_sender, _) 
+    //     = bounded::<(PathBuf, move_compiler::diagnostics::Diagnostics)>(1);
+    // let diag_sender = Arc::new(Mutex::new(diag_sender));
 
 
     fn update_defs(context: &mut Context, fpath: PathBuf, content: &str) {
@@ -150,7 +138,7 @@ pub fn on_notification(context: &mut Context, notification: &Notification) {
                 }
             };
             update_defs(context, fpath.clone(), content.as_str());
-            // make_diag(context, diag_sender, fpath);
+            make_diag(context, diag_sender, fpath);
         }
         lsp_types::notification::DidChangeTextDocument::METHOD => {
             use lsp_types::DidChangeTextDocumentParams;
@@ -200,7 +188,7 @@ pub fn on_notification(context: &mut Context, notification: &Notification) {
                 }
             };
             context.projects.insert_project(p);
-            // make_diag(context, diag_sender, fpath);
+            make_diag(context, diag_sender, fpath);
         }
         lsp_types::notification::DidCloseTextDocument::METHOD => {
             use lsp_types::DidCloseTextDocumentParams;
@@ -219,7 +207,7 @@ pub fn on_notification(context: &mut Context, notification: &Notification) {
             };
         }
 
-        _ => log::error!("handle notification '{}' from client", notification.method),
+        _ => {},
     }
 }
 
@@ -241,7 +229,7 @@ fn get_package_compile_diagnostics(
     let build_plan = BuildPlan::create(resolution_graph)?;
     let mut diagnostics = None;
     build_plan.compile_with_driver(&mut std::io::sink(), |compiler| {
-        let (_, compilation_result) = compiler.run::<PASS_TYPING>()?;
+        let (_, compilation_result) = compiler.run::<PASS_HLIR>()?;
         match compilation_result {
             std::result::Result::Ok(_) => {}
             std::result::Result::Err(diags) => {
@@ -268,12 +256,14 @@ fn make_diag(context: &Context, diag_sender: DiagSender, fpath: PathBuf) {
     match context.projects.get_project(&fpath) {
         Some(x) => {
             if !x.load_ok() {
+                log::info!("load_ok(alpha) false");
                 return;
             }
         }
         None => return,
     };
     std::thread::spawn(move || {
+        log::info!("in new thread, about get_package_compile_diagnostics(alpha)");
         let x = match get_package_compile_diagnostics(mani.as_path()) {
             Ok(x) => x,
             Err(err) => {
@@ -324,7 +314,7 @@ fn send_not_project_file_error(context: &mut Context, fpath: PathBuf, is_open: b
         .unwrap();
 }
 
-pub fn send_diag(context: &mut Context, mani: PathBuf, x: Diagnostics_alpha_2024) {
+pub fn send_diag(context: &mut Context, mani: PathBuf, x: DiagnosticsAlpha2024) {
     let mut result: HashMap<Url, Vec<lsp_types::Diagnostic>> = HashMap::new();
     for x in x.into_codespan_format() {
         let (s, msg, (loc, m), _, notes) = x;

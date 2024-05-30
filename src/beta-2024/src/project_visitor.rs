@@ -14,7 +14,7 @@ use move_package::source_package::layout::SourcePackageLayout;
 use move_symbol_pool::Symbol;
 use std::{
     cell::RefCell,
-    collections::{HashMap, HashSet},
+    collections::HashSet,
     path::PathBuf,
     rc::Rc,
     vec,
@@ -481,7 +481,7 @@ impl Project {
             self.visit_function(f, project_context, visitor);
         });
 
-        provider.with_spec(|addr, module_name, spec, _is_spec_module| {
+        provider.with_spec(|addr, module_name, _spec, _is_spec_module| {
             project_context.set_current_addr_and_module_name(addr, module_name);
             project_context.set_access_env(AccessEnv::Spec);
         });
@@ -860,7 +860,7 @@ impl Project {
                     return;
                 }
                 let (struct_item, _) = project_context.find_name_chain_item(chain, self);
-                let mut struct_item = match struct_item {
+                let struct_item = match struct_item {
                     Some(Item::Struct(x)) => x,
                     _ => {
                         return;
@@ -1145,7 +1145,6 @@ impl Project {
                 }
                 
             }
-            _ => {}
         }
     }
 

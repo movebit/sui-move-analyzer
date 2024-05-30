@@ -6,13 +6,11 @@ use crate::{
     context::Context,
     utils::discover_manifest_and_kind,
 };
-use move_command_line_common::testing::EXP_EXT;
 use move_compiler::{
     cfgir::visitor::AbstractInterpreterVisitor,
     command_line::compiler::move_check_for_errors,
     diagnostics::codes::{self, WarningFilter},
     editions::Flavor,
-    expansion::ast as E,
     shared::{NumericalAddress, PackageConfig},
     typing::visitor::TypingVisitor,
     Compiler, PASS_PARSER,
@@ -32,7 +30,7 @@ use std::{
 };
 use url::Url;
 
-use lsp_server::{Message, Notification, Request, Response, ErrorCode};
+use lsp_server::{Message, Notification, Request, Response};
 use lsp_types::{
     notification::Notification as _,
 };

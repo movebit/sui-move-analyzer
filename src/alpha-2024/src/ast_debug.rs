@@ -261,9 +261,7 @@ impl<T: MyAstDebug> Display for DisplayWrapper<'_, T> {
 
 use move_compiler::parser::ast::*;
 use move_ir_types::location::*;
-use move_compiler::shared::{Name, NamedAddressMap, NamedAddressMapIndex, NamedAddressMaps,
-    NumericalAddress, TName,
-};
+use move_compiler::shared::{Name, NamedAddressMap, NamedAddressMaps};
 //**************************************************************************************************
 // Debug
 //**************************************************************************************************

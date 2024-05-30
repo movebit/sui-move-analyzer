@@ -877,7 +877,6 @@ fn match_module_use(ret: &mut HashMap<Symbol, Vec<ShadowItem>>, addr_module: &Mo
                 }
             }
         }
-        _ => {}
     };
 }
 

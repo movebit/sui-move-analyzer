@@ -1204,7 +1204,6 @@ pub trait AstProvider: Clone {
                     call_back(self.get_module_addr(Some(a.addr), module), module);
                 }
             }
-            _ => {}
         })
     }
 
@@ -1248,7 +1247,6 @@ pub trait AstProvider: Clone {
                     }
                 }
             }
-            _ => {}
         });
     }
 

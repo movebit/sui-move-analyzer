@@ -1,24 +1,23 @@
 use anyhow::Result;
 use clap::Parser;
-use crossbeam::channel::{bounded, select, Sender};
+use crossbeam::channel::{bounded, select};
 use log::{Level, Metadata, Record};
-use lsp_server::{Connection, Message, Notification, Request, Response};
+use lsp_server::{Connection, Message, Notification, Request};
 use lsp_types::{
-    notification::Notification as _, request::{GotoTypeDefinition, Request as _}, CodeLensParams, CompletionOptions, CompletionParams, Diagnostic, DocumentSymbolParams, GotoDefinitionParams, HoverParams, HoverProviderCapability, InlayHintParams, OneOf, ReferenceParams, SaveOptions, TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions, TypeDefinitionProviderCapability, WorkDoneProgressOptions
+    notification::Notification as _, request::Request as _, CodeLensParams, CompletionOptions, CompletionParams, DocumentSymbolParams, GotoDefinitionParams, HoverParams, HoverProviderCapability, InlayHintParams, OneOf, ReferenceParams, SaveOptions, TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions, TypeDefinitionProviderCapability, WorkDoneProgressOptions
 };
 
-use move_compiler_beta_2024::diagnostics::Diagnostics as Diagnostics_beta_2024;
-use move_compiler_alpha_2024::diagnostics::Diagnostics as Diagnostics_alpha_2024;
+// use move_compiler_beta_2024::diagnostics::Diagnostics as Diagnostics_beta_2024;
+// use move_compiler_alpha_2024::diagnostics::Diagnostics as Diagnostics_alpha_2024;
 use std::{
-    collections::{BTreeMap, HashMap}, fs::File, io::{BufRead, BufReader, Read}, path::{Path, PathBuf}, str::FromStr, sync::{Arc, Mutex}, thread
+    collections::BTreeMap, path::{Path, PathBuf}, str::FromStr, sync::{Arc, Mutex}, thread
 };
 // use move_symbol_pool_alpha_2024::symbol::Symbol;
 
 use beta_2024::{
     context::{
-        self, Context as Context_beta_2024, FileDiags as FileDiags_beta_2024, MultiProject as MultiProject_beta_2024
-    }, 
-    // inlay_hints::InlayHintsConfig, 
+        Context as Context_beta_2024, FileDiags as FileDiags_beta_2024, MultiProject as MultiProject_beta_2024
+    },
     symbols as symbols_beta_2024, 
     vfs::VirtualFileSystem as VirtualFileSystem_beta_2024
 };
@@ -32,7 +31,8 @@ use beta_2024::sui_move_analyzer_beta_2024::{
     try_reload_projects as try_reload_projects_beta_2024,
     on_request as on_request_beta_2024,
     on_notification as on_notification_beta_2024,
-    on_response as on_response_beta_2024
+    DiagnosticsBeta2024,
+    // on_response as on_response_beta_2024
 };
 
 use alpha_2024::{
@@ -41,20 +41,20 @@ use alpha_2024::{
         Context as Context_alpha_2024, 
         MultiProject as MultiProject_alpha_2024
     },
-    inlay_hints::InlayHintsConfig, 
     symbols as symbols_alpha_2024, 
-    symbols::SymbolicatorRunner as SymbolicatorRunner_alpha_2024,
+    // symbols::SymbolicatorRunner as SymbolicatorRunner_alpha_2024,
     vfs::VirtualFileSystem as VirtualFileSystem_alpha_2024,
     sui_move_analyzer_alpha_2024::{
         on_notification as on_notification_alpha_2024,
         on_request as on_request_alpha_2024, 
         on_response as on_response_alpha_2024, 
         send_diag as send_diag_alpha_2024, 
-        try_reload_projects as try_reload_projects_alpha_2024
-    }
+        try_reload_projects as try_reload_projects_alpha_2024,
+        DiagnosticsAlpha2024,
+    },
 };
 
-struct ContextManager<'a> {
+pub(crate) struct ContextManager<'a> {
     pub context_alpha_2024: Context_alpha_2024<'a>,
     pub context_beta_2024: Context_beta_2024<'a>,
     pub connection: &'a lsp_server::Connection,
@@ -84,9 +84,9 @@ pub fn init_log() {
         .unwrap()
 }
 
-pub fn init_context_manager(connection: &lsp_server::Connection) -> ContextManager {
+fn init_context_manager(connection: &lsp_server::Connection) -> ContextManager {
     let symbols = Arc::new(Mutex::new(symbols_alpha_2024::Symbolicator::empty_symbols()));
-    let mut context_alpha_2024 = Context_alpha_2024 {
+    let context_alpha_2024 = Context_alpha_2024 {
         projects: MultiProject_alpha_2024::new(),
         connection: &connection,
         files: VirtualFileSystem_alpha_2024::default(),
@@ -96,7 +96,7 @@ pub fn init_context_manager(connection: &lsp_server::Connection) -> ContextManag
     };
 
     let symbols = Arc::new(Mutex::new(symbols_beta_2024::Symbolicator::empty_symbols()));
-    let mut context_beta_2024 = Context_beta_2024 {
+    let context_beta_2024 = Context_beta_2024 {
         projects: MultiProject_beta_2024::new(),
         connection: &connection,
         files: VirtualFileSystem_beta_2024::default(),
@@ -112,7 +112,6 @@ pub fn init_context_manager(connection: &lsp_server::Connection) -> ContextManag
     };
     context_manager
 }
-
 
 
 fn main() {
@@ -241,9 +240,14 @@ fn main() {
         )
         .expect("could not finish connection initialization");
 
-    let (_, diag_receiver_beta_2024) 
-        = bounded::<(PathBuf, Diagnostics_beta_2024)>(1);
-        
+    let (diag_sender_beta2024, diag_receiver_beta_2024) 
+        = bounded::<(PathBuf, DiagnosticsBeta2024)>(1);
+     
+    let (diag_sender_alpha2024, diag_receiver_alpha_2024) 
+        = bounded::<(PathBuf, DiagnosticsAlpha2024)>(1);
+    
+    let diag_sender_beta2024 = Arc::new(Mutex::new(diag_sender_beta2024));
+    let diag_sender_alpha2024 = Arc::new(Mutex::new(diag_sender_alpha2024));
     
     let mut inlay_hints_config_beta_2024 = beta_2024::inlay_hints::InlayHintsConfig::default();
     let mut inlay_hints_config_alpha_2024 = alpha_2024::inlay_hints::InlayHintsConfig::default();
@@ -251,22 +255,22 @@ fn main() {
 
     loop {
         select! {
-            // recv(diag_receiver_beta_2024) -> message => {
-            //     match message {
-            //         Ok ((mani ,x)) => {
-            //             send_diag_beta_2024(&mut context_manager.context_beta_2024, mani, x);
-            //         }
-            //         Err(error) => log::error!("beta IDE diag message error: {:?}", error),
-            //     }
-            // },
-            // recv(diag_receiver_alpha_2024) -> message => {
-            //     match message {
-            //         Ok ((mani ,x)) => {
-            //             // send_diag_alpha_2024(&mut context_manager.context_alpha_2024,mani, x);
-            //         }
-            //         Err(error) => log::error!("beta IDE diag message error: {:?}", error),
-            //     }
-            // },
+            recv(diag_receiver_beta_2024) -> message => {
+                match message {
+                    Ok ((mani ,x)) => {
+                        send_diag_beta_2024(&mut context_manager.context_beta_2024, mani, x);
+                    }
+                    Err(error) => log::error!("beta IDE diag message error: {:?}", error),
+                }
+            },
+            recv(diag_receiver_alpha_2024) -> message => {
+                match message {
+                    Ok ((mani ,x)) => {
+                        send_diag_alpha_2024(&mut context_manager.context_alpha_2024,mani, x);
+                    }
+                    Err(error) => log::error!("alpha IDE diag message error: {:?}", error),
+                }
+            },
             
             recv(diag_receiver_symbol) -> message => {
                 match message {
@@ -322,6 +326,7 @@ fn main() {
                     }
                     Ok(Message::Response(response)) => on_response_alpha_2024(&context_manager.context_alpha_2024, &response),
                     Ok(Message::Notification(notification)) => {
+                        eprintln!("listened Notification({:?})...", notification.method.as_str());
                         let version = get_compiler_version_from_notification(&notification);
                         match notification.method.as_str() {
                             lsp_types::notification::Exit::METHOD => break,
@@ -332,9 +337,9 @@ fn main() {
                             }
                             _ => {
                                 if version == "alpha_2024" {
-                                    on_notification_alpha_2024(&mut context_manager.context_alpha_2024, &notification);
+                                    on_notification_alpha_2024(&mut context_manager.context_alpha_2024, diag_sender_alpha2024.clone(), &notification);
                                 } else if version == "beta_2024" {
-                                    on_notification_beta_2024(&mut context_manager.context_beta_2024, &notification);
+                                    on_notification_beta_2024(&mut context_manager.context_beta_2024, diag_sender_beta2024.clone(), &notification);
                                 } else {
                                     eprintln!("On_Notification Error: could not parse compiler version from Move.toml. Error version {:?}", version);
                                 }

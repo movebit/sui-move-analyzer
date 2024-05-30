@@ -3,22 +3,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::Result;
-use clap::Parser;
-use crossbeam::channel::{bounded, select, Sender};
-use log::{Level, Metadata, Record};
-use lsp_server::{Connection, Message, Notification, Request, Response};
+use crossbeam::channel::Sender;
+use lsp_server::{Notification, Request, Response};
 use lsp_types::{
-    notification::Notification as _, request::Request as _, CompletionOptions, Diagnostic,
-    HoverProviderCapability, OneOf, SaveOptions, TextDocumentSyncCapability, TextDocumentSyncKind,
-    TextDocumentSyncOptions, TypeDefinitionProviderCapability, WorkDoneProgressOptions,
+    notification::Notification as _, request::Request as _,
 };
 use move_command_line_common::files::FileHash;
-use move_compiler::{diagnostics::Diagnostics, shared::*, PASS_TYPING};
+use move_compiler::{shared::*, PASS_HLIR};
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::HashMap,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
-    thread,
 };
 use crate::utils::path_concat;
 
@@ -26,19 +21,18 @@ use crate::{
     code_lens,
     completion::on_completion_request,
 
-    context::{Context, FileDiags, MultiProject},
+    context::Context,
     goto_definition, hover, inlay_hints, inlay_hints::*,
     move_generate_spec_file::on_generate_spec_file,
     move_generate_spec_sel::on_generate_spec_sel,
     project::ConvertLoc,
     references, symbols,
     utils::*,
-    vfs::VirtualFileSystem,
     linter,
 };
-use move_symbol_pool::Symbol;
+// use move_symbol_pool::Symbol;
 use url::Url;
-
+pub type DiagnosticsBeta2024 = move_compiler::diagnostics::Diagnostics;
 
 pub fn try_reload_projects(context: &mut Context) {
     context.projects.try_reload_projects(&context.connection);
@@ -92,13 +86,12 @@ pub fn on_response(_context: &Context, _response: &Response) {
     eprintln!("handle response from client");
 }
 
-type DiagSender = Arc<Mutex<Sender<(PathBuf, Diagnostics)>>>;
+type DiagSender = Arc<Mutex<Sender<(PathBuf, DiagnosticsBeta2024)>>>;
 
-pub fn on_notification(context: &mut Context, notification: &Notification) {
-    let (diag_sender, _) 
-        = bounded::<(PathBuf, move_compiler::diagnostics::Diagnostics)>(1);
-    let diag_sender = Arc::new(Mutex::new(diag_sender));
-
+pub fn on_notification(context: &mut Context, diag_sender: DiagSender, notification: &Notification) {
+    // let (diag_sender, _) 
+    //     = bounded::<(PathBuf, move_compiler::diagnostics::Diagnostics)>(1);
+    // let diag_sender = Arc::new(Mutex::new(diag_sender));
     fn update_defs(context: &mut Context, fpath: PathBuf, content: &str) {
         use crate::syntax::parse_file_string;
         let file_hash = FileHash::new(content);
@@ -145,8 +138,9 @@ pub fn on_notification(context: &mut Context, notification: &Notification) {
                     return;
                 }
             };
+            log::trace!("update_defs(beta) >>");
             update_defs(context, fpath.clone(), content.as_str());
-            // make_diag(context, diag_sender, fpath);
+            make_diag(context, diag_sender, fpath);
         }
         lsp_types::notification::DidChangeTextDocument::METHOD => {
             use lsp_types::DidChangeTextDocumentParams;
@@ -196,7 +190,7 @@ pub fn on_notification(context: &mut Context, notification: &Notification) {
                 }
             };
             context.projects.insert_project(p);
-            // make_diag(context, diag_sender, fpath);
+            make_diag(context, diag_sender, fpath);
         }
         lsp_types::notification::DidCloseTextDocument::METHOD => {
             use lsp_types::DidCloseTextDocumentParams;
@@ -215,7 +209,7 @@ pub fn on_notification(context: &mut Context, notification: &Notification) {
             };
         }
 
-        _ => log::error!("handle notification '{}' from client", notification.method),
+        _ => {},
     }
 }
 
@@ -237,9 +231,11 @@ fn get_package_compile_diagnostics(
     let build_plan = BuildPlan::create(resolution_graph)?;
     let mut diagnostics = None;
     build_plan.compile_with_driver(&mut std::io::sink(), |compiler| {
-        let (_, compilation_result) = compiler.run::<PASS_TYPING>()?;
+        let (_, compilation_result) = compiler.run::<PASS_HLIR>()?;
         match compilation_result {
-            std::result::Result::Ok(_) => {}
+            std::result::Result::Ok(_) => {
+                eprintln!("get_package_compile_diagnostics compilate success");
+            }
             std::result::Result::Err(diags) => {
                 eprintln!("get_package_compile_diagnostics compilate failed");
                 diagnostics = Some(diags);
@@ -254,6 +250,7 @@ fn get_package_compile_diagnostics(
 }
 
 fn make_diag(context: &Context, diag_sender: DiagSender, fpath: PathBuf) {
+    log::trace!("make_diag(beta) >>");
     let (mani, _) = match crate::utils::discover_manifest_and_kind(fpath.as_path()) {
         Some(x) => x,
         None => {
@@ -264,19 +261,25 @@ fn make_diag(context: &Context, diag_sender: DiagSender, fpath: PathBuf) {
     match context.projects.get_project(&fpath) {
         Some(x) => {
             if !x.load_ok() {
+                log::trace!("load_ok(beta) false");
                 return;
             }
         }
         None => return,
     };
     std::thread::spawn(move || {
+        log::trace!("in new thread, about get_package_compile_diagnostics(beta)");
         let x = match get_package_compile_diagnostics(mani.as_path()) {
-            Ok(x) => x,
+            Ok(x) => {
+                log::trace!("in new thread, get(beta) diags success");
+                x
+            },
             Err(err) => {
                 log::error!("get_package_compile_diagnostics failed,err:{:?}", err);
                 return;
             }
         };
+        log::trace!("in new thread, send(beta) diags");
         diag_sender.lock().unwrap().send((mani, x)).unwrap();
     });
 }
@@ -320,8 +323,10 @@ fn send_not_project_file_error(context: &mut Context, fpath: PathBuf, is_open: b
         .unwrap();
 }
 
-pub fn send_diag(context: &mut Context, mani: PathBuf, x: Diagnostics) {
+pub fn send_diag(context: &mut Context, mani: PathBuf, x: DiagnosticsBeta2024) {
+    log::trace!("bin send_diag(beta) >>");
     let mut result: HashMap<Url, Vec<lsp_types::Diagnostic>> = HashMap::new();
+    log::trace!("bin send_diag(beta) x = {:?} <<", x.clone().into_codespan_format());
     for x in x.into_codespan_format() {
         let (s, msg, (loc, m), _, notes) = x;
         if let Some(r) = context.projects.convert_loc_range(&loc) {
@@ -382,6 +387,7 @@ pub fn send_diag(context: &mut Context, mani: PathBuf, x: Diagnostics) {
     }
     for (k, v) in result.into_iter() {
         let ds = lsp_types::PublishDiagnosticsParams::new(k.clone(), v, None);
+        log::trace!("bin send_diag(beta) serde_json::to_value(ds) = {:?} <<", serde_json::to_value(ds.clone()));
         context
             .connection
             .sender

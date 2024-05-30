@@ -1243,8 +1243,6 @@ impl Project {
             NameAccessChain_::Three(_, _) => {
                 log::error!("access friend three")
             }
-
-            _ => {}
         }
     }
 

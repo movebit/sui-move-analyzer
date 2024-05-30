@@ -1042,7 +1042,7 @@ pub fn on_use_request(
 
 /// Handles document symbol request of the language server
 #[allow(deprecated)]
-pub fn on_document_symbol_request(context: &Context, request: &Request, symbols: &Symbols) {
+pub fn on_document_symbol_request(context: &Context, request: &Request, _symbols: &Symbols) {
     eprintln!("on_document_symbol_request: {:?}", request);
     let parameters = serde_json::from_value::<DocumentSymbolParams>(request.params.clone())
         .expect("could not deserialize document symbol request");
