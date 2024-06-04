@@ -197,7 +197,7 @@ fn main() {
     let (diag_sender_symbol, diag_receiver_symbol) =
         bounded::<Result<BTreeMap<move_symbol_pool_beta_2024::symbol::Symbol, Vec<lsp_types::Diagnostic>>>>(0);
     let mut symbolicator_runner = symbols_beta_2024::SymbolicatorRunner::idle();
-    if symbols_alpha_2024::DEFS_AND_REFS_SUPPORT {
+    if symbols_beta_2024::DEFS_AND_REFS_SUPPORT {
         let initialize_params: lsp_types::InitializeParams =
             serde_json::from_value(_client_response)
                 .expect("could not deserialize client capabilities");
@@ -210,11 +210,11 @@ fn main() {
         // main reason for this is to enable unit tests that rely on the symbolication information
         // to be available right after the client is initialized.
         if let Some(uri) = initialize_params.root_uri {
-            if let Some(p) = symbols_alpha_2024::SymbolicatorRunner::root_dir(&uri.to_file_path().unwrap()) {
+            if let Some(p) = symbols_beta_2024::SymbolicatorRunner::root_dir(&uri.to_file_path().unwrap()) {
                 // need to evaluate in a separate thread to allow for a larger stack size (needed on
                 // Windows)
                 thread::Builder::new()
-                    .stack_size(symbols_alpha_2024::STACK_SIZE_BYTES)
+                    .stack_size(symbols_beta_2024::STACK_SIZE_BYTES)
                     .spawn(move || {
                         if let Ok((Some(new_symbols), _)) =
                         symbols_beta_2024::Symbolicator::get_symbols(p.as_path())

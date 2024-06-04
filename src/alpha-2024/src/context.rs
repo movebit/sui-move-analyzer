@@ -270,7 +270,7 @@ impl MultiProject {
             all.push((k, x));
         }
         for (k, v) in all.into_iter() {
-            debug_assert!(self.projects.remove(&k).is_some());
+            self.projects.remove(&k);
             self.insert_project(v);
         }
     }

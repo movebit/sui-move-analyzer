@@ -9,7 +9,7 @@ use lsp_types::{
     notification::Notification as _, request::Request as _,
 };
 use move_command_line_common::files::FileHash;
-use move_compiler::{shared::*, PASS_HLIR};
+use move_compiler::{shared::*, PASS_HLIR, PASS_TYPING};
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
