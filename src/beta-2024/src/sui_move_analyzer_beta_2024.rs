@@ -9,7 +9,7 @@ use lsp_types::{
     notification::Notification as _, request::Request as _,
 };
 use move_command_line_common::files::FileHash;
-use move_compiler::{shared::*, PASS_HLIR, PASS_TYPING};
+use move_compiler::{shared::*, PASS_HLIR, PASS_TYPING, PASS_NAMING, PASS_CFGIR};
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -231,7 +231,7 @@ fn get_package_compile_diagnostics(
     let build_plan = BuildPlan::create(resolution_graph)?;
     let mut diagnostics = None;
     build_plan.compile_with_driver(&mut std::io::sink(), |compiler| {
-        let (_, compilation_result) = compiler.run::<PASS_HLIR>()?;
+        let (_, compilation_result) = compiler.run::<PASS_TYPING>()?;
         match compilation_result {
             std::result::Result::Ok(_) => {
                 eprintln!("get_package_compile_diagnostics compilate success");
