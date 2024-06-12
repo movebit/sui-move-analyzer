@@ -357,7 +357,7 @@ fn main() {
     eprintln!("Shut down language server '{}'.", exe);
 }
 
-fn read_move_toml(path: &Path) -> Option<PathBuf> {
+pub fn read_move_toml(path: &Path) -> Option<PathBuf> {
     let move_toml_path = path.join("Move.toml");
 
     if move_toml_path.exists() {

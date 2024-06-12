@@ -9,7 +9,8 @@ use lsp_types::{
     notification::Notification as _, request::Request as _,
 };
 use move_command_line_common::files::FileHash;
-use move_compiler::{shared::*, PASS_HLIR, PASS_TYPING, PASS_NAMING, PASS_CFGIR};
+use move_compiler::{diagnostics::{Diagnostics, WarningFilters}, editions::{Edition, Flavor}, shared::*, PASS_CFGIR, PASS_COMPILATION, PASS_EXPANSION, PASS_HLIR, PASS_NAMING, PASS_PARSER, PASS_TYPING 
+};
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -95,8 +96,20 @@ pub fn on_notification(context: &mut Context, diag_sender: DiagSender, notificat
     fn update_defs(context: &mut Context, fpath: PathBuf, content: &str) {
         use crate::syntax::parse_file_string;
         let file_hash = FileHash::new(content);
-        let mut env = CompilationEnv::new(Flags::testing(), Default::default(), 
-            Default::default(), Default::default());
+        let mut env 
+            = CompilationEnv::new(
+                Flags::testing(),
+                Default::default(), 
+                Default::default(),
+                Some(
+                    PackageConfig {
+                        is_dependency: false,
+                        warning_filter: WarningFilters::new_for_source(),
+                        flavor: Flavor::default(),
+                        edition: Edition::E2024_BETA,
+                    },
+                ),
+        );
         let defs = parse_file_string(&mut env, file_hash, content, None);
         let defs = match defs {
             std::result::Result::Ok(x) => x,
@@ -231,7 +244,7 @@ fn get_package_compile_diagnostics(
     let build_plan = BuildPlan::create(resolution_graph)?;
     let mut diagnostics = None;
     build_plan.compile_with_driver(&mut std::io::sink(), |compiler| {
-        let (_, compilation_result) = compiler.run::<PASS_TYPING>()?;
+        let (_, compilation_result) = compiler.run::<PASS_NAMING>()?;
         match compilation_result {
             std::result::Result::Ok(_) => {
                 eprintln!("get_package_compile_diagnostics compilate success");
@@ -243,10 +256,61 @@ fn get_package_compile_diagnostics(
         };
         Ok(Default::default())
     })?;
-    match diagnostics {
-        Some(x) => Ok(x.1),
-        None => Ok(Default::default()),
+
+    let file_path = std::path::Path::new("/data/zhangxiao/project/17d016ac1492e0a1ba66dcccf92b1a0d07f24cc1/sources/storage/tttt.move");
+    let file_content = std::fs::read_to_string(file_path).unwrap_or_else(|_| panic!("'{:?}' can't read_to_string", file_path));
+    eprintln!("file_content = \n{}\n\n\n", file_content);
+    // 
+    use std::result::Result::Ok;
+    let file_hash = FileHash::new(file_content.as_str());
+    let mut env = CompilationEnv::new(
+        Flags::testing(), 
+        Default::default(), 
+        Default::default(), 
+        Some(
+            PackageConfig {
+                is_dependency: false,
+                warning_filter: WarningFilters::new_for_source(),
+                flavor: Flavor::default(),
+                edition: Edition::E2024_BETA
+            }
+            
+        ),
+    );
+
+
+  
+    if let Some(diags) = crate::syntax::parse_file_string_for_diagnostic(&mut env, file_hash, file_content.as_str(), None) {
+        eprintln!("diags len = {}", diags.len());
+        // for diag in diags.into_vec() {
+        //     eprintln!("diag primary_msg: {}", diag.primary_msg());
+        //     let diag_info = diag.info();
+        //     eprintln!("     diag info msg: {}", diag_info.message());
+        // }
+        return Ok(diags);
+    } else {
+        eprintln!("parse_file_string not has diag");
     }
+    return Ok(Default::default());
+    // let mut filterd_diagnostics = Diagnostics::new();
+    // if let Some(x) = diagnostics.clone() {
+    //     for diag in x.1.into_vec() {
+    //         eprintln!("diag primary_msg: {}", diag.primary_msg());
+    //         let diag_info = diag.info();
+    //         eprintln!("     diag info msg: {}", diag_info.message());
+    //         if !diag_info.message().contains("feature is not supported in specified edition")
+    //             && !diag_info.message().contains("unbound type") {
+    //             filterd_diagnostics.add(diag);
+    //         }
+    //     }
+    // }
+    // Ok(filterd_diagnostics)
+
+
+    // match diagnostics {
+    //     Some(x) => Ok(x.1),
+    //     None => Ok(Default::default()),
+    // }
 }
 
 fn make_diag(context: &Context, diag_sender: DiagSender, fpath: PathBuf) {
@@ -396,5 +460,23 @@ pub fn send_diag(context: &mut Context, mani: PathBuf, x: DiagnosticsBeta2024) {
                 params: serde_json::to_value(ds).unwrap(),
             }))
             .unwrap();
+    }
+}
+
+
+pub fn read_move_toml(path: &Path) -> Option<PathBuf> {
+    let move_toml_path = path.join("Move.toml");
+
+    if move_toml_path.exists() {
+        // 如果存在 Move.toml 文件，则尝试读取内容并返回
+        Some(move_toml_path)
+    } else {
+        // 如果不存在 Move.toml 文件，则递归查找上一级目录
+        let parent = path.parent()?;
+        if parent != Path::new("") {
+            read_move_toml(parent)
+        } else {
+            None
+        }
     }
 }

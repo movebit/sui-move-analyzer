@@ -19,35 +19,13 @@ use move_command_line_common::files::FileHash;
 use move_ir_types::location::*;
 use move_proc_macros::growing_stack;
 use move_symbol_pool::{symbol, Symbol};
+// Copyright (c) The Diem Core Contributors
+// Copyright (c) The Move Contributors
+// SPDX-License-Identifier: Apache-2.0
 
-struct Context<'env, 'lexer, 'input> {
-    current_package: Option<Symbol>,
-    env: &'env mut CompilationEnv,
-    tokens: &'lexer mut Lexer<'input>,
-}
-
-impl<'env, 'lexer, 'input> Context<'env, 'lexer, 'input> {
-    fn new(
-        env: &'env mut CompilationEnv,
-        tokens: &'lexer mut Lexer<'input>,
-        package_name: Option<Symbol>,
-    ) -> Self {
-        Self {
-            current_package: package_name,
-            env,
-            tokens,
-        }
-    }
-
-    fn at_end(&self, prev: Loc) -> bool {
-        prev.end() as usize == self.tokens.start_loc()
-    }
-}
-
-
-//**************************************************************************************************
-// String Construction Helpers
-//**************************************************************************************************
+// In the informal grammar comments in this file, Comma<T> is shorthand for:
+//      (<T> ",")* <T>?
+// Note that this allows an optional trailing comma.
 
 macro_rules! format_oxford_list {
     ($sep:expr, $format_str:expr, $e:expr) => {{
@@ -76,6 +54,30 @@ macro_rules! format_oxford_list {
             }
         }
     }};
+}
+
+struct Context<'env, 'lexer, 'input> {
+    current_package: Option<Symbol>,
+    env: &'env mut CompilationEnv,
+    tokens: &'lexer mut Lexer<'input>,
+}
+
+impl<'env, 'lexer, 'input> Context<'env, 'lexer, 'input> {
+    fn new(
+        env: &'env mut CompilationEnv,
+        tokens: &'lexer mut Lexer<'input>,
+        package_name: Option<Symbol>,
+    ) -> Self {
+        Self {
+            current_package: package_name,
+            env,
+            tokens,
+        }
+    }
+
+    fn at_end(&self, prev: Loc) -> bool {
+        prev.end() as usize == self.tokens.start_loc()
+    }
 }
 
 //**************************************************************************************************
@@ -4087,7 +4089,6 @@ fn consume_spec_string(context: &mut Context) -> Result<Spanned<String>, Box<Dia
             "a spec block: 'spec { ... }'",
         ));
     }
-
     // s.push_str(dbg!(context.tokens.content()));
     context.tokens.advance()?;
 
@@ -4177,4 +4178,39 @@ pub fn parse_file_string(
         Err(err) => Err(Diagnostics::from(vec![*err])),
         Ok(def) => Ok((def, tokens.check_and_get_doc_comments(env))),
     }
+}
+
+
+
+// Parse a file:
+//      File =
+//          (<Attributes> (<AddressBlock> | <Module> ))*
+fn parse_file_for_diagnostic(context: &mut Context) {
+    let mut defs = vec![];
+    while context.tokens.peek() != Tok::EOF {
+        if let Err(diag) = parse_file_def(context, &mut defs) {
+            context.env.add_diag(*diag);
+            // skip to the next def and try parsing it if it's there (ignore address blocks as they
+            // are pretty much defunct anyway)
+            skip_to_next_desired_tok_or_eof(context, is_start_of_module_or_spec);
+        }
+    }
+}
+
+
+/// Parse the `input` string as a file of Move source code and return the
+/// result as either a pair of FileDefinition and doc comments or some Diagnostics. The `file` name
+/// is used to identify source locations in error messages.
+pub fn parse_file_string_for_diagnostic(
+    env: &mut CompilationEnv,
+    file_hash: FileHash,
+    input: &str,
+    package: Option<Symbol>,
+) -> Option<Diagnostics> {
+    let edition = Edition::E2024_BETA;
+    let mut tokens = Lexer::new(input, file_hash, edition);
+    tokens.advance();
+    let mut context = Context::new(env, &mut tokens, Some(edition.edition));
+    parse_file_for_diagnostic(&mut context);
+    return Some(context.env.take_final_warning_diags());
 }
