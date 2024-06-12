@@ -8,7 +8,7 @@ import { Extension } from './extension';
 import { log } from './log';
 import { Reg } from './reg';
 import * as commands from './commands';
-
+import * as childProcess from 'child_process';
 import * as vscode from 'vscode';
 
 /**
@@ -26,6 +26,8 @@ import * as vscode from 'vscode';
  * so that you can wait for the activation to complete by await
  */
 
+const backend_lastest_version = "1.1.8";
+
 export async function activate(
   extensionContext: Readonly<vscode.ExtensionContext>,
 ): Promise<void> {
@@ -34,8 +36,18 @@ export async function activate(
 
   const configuration = new Configuration();
   log.info(`configuration: ${configuration.toString()}`);
-
+  
   const context = Context.create(extensionContext, configuration);
+  const version = childProcess.spawnSync(
+    configuration.serverPath,
+    ['--version'],
+    { encoding: 'utf8' },
+  );
+  
+  if (version.stdout && version.stdout.slice(18) !== backend_lastest_version) {
+    await vscode.window.showWarningMessage(`sui-move-analyzer: The latest version of the language server is ${backend_lastest_version}, but your current version is ${version.stdout.slice(18)}. You can refer to the extension's description page to get the latest version.`);
+  }
+  
   // An error here -- for example, if the path to the `sui-move-analyzer` binary that the user
   // specified in their settings is not valid -- prevents the extension from providing any
   // more utility, so return early.
