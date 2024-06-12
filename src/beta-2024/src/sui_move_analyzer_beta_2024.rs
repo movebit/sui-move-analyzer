@@ -229,39 +229,7 @@ pub fn on_notification(context: &mut Context, diag_sender: DiagSender, notificat
 fn get_package_compile_diagnostics(
     pkg_path: &Path,
 ) -> Result<move_compiler::diagnostics::Diagnostics> {
-    use anyhow::*;
-    use move_package::compilation::build_plan::BuildPlan;
-    use tempfile::tempdir;
-    let build_config = move_package::BuildConfig {
-        test_mode: true,
-        install_dir: Some(tempdir().unwrap().path().to_path_buf()),
-        skip_fetch_latest_git_deps: true,
-        ..Default::default()
-    };
-    // resolution graph diagnostics are only needed for CLI commands so ignore them by passing a
-    // vector as the writer
-    let resolution_graph = build_config.resolution_graph_for_package(pkg_path, &mut Vec::new())?;
-    let build_plan = BuildPlan::create(resolution_graph)?;
-    let mut diagnostics = None;
-    build_plan.compile_with_driver(&mut std::io::sink(), |compiler| {
-        let (_, compilation_result) = compiler.run::<PASS_NAMING>()?;
-        match compilation_result {
-            std::result::Result::Ok(_) => {
-                eprintln!("get_package_compile_diagnostics compilate success");
-            }
-            std::result::Result::Err(diags) => {
-                eprintln!("get_package_compile_diagnostics compilate failed");
-                diagnostics = Some(diags);
-            }
-        };
-        Ok(Default::default())
-    })?;
-
-    let file_path = std::path::Path::new("/data/zhangxiao/project/17d016ac1492e0a1ba66dcccf92b1a0d07f24cc1/sources/storage/tttt.move");
-    let file_content = std::fs::read_to_string(file_path).unwrap_or_else(|_| panic!("'{:?}' can't read_to_string", file_path));
-    eprintln!("file_content = \n{}\n\n\n", file_content);
-    // 
-    use std::result::Result::Ok;
+    let file_content = std::fs::read_to_string(pkg_path).unwrap_or_else(|_| panic!("'{:?}' can't read_to_string", pkg_path));
     let file_hash = FileHash::new(file_content.as_str());
     let mut env = CompilationEnv::new(
         Flags::testing(), 
@@ -278,20 +246,41 @@ fn get_package_compile_diagnostics(
         ),
     );
 
-
-  
     if let Some(diags) = crate::syntax::parse_file_string_for_diagnostic(&mut env, file_hash, file_content.as_str(), None) {
-        eprintln!("diags len = {}", diags.len());
-        // for diag in diags.into_vec() {
-        //     eprintln!("diag primary_msg: {}", diag.primary_msg());
-        //     let diag_info = diag.info();
-        //     eprintln!("     diag info msg: {}", diag_info.message());
-        // }
         return Ok(diags);
     } else {
         eprintln!("parse_file_string not has diag");
     }
     return Ok(Default::default());
+
+    // use anyhow::*;
+    // use move_package::compilation::build_plan::BuildPlan;
+    // use tempfile::tempdir;
+    // let build_config = move_package::BuildConfig {
+    //     test_mode: true,
+    //     install_dir: Some(tempdir().unwrap().path().to_path_buf()),
+    //     skip_fetch_latest_git_deps: true,
+    //     ..Default::default()
+    // };
+    // // resolution graph diagnostics are only needed for CLI commands so ignore them by passing a
+    // // vector as the writer
+    // let resolution_graph = build_config.resolution_graph_for_package(pkg_path, &mut Vec::new())?;
+    // let build_plan = BuildPlan::create(resolution_graph)?;
+    // let mut diagnostics = None;
+    // build_plan.compile_with_driver(&mut std::io::sink(), |compiler| {
+    //     let (_, compilation_result) = compiler.run::<PASS_NAMING>()?;
+    //     match compilation_result {
+    //         std::result::Result::Ok(_) => {
+    //             eprintln!("get_package_compile_diagnostics compilate success");
+    //         }
+    //         std::result::Result::Err(diags) => {
+    //             eprintln!("get_package_compile_diagnostics compilate failed");
+    //             diagnostics = Some(diags);
+    //         }
+    //     };
+    //     Ok(Default::default())
+    // })?;
+    
     // let mut filterd_diagnostics = Diagnostics::new();
     // if let Some(x) = diagnostics.clone() {
     //     for diag in x.1.into_vec() {
@@ -333,7 +322,7 @@ fn make_diag(context: &Context, diag_sender: DiagSender, fpath: PathBuf) {
     };
     std::thread::spawn(move || {
         log::trace!("in new thread, about get_package_compile_diagnostics(beta)");
-        let x = match get_package_compile_diagnostics(mani.as_path()) {
+        let x = match get_package_compile_diagnostics(&fpath) {
             Ok(x) => {
                 log::trace!("in new thread, get(beta) diags success");
                 x
