@@ -23,7 +23,7 @@ impl FunSpecGenerator {
         let mut ret = Vec::new();
         fn collect_spec_exp_(ret: &mut Vec<SpecExpItem>, e: &Exp) {
             match &e.value {
-                Exp_::Call(n, es) => {
+                Exp_::Call(_, es) => {
                     for e in es.value.iter() {
                         collect_spec_exp_(ret, e)
                     }
@@ -89,6 +89,7 @@ impl FunSpecGenerator {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Clone, Debug)]
 pub(crate) enum SpecExpItem {
     BinOP {

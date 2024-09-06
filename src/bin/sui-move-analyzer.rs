@@ -1,57 +1,55 @@
-use anyhow::Result;
+// use anyhow::Result;
 use clap::Parser;
 use crossbeam::channel::{bounded, select};
 use log::{Level, Metadata, Record};
 use lsp_server::{Connection, Message, Notification, Request};
 use lsp_types::{
-    notification::Notification as _, request::Request as _, CodeLensParams, CompletionOptions, CompletionParams, DocumentSymbolParams, GotoDefinitionParams, HoverParams, HoverProviderCapability, InlayHintParams, OneOf, ReferenceParams, SaveOptions, TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions, TypeDefinitionProviderCapability, WorkDoneProgressOptions
+    notification::Notification as _, request::Request as _, CodeLensParams, CompletionOptions,
+    CompletionParams, DocumentSymbolParams, GotoDefinitionParams, HoverParams,
+    HoverProviderCapability, InlayHintParams, OneOf, ReferenceParams, SaveOptions,
+    TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions,
+    TypeDefinitionProviderCapability, WorkDoneProgressOptions,
 };
 
-// use move_compiler_beta_2024::diagnostics::Diagnostics as Diagnostics_beta_2024;
-// use move_compiler_alpha_2024::diagnostics::Diagnostics as Diagnostics_alpha_2024;
 use std::{
-    collections::BTreeMap, path::{Path, PathBuf}, str::FromStr, sync::{Arc, Mutex}, thread
+    path::{Path, PathBuf},
+    str::FromStr,
+    sync::{Arc, Mutex},
 };
-// use move_symbol_pool_alpha_2024::symbol::Symbol;
 
 use beta_2024::{
     context::{
-        Context as Context_beta_2024, FileDiags as FileDiags_beta_2024, MultiProject as MultiProject_beta_2024
+        Context as Context_beta_2024, FileDiags as FileDiags_beta_2024,
+        MultiProject as MultiProject_beta_2024,
     },
-    symbols as symbols_beta_2024, 
-    vfs::VirtualFileSystem as VirtualFileSystem_beta_2024
+    symbols as symbols_beta_2024,
+    vfs::VirtualFileSystem as VirtualFileSystem_beta_2024,
 };
 
 use move_package::source_package::manifest_parser::parse_move_manifest_from_file;
-use url::Url;
-
+// use url::Url;
 
 use beta_2024::sui_move_analyzer_beta_2024::{
+    on_notification as on_notification_beta_2024,
+    on_request as on_request_beta_2024,
     send_diag as send_diag_beta_2024,
     try_reload_projects as try_reload_projects_beta_2024,
-    on_request as on_request_beta_2024,
-    on_notification as on_notification_beta_2024,
     DiagnosticsBeta2024,
     // on_response as on_response_beta_2024
 };
 
 use alpha_2024::{
     context::{
-        FileDiags as FileDiags_alpha_2024,
-        Context as Context_alpha_2024, 
-        MultiProject as MultiProject_alpha_2024
+        Context as Context_alpha_2024, FileDiags as FileDiags_alpha_2024,
+        MultiProject as MultiProject_alpha_2024,
     },
-    symbols as symbols_alpha_2024, 
-    // symbols::SymbolicatorRunner as SymbolicatorRunner_alpha_2024,
-    vfs::VirtualFileSystem as VirtualFileSystem_alpha_2024,
     sui_move_analyzer_alpha_2024::{
-        on_notification as on_notification_alpha_2024,
-        on_request as on_request_alpha_2024, 
-        on_response as on_response_alpha_2024, 
-        send_diag as send_diag_alpha_2024, 
-        try_reload_projects as try_reload_projects_alpha_2024,
-        DiagnosticsAlpha2024,
+        on_notification as on_notification_alpha_2024, on_request as on_request_alpha_2024,
+        on_response as on_response_alpha_2024, send_diag as send_diag_alpha_2024,
+        try_reload_projects as try_reload_projects_alpha_2024, DiagnosticsAlpha2024,
     },
+    symbols as symbols_alpha_2024,
+    vfs::VirtualFileSystem as VirtualFileSystem_alpha_2024,
 };
 
 pub(crate) struct ContextManager<'a> {
@@ -85,22 +83,22 @@ pub fn init_log() {
 }
 
 fn init_context_manager(connection: &lsp_server::Connection) -> ContextManager {
-    let symbols = Arc::new(Mutex::new(symbols_alpha_2024::Symbolicator::empty_symbols()));
+    let symbols_alpha24 = Arc::new(Mutex::new(symbols_alpha_2024::Symbolicator::empty_symbols()));
     let context_alpha_2024 = Context_alpha_2024 {
         projects: MultiProject_alpha_2024::new(),
         connection: &connection,
         files: VirtualFileSystem_alpha_2024::default(),
-        symbols: symbols.clone(),
+        symbols: symbols_alpha24.clone(),
         ref_caches: Default::default(),
         diag_version: FileDiags_alpha_2024::new(),
     };
 
-    let symbols = Arc::new(Mutex::new(symbols_beta_2024::Symbolicator::empty_symbols()));
+    let symbols_beta24 = Arc::new(Mutex::new(symbols_beta_2024::Symbolicator::empty_symbols()));
     let context_beta_2024 = Context_beta_2024 {
         projects: MultiProject_beta_2024::new(),
         connection: &connection,
         files: VirtualFileSystem_beta_2024::default(),
-        symbols: symbols.clone(),
+        symbols: symbols_beta24.clone(),
         ref_caches: Default::default(),
         diag_version: FileDiags_beta_2024::new(),
     };
@@ -108,15 +106,14 @@ fn init_context_manager(connection: &lsp_server::Connection) -> ContextManager {
     let context_manager = ContextManager {
         context_alpha_2024,
         context_beta_2024,
-        connection
+        connection,
     };
     context_manager
 }
 
-
 fn main() {
-    #[cfg(feature = "pprof")]
-    cpu_pprof(20);
+    // #[cfg(feature = "pprof")]
+    // cpu_pprof(20);
 
     // For now, sui-move-analyzer only responds to options built-in to clap,
     // such as `--help` or `--version`.
@@ -193,43 +190,6 @@ fn main() {
     })
     .expect("could not serialize server capabilities");
 
-    let symbols = Arc::new(Mutex::new(symbols_beta_2024::Symbolicator::empty_symbols()));
-    let (diag_sender_symbol, diag_receiver_symbol) =
-        bounded::<Result<BTreeMap<move_symbol_pool_beta_2024::symbol::Symbol, Vec<lsp_types::Diagnostic>>>>(0);
-    let mut symbolicator_runner = symbols_beta_2024::SymbolicatorRunner::idle();
-    if symbols_beta_2024::DEFS_AND_REFS_SUPPORT {
-        let initialize_params: lsp_types::InitializeParams =
-            serde_json::from_value(_client_response)
-                .expect("could not deserialize client capabilities");
-
-        symbolicator_runner = symbols_beta_2024::SymbolicatorRunner::new(symbols.clone(), diag_sender_symbol);
-
-        // If initialization information from the client contains a path to the directory being
-        // opened, try to initialize symbols before sending response to the client. Do not bother
-        // with diagnostics as they will be recomputed whenever the first source file is opened. The
-        // main reason for this is to enable unit tests that rely on the symbolication information
-        // to be available right after the client is initialized.
-        if let Some(uri) = initialize_params.root_uri {
-            if let Some(p) = symbols_beta_2024::SymbolicatorRunner::root_dir(&uri.to_file_path().unwrap()) {
-                // need to evaluate in a separate thread to allow for a larger stack size (needed on
-                // Windows)
-                thread::Builder::new()
-                    .stack_size(symbols_beta_2024::STACK_SIZE_BYTES)
-                    .spawn(move || {
-                        if let Ok((Some(new_symbols), _)) =
-                        symbols_beta_2024::Symbolicator::get_symbols(p.as_path())
-                        {
-                            let mut old_symbols = symbols.lock().unwrap();
-                            (*old_symbols).merge(new_symbols);
-                        }
-                    })
-                    .unwrap()
-                    .join()
-                    .unwrap();
-            }
-        }
-    };
-
     context_manager
         .connection
         .initialize_finish(
@@ -240,18 +200,17 @@ fn main() {
         )
         .expect("could not finish connection initialization");
 
-    let (diag_sender_beta2024, diag_receiver_beta_2024) 
-        = bounded::<(PathBuf, DiagnosticsBeta2024)>(1);
-     
-    let (diag_sender_alpha2024, diag_receiver_alpha_2024) 
-        = bounded::<(PathBuf, DiagnosticsAlpha2024)>(1);
-    
+    let (diag_sender_beta2024, diag_receiver_beta_2024) =
+        bounded::<(PathBuf, DiagnosticsBeta2024)>(1);
+
+    let (diag_sender_alpha2024, diag_receiver_alpha_2024) =
+        bounded::<(PathBuf, DiagnosticsAlpha2024)>(1);
+
     let diag_sender_beta2024 = Arc::new(Mutex::new(diag_sender_beta2024));
     let diag_sender_alpha2024 = Arc::new(Mutex::new(diag_sender_alpha2024));
-    
+
     let mut inlay_hints_config_beta_2024 = beta_2024::inlay_hints::InlayHintsConfig::default();
     let mut inlay_hints_config_alpha_2024 = alpha_2024::inlay_hints::InlayHintsConfig::default();
-
 
     loop {
         select! {
@@ -271,46 +230,8 @@ fn main() {
                     Err(error) => log::error!("alpha IDE diag message error: {:?}", error),
                 }
             },
-            
-            recv(diag_receiver_symbol) -> message => {
-                match message {
-                    Ok(result) => {
-                        match result {
-                            Ok(diags) => {
-                                for (k, v) in diags {
-                                    let url = Url::from_file_path(Path::new(&k.to_string())).unwrap();
-                                    let params = lsp_types::PublishDiagnosticsParams::new(url, v, None);
-                                    let notification = Notification::new(lsp_types::notification::PublishDiagnostics::METHOD.to_string(), params);
-                                    if let Err(err) = context_manager
-                                        .connection
-                                        .sender
-                                        .send(lsp_server::Message::Notification(notification)) {
-                                            eprintln!("could not send diagnostics response: {:?}", err);
-                                        };
-                                }
-                            },
-                            Err(err) => {
-                                let typ = lsp_types::MessageType::ERROR;
-                                let message = format!("{err}");
-                                    // report missing manifest only once to avoid re-generating
-                                    // user-visible error in cases when the developer decides to
-                                    // keep editing a file that does not belong to a packages
-                                let params = lsp_types::ShowMessageParams { typ, message };
-                                let notification = Notification::new(lsp_types::notification::ShowMessage::METHOD.to_string(), params);
-                                if let Err(err) = context_manager
-                                    .connection
-                                    .sender
-                                    .send(lsp_server::Message::Notification(notification)) {
-                                        eprintln!("could not send compiler error response: {:?}", err);
-                                    };
-                            },
-                        }
-                    },
-                    Err(error) => eprintln!("symbolicator message error: {:?}", error),
-                }
-            },
             recv(context_manager.connection.receiver) -> message => {
-                
+
                 match message {
                     Ok(Message::Request(request)) =>{
                         let version = get_compiler_version_from_requsets(&request);
@@ -353,7 +274,6 @@ fn main() {
     }
 
     io_threads.join().expect("I/O threads could not finish");
-    symbolicator_runner.quit();
     eprintln!("Shut down language server '{}'.", exe);
 }
 
@@ -374,23 +294,19 @@ pub fn read_move_toml(path: &Path) -> Option<PathBuf> {
     }
 }
 
-pub fn get_compiler_version_from_requsets( request: &Request) -> String {
-
+pub fn get_compiler_version_from_requsets(request: &Request) -> String {
     let file = match get_file_pathbuf_from_requsets(&request) {
         Some(fpath) => {
             if let Some(x) = fpath.parent() {
                 match read_move_toml(x) {
-                    Some(file) => {
-                        file
-                    }
-                    None => return String::from("beta_2024")
+                    Some(file) => file,
+                    None => return String::from("beta_2024"),
                 }
             } else {
                 return String::from("beta_2024");
             }
-            
         }
-        None => { return String::from("beta_2024")}
+        None => return String::from("beta_2024"),
     };
 
     let tv = parse_move_manifest_from_file(&file);
@@ -402,15 +318,14 @@ pub fn get_compiler_version_from_requsets( request: &Request) -> String {
                         if release.as_str() == "alpha" {
                             return String::from("alpha_2024");
                         }
-                    } 
-                } 
+                    }
+                }
             }
         }
         Err(_) => return String::from("beta_2024"),
     }
-    
+
     return String::from("beta_2024");
-    
 }
 
 pub fn get_file_pathbuf_from_requsets(request: &Request) -> Option<PathBuf> {
@@ -418,58 +333,63 @@ pub fn get_file_pathbuf_from_requsets(request: &Request) -> Option<PathBuf> {
         lsp_types::request::Completion::METHOD => {
             let parameters = serde_json::from_value::<CompletionParams>(request.params.clone())
                 .expect("could not deserialize references request");
-            
+
             Some(
                 parameters
-                .text_document_position
-                .text_document
-                .uri
-                .to_file_path()
-                .unwrap())
-        },
+                    .text_document_position
+                    .text_document
+                    .uri
+                    .to_file_path()
+                    .unwrap(),
+            )
+        }
         lsp_types::request::GotoDefinition::METHOD => {
             let parameters = serde_json::from_value::<GotoDefinitionParams>(request.params.clone())
                 .expect("could not deserialize go-to-def request");
 
-            Some(parameters
-                .text_document_position_params
-                .text_document
-                .uri
-                .to_file_path()
-                .unwrap()
+            Some(
+                parameters
+                    .text_document_position_params
+                    .text_document
+                    .uri
+                    .to_file_path()
+                    .unwrap(),
             )
         }
         lsp_types::request::GotoTypeDefinition::METHOD => {
             let parameters = serde_json::from_value::<GotoDefinitionParams>(request.params.clone())
                 .expect("could not deserialize go-to-def request");
-            Some(parameters
-                .text_document_position_params
-                .text_document
-                .uri
-                .to_file_path()
-                .unwrap()
+            Some(
+                parameters
+                    .text_document_position_params
+                    .text_document
+                    .uri
+                    .to_file_path()
+                    .unwrap(),
             )
         }
         lsp_types::request::References::METHOD => {
             let parameters = serde_json::from_value::<ReferenceParams>(request.params.clone())
                 .expect("could not deserialize references request");
-            Some(parameters
-                .text_document_position
-                .text_document
-                .uri
-                .to_file_path()
-                .unwrap()
+            Some(
+                parameters
+                    .text_document_position
+                    .text_document
+                    .uri
+                    .to_file_path()
+                    .unwrap(),
             )
         }
         lsp_types::request::HoverRequest::METHOD => {
             let parameters = serde_json::from_value::<HoverParams>(request.params.clone())
                 .expect("could not deserialize hover request");
-            Some(parameters
-                .text_document_position_params
-                .text_document
-                .uri
-                .to_file_path()
-                .unwrap()
+            Some(
+                parameters
+                    .text_document_position_params
+                    .text_document
+                    .uri
+                    .to_file_path()
+                    .unwrap(),
             )
         }
         lsp_types::request::DocumentSymbolRequest::METHOD => {
@@ -500,57 +420,41 @@ pub fn get_file_pathbuf_from_requsets(request: &Request) -> Option<PathBuf> {
             let parameters = serde_json::from_value::<ReqParameters>(request.params.clone())
                 .expect("could not deserialize go-to-def request");
             let fpath = parameters.fpath;
-            Some(
-                PathBuf::from_str(
-                    fpath.as_str()
-                ).unwrap_or_default()
-            )
+            Some(PathBuf::from_str(fpath.as_str()).unwrap_or_default())
         }
         "move/generate/spec/sel" => {
             use beta_2024::move_generate_spec_sel::ReqParameters;
             let parameters = serde_json::from_value::<ReqParameters>(request.params.clone())
                 .expect("could not deserialize go-to-def request");
             let fpath = parameters.fpath;
-            Some(
-                PathBuf::from_str(
-                    fpath.as_str()
-                ).unwrap_or_default()
-            )
+            Some(PathBuf::from_str(fpath.as_str()).unwrap_or_default())
         }
-        "move/lsp/client/inlay_hints/config" => {None}
+        "move/lsp/client/inlay_hints/config" => None,
         "runLinter" => {
             use beta_2024::linter::ReqParameters;
             let parameters = serde_json::from_value::<ReqParameters>(request.params.clone())
                 .expect("could not deserialize go-to-def request");
             let fpath = parameters.fpath;
 
-            Some(
-                PathBuf::from_str(
-                    fpath.as_str()
-                ).unwrap_or_default()
-            )
+            Some(PathBuf::from_str(fpath.as_str()).unwrap_or_default())
         }
         _ => None,
     }
 }
 
-pub fn get_compiler_version_from_notification( notification: &Notification) -> String {
-
+pub fn get_compiler_version_from_notification(notification: &Notification) -> String {
     let file = match get_file_pathbuf_from_notification(&notification) {
         Some(fpath) => {
             if let Some(x) = fpath.parent() {
                 match read_move_toml(x) {
-                    Some(file) => {
-                        file
-                    }
-                    None => return String::from("beta_2024")
+                    Some(file) => file,
+                    None => return String::from("beta_2024"),
                 }
             } else {
                 return String::from("beta_2024");
             }
-            
         }
-        None => { return String::from("beta_2024")}
+        None => return String::from("beta_2024"),
     };
 
     let tv = parse_move_manifest_from_file(&file);
@@ -563,14 +467,12 @@ pub fn get_compiler_version_from_notification( notification: &Notification) -> S
                             return String::from("alpha_2024");
                         }
                     }
-                } 
-                
+                }
             }
         }
         Err(_) => return String::from("beta_2024"),
     }
     return String::from("beta_2024");
-    
 }
 
 pub fn get_file_pathbuf_from_notification(notification: &Notification) -> Option<PathBuf> {

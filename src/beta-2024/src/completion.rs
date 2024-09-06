@@ -609,6 +609,7 @@ impl GetPosition for Handler {
     }
 }
 
+#[allow(dead_code)]
 fn pragma_property_completion_items() -> Vec<CompletionItem> {
     let ret: Vec<CompletionItem> = vec![
         CompletionItem {

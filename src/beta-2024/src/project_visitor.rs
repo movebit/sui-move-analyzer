@@ -170,7 +170,7 @@ impl Project {
                 }
                 NameAccessChain_::Path(_) => None,
             },
-            Exp_::Lambda(b, t, e) => Some(LambdaExp {
+            Exp_::Lambda(b, _, e) => Some(LambdaExp {
                 bind_list: b.clone(),
                 exp: e.as_ref().clone(),
             }),
@@ -375,7 +375,6 @@ impl Project {
                     type_parameters: ts,
                     parameters: params,
                     ret_type: Box::new(ret),
-                    ret_type_unresolved: s.return_type.clone(),
                     is_spec,
                     vis: f.visibility.clone(),
                     addr_and_name: AddrAndModuleName {
@@ -444,7 +443,7 @@ impl Project {
             project_context.set_current_addr_and_module_name(addr, module_name);
             self.visit_friend(f, addr, module_name, project_context, visitor);
         });
-        provider.with_spec(|addr, module_name, spec, is_spec_module| {
+        provider.with_spec(|addr, module_name, _, _| {
             project_context.set_current_addr_and_module_name(addr, module_name);
             project_context.set_access_env(AccessEnv::Spec);
         });
@@ -529,7 +528,7 @@ impl Project {
                 let (struct_ty, _) = project_context.find_name_chain_item(chain, self);
                 let struct_ty = struct_ty.unwrap_or_default().to_type().unwrap_or_default();
  
-                let mut struct_item = struct_ty.struct_ref_to_struct(project_context);
+                let struct_item = struct_ty.struct_ref_to_struct(project_context);
                
 
                 if let FieldBindings::Named(named_bindings) = field_binds {
@@ -1094,7 +1093,7 @@ impl Project {
                 }
                 self.visit_type_apply(ty, project_context, visitor);
             }
-            Exp_::Spec(spec) => {
+            Exp_::Spec(..) => {
                 let old = project_context.set_access_env(AccessEnv::Spec);
                 project_context.set_access_env(old);
             }

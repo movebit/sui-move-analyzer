@@ -185,7 +185,6 @@ pub struct ItemFun {
     pub(crate) type_parameters: Vec<(Name, Vec<Ability>)>,
     pub(crate) parameters: Vec<(Var, ResolvedType)>,
     pub(crate) ret_type: Box<ResolvedType>,
-    pub(crate) ret_type_unresolved: Type,
     pub(crate) is_spec: bool,
     pub(crate) vis: Visibility,
     pub(crate) addr_and_name: AddrAndModuleName,
@@ -390,7 +389,7 @@ pub enum MacroCall {
 }
 
 impl MacroCall {
-    pub(crate) fn from_chain(chain: &NameAccessChain) -> Option<Self> {
+    pub(crate) fn from_chain(_chain: &NameAccessChain) -> Option<Self> {
         // match &chain.value {
         //     NameAccessChain_::One(name) => Self::from_symbol(name.value),
         //     NameAccessChain_::Two(_, _) => None,
@@ -398,12 +397,12 @@ impl MacroCall {
         // }
         None
     }
-    pub(crate) fn from_symbol(s: Symbol) -> Option<Self> {
-        match s.as_str() {
-            "assert" => Some(Self::Assert),
-            _ => None,
-        }
-    }
+    // pub(crate) fn from_symbol(s: Symbol) -> Option<Self> {
+    //     match s.as_str() {
+    //         "assert" => Some(Self::Assert),
+    //         _ => None,
+    //     }
+    // }
     pub(crate) fn to_static_str(self) -> &'static str {
         match self {
             MacroCall::Assert => "assert",

@@ -4205,11 +4205,11 @@ pub fn parse_file_string_for_diagnostic(
     env: &mut CompilationEnv,
     file_hash: FileHash,
     input: &str,
-    package: Option<Symbol>,
+    _package: Option<Symbol>,
 ) -> Option<Diagnostics> {
     let edition = Edition::E2024_BETA;
     let mut tokens = Lexer::new(input, file_hash, edition);
-    tokens.advance();
+    let _ = tokens.advance();
     let mut context = Context::new(env, &mut tokens, Some(edition.edition));
     parse_file_for_diagnostic(&mut context);
     return Some(context.env.take_final_warning_diags());

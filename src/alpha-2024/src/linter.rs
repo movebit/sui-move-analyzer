@@ -248,6 +248,7 @@ pub fn known_filters_for_linter() -> (E::AttributeName_, Vec<WarningFilter>) {
     (filter_attr_name, filters)
 }
 
+#[allow(dead_code)]
 fn run_sigle_file_linter(working_dir: &Path, path: &Path, deps: &mut Vec<std::string::String>) -> Option<String> {
     let targets: Vec<String> = vec![path.to_str().unwrap().to_owned()];
     let lint_visitors = vec![
@@ -347,7 +348,7 @@ fn run_project_linter(targets: Vec<std::string::String>, deps: &Vec<std::string:
 }
  */
 fn run_project_linter(
-    cur_file: &Path,
+    _cur_file: &Path,
     working_dir: &Path, 
     targets: Vec<std::string::String>, 
     deps: &mut Vec<std::string::String>) -> Option<Diagnostics> {

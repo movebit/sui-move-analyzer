@@ -28,6 +28,7 @@ pub enum AccessEnv {
     Test,
     Spec,
 }
+
 impl ProjectContext {
     pub(crate) fn clear_scopes_and_addresses(&self) {
         let d = Self::default();
@@ -491,6 +492,7 @@ impl ProjectContext {
         self.access_env.replace(x)
     }
 
+    #[allow(dead_code)]
     pub(crate) fn find_var_type(&self, name: Symbol) -> ResolvedType {
         let mut ret = None;
         self.inner_first_visit(|s| {
@@ -537,7 +539,7 @@ impl ProjectContext {
     pub(crate) fn find_name_chain_item(
         &self,
         chain: &NameAccessChain,
-        name_to_addr: &impl Name2Addr,
+        _name_to_addr: &impl Name2Addr,
     ) -> (
         Option<Item>,
         Option<AddrAndModuleName>, /* with a possible module loc returned  */
@@ -647,7 +649,7 @@ impl ProjectContext {
     pub(crate) fn find_name_chain_ty(
         &self,
         chain: &NameAccessChain,
-        name_to_addr: &impl Name2Addr,
+        _name_to_addr: &impl Name2Addr,
     ) -> (
         Option<ResolvedType>,
         Option<AddrAndModuleName>, /* with a possible module loc returned  */
@@ -758,6 +760,7 @@ impl ProjectContext {
         (item_ret, module_scope)
     }
 
+    #[allow(dead_code)]
     pub(crate) fn find_var(&self, name: Symbol) -> Option<Item> {
         let mut r = None;
         self.inner_first_visit(|scope| {
