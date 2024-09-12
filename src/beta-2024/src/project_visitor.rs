@@ -1218,7 +1218,6 @@ impl Project {
                 }
                 self.visit_type_apply(ret_ty.as_ref(), project_context, visitor);
             }
-            Type_::Unit => {}
             Type_::Multiple(types) => {
                 for t in types.iter() {
                     self.visit_type_apply(t, project_context, visitor);
@@ -1227,6 +1226,7 @@ impl Project {
                     }
                 }
             }
+            _ => {}
         }
     }
 
@@ -1392,6 +1392,7 @@ impl Project {
                         }
                     }
         
+                    _ => {}
                 }
 
             }

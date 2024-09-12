@@ -850,6 +850,7 @@ impl ProjectContext {
                     .collect();
                 ResolvedType::Multiple(types)
             }
+            _ => ResolvedType::Unit,
         };
         r
     }

@@ -2,10 +2,10 @@ use super::move_generate_spec_chen::*;
 use crate::item::MacroCall;
 use crate::project::Project;
 use crate::types::ResolvedType;
-use crate::ast_debug::*;
+// use crate::ast_debug::*;
 use move_compiler::shared::Identifier;
-// use move_compiler::{parser::ast::*, shared::ast_debug::AstDebug};
-use move_compiler::parser::ast::*;
+use move_compiler::{parser::ast::*, shared::ast_debug::*};
+// use move_compiler::parser::ast::*;
 use move_ir_types::location::Loc;
 use move_symbol_pool::Symbol;
 use std::collections::{HashMap, HashSet};
@@ -562,11 +562,11 @@ pub(crate) fn format_xxx<T>(
     replace_not: bool, // ast_debug print `!a` as `! a`.
 ) -> String
 where
-    T: MyAstDebug,
+    T: AstDebug,
 {
     // use move_compiler::shared::ast_debug::AstWriter;
     let mut w = AstWriter::new(false);
-    e.my_ast_debug(&mut w);
+    e.ast_debug(&mut w);
     let x = w.to_string();
     // TOTO better way to do this.
     let mut x = x.trim_end().to_string();
@@ -623,10 +623,10 @@ fn names_and_modules_in_expr(
                     handle_ty(names, modules, ty);
                 }
                 Type_::Fun(_, _) => {}
-                Type_::Unit => {}
                 Type_::Multiple(tys) => {
                     handle_tys(names, modules, tys);
                 }
+                _ => {}
             }
         }
         fn handle_tys(names: &mut HashSet<Symbol>, modules: &mut HashSet<Symbol>, tys: &Vec<Type>) {
@@ -877,6 +877,7 @@ fn match_module_use(ret: &mut HashMap<Symbol, Vec<ShadowItem>>, addr_module: &Mo
                 }
             }
         }
+        _ => {}
     };
 }
 

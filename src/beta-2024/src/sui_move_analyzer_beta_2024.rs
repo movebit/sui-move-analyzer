@@ -93,12 +93,13 @@ pub fn on_notification(context: &mut Context, diag_sender: DiagSender, notificat
     //     = bounded::<(PathBuf, move_compiler::diagnostics::Diagnostics)>(1);
     // let diag_sender = Arc::new(Mutex::new(diag_sender));
     fn update_defs(context: &mut Context, fpath: PathBuf, content: &str) {
-        use crate::syntax::parse_file_string;
+        use move_compiler::parser::syntax::parse_file_string;
         let file_hash = FileHash::new(content);
         let mut env 
             = CompilationEnv::new(
                 Flags::testing(),
                 Default::default(), 
+                Default::default(),
                 Default::default(),
                 Some(
                     PackageConfig {
@@ -234,6 +235,7 @@ fn get_package_compile_diagnostics(
         Flags::testing(), 
         Default::default(), 
         Default::default(), 
+        Default::default(),
         Some(
             PackageConfig {
                 is_dependency: false,
@@ -245,7 +247,7 @@ fn get_package_compile_diagnostics(
         ),
     );
 
-    if let Some(diags) = crate::syntax::parse_file_string_for_diagnostic(&mut env, file_hash, file_content.as_str(), None) {
+    if let Err(diags) = move_compiler::parser::syntax::parse_file_string(&mut env, file_hash, file_content.as_str(), None) {
         return Ok(diags);
     } else {
         eprintln!("parse_file_string not has diag");

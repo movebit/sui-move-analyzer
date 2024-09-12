@@ -11,7 +11,7 @@ use once_cell::sync::Lazy;
 use move_command_line_common::files::FileHash;
 use move_compiler::{
     parser::ast::{Definition, *},
-    shared::{Identifier, *},
+    shared::{Identifier, files::MappedFiles, *},
 };
 use move_core_types::account_address::*;
 
@@ -295,10 +295,10 @@ impl Project {
 
     /// Load move files locate in sources and tests ...
     pub(crate) fn load_layout_files(&mut self, manifest_path: &PathBuf, kind: SourcePackageLayout) -> Result<Vec<PathBuf>> {
-        use super::syntax::parse_file_string;
+        use move_compiler::parser::syntax::parse_file_string;
         let mut ret_paths = Vec::new();
         let mut env = CompilationEnv::new(Flags::testing(), Default::default(), 
-            Default::default(), Default::default());
+            Default::default(), Default::default(), Default::default());
         let mut p = manifest_path.clone();
         p.push(kind.location_str());
         for item in WalkDir::new(&p) {
@@ -339,7 +339,7 @@ impl Project {
                             ),
                         );
                         let buffer =
-                            move_compiler::diagnostics::report_diagnostics_to_buffer(&m, diags, false);
+                            move_compiler::diagnostics::report_diagnostics_to_buffer(&MappedFiles::from(m), diags, false);
                         let s = String::from_utf8_lossy(buffer.as_slice());
                         log::error!("{}", s);
                         continue;

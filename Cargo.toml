@@ -1,6 +1,6 @@
 [package]
 name = "sui-move-analyzer"
-version = "1.1.8"
+version = "1.1.9"
 authors = ["Diem Association <opensource@diem.com>"]
 description = "A language server for Move"
 repository = "https://github.com/move-language/move"

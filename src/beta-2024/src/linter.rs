@@ -265,7 +265,7 @@ fn run_sigle_file_linter(working_dir: &Path, path: &Path, deps: &mut Vec<std::st
         ..Default::default()
     };
     let resolution_graph =
-        build_config.resolution_graph_for_package(&working_dir, &mut Vec::new()).ok()?;
+        build_config.resolution_graph_for_package(&working_dir, Default::default(), &mut Vec::new()).ok()?;
     let named_address_mapping: Vec<_> = resolution_graph
         .extract_named_address_mapping()
         .map(|(name, addr)| format!("{}={}", name.as_str(), addr))
@@ -367,7 +367,7 @@ fn run_project_linter(
         ..Default::default()
     };
     let resolution_graph =
-        build_config.resolution_graph_for_package(&working_dir, &mut Vec::new()).ok()?;
+        build_config.resolution_graph_for_package(&working_dir, Default::default(), &mut Vec::new()).ok()?;
     let named_address_mapping: Vec<_> = resolution_graph
         .extract_named_address_mapping()
         .map(|(name, addr)| format!("{}={}", name.as_str(), addr))
