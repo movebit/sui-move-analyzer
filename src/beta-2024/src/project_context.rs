@@ -579,13 +579,12 @@ impl ProjectContext {
             NameAccessChain_::Path(name_path) => {
                 let name = name_path.root.name;
                 match name.value {
-                    LeadingNameAccess_::Name(name) | LeadingNameAccess_::GlobalAddress(name)=> {
+                    LeadingNameAccess_::Name(name) | LeadingNameAccess_::GlobalAddress(name) => {
                         self.inner_first_visit(|s| {
                             if let Some(Item::Use(x)) = s.uses.get(&name.value) {
                                 for x in x.iter() {
                                     match x {
                                         ItemUse::Module(ItemUseModule { members, .. }) => {
-                                            
                                             for entry in name_path.entries.iter() {
                                                 let member = entry.name.value;
                                                 if let Some(item) = members
@@ -596,7 +595,11 @@ impl ProjectContext {
                                                     .get(&member)
                                                 {
                                                     module_scope = Some(
-                                                        members.as_ref().borrow().name_and_addr.clone(),
+                                                        members
+                                                            .as_ref()
+                                                            .borrow()
+                                                            .name_and_addr
+                                                            .clone(),
                                                     );
                                                     item_ret = Some(item.clone());
                                                     // make inner_first_visit stop.
@@ -610,7 +613,11 @@ impl ProjectContext {
                                                     .get(&member)
                                                 {
                                                     module_scope = Some(
-                                                        members.as_ref().borrow().name_and_addr.clone(),
+                                                        members
+                                                            .as_ref()
+                                                            .borrow()
+                                                            .name_and_addr
+                                                            .clone(),
                                                     );
                                                     item_ret = Some(item.clone());
                                                     // make inner_first_visit stop.
@@ -644,6 +651,72 @@ impl ProjectContext {
             }
         }
         (item_ret, module_scope)
+    }
+
+    pub(crate) fn find_name_corresponding_item(
+        &self,
+        item_name: &move_compiler::shared::Name,
+    ) -> Option<Item> {
+        let mut item_ret = None;
+
+        let visit_fn = |s: Scope| {
+            if let Some(v) = if let Some(x) = s.items.get(&item_name.value) {
+                Some(x)
+            } else {
+                None
+            } {
+                match v {
+                    Item::Fun(_) => {
+                        return Some(v.clone());
+                    }
+                    _ => {}
+                }
+            }
+            None
+        };
+        self.inner_first_visit(|s| {
+            let found_item = visit_fn(s.clone());
+            if found_item.is_some() {
+                item_ret = found_item;
+                return true;
+            }
+            for (_, use_item) in &s.uses {
+                // log::warn!("-- find_name_corresponding_item, use_item 00 = {}", use_item);
+                if let Item::Use(item_use_vec) = use_item {
+                    for x in item_use_vec {
+                        match x {
+                            ItemUse::Module(ItemUseModule { members, .. }) => {
+                                // for xxx in &members.as_ref().borrow().module.items {
+                                //     log::warn!("-- find_name_corresponding_item, use_item 111 = {:?}", xxx.0);
+                                // }
+                                if let Some(item) =
+                                    members.as_ref().borrow().module.items.get(&item_name.value)
+                                {
+                                    // module_scope = Some(
+                                    //     members.as_ref().borrow().name_and_addr.clone(),
+                                    // );
+                                    item_ret = Some(item.clone());
+                                    return true;
+                                }
+                            }
+                            ItemUse::Item(ItemUseItem { members, .. }) => {
+                                // for xxx in &members.as_ref().borrow().module.items {
+                                //     log::warn!("-- find_name_corresponding_item, use_item 222 = {:?}", xxx.0);
+                                // }
+                                if let Some(item) =
+                                    members.as_ref().borrow().module.items.get(&item_name.value)
+                                {
+                                    item_ret = Some(item.clone());
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            false
+        });
+        item_ret
     }
 
     pub(crate) fn find_name_chain_ty(
@@ -691,11 +764,11 @@ impl ProjectContext {
                                     ItemUse::Module(ItemUseModule { members, .. }) => {
                                         for entry in name_path.entries.iter() {
                                             if let Some(item) = members
-                                            .as_ref()
-                                            .borrow()
-                                            .module
-                                            .items
-                                            .get(&entry.name.value)
+                                                .as_ref()
+                                                .borrow()
+                                                .module
+                                                .items
+                                                .get(&entry.name.value)
                                             {
                                                 module_scope = Some(
                                                     members.as_ref().borrow().name_and_addr.clone(),
@@ -706,7 +779,6 @@ impl ProjectContext {
                                                 }
                                             }
                                         }
-                                        
                                     }
                                     ItemUse::Item(_) => {}
                                 }
@@ -794,16 +866,15 @@ impl ProjectContext {
                 if let NameAccessChain_::Single(path_entry) = &chain.value {
                     // Special handle for vector.
                     let types = match path_entry.clone().tyargs {
-                        Some(x) => {
-                            x.value
+                        Some(x) => x
+                            .value
                             .iter()
                             .map(|ty| self.resolve_type(ty, name_to_addr))
-                            .collect()
-                        },
+                            .collect(),
                         None => vec![],
                     };
-                    
-                    let e_ty =  types.get(0).unwrap_or(&UNKNOWN_TYPE).clone();
+
+                    let e_ty = types.get(0).unwrap_or(&UNKNOWN_TYPE).clone();
                     if path_entry.name.value.as_str() == "vector" {
                         // let e_ty = types.get(0).unwrap_or(&UNKNOWN_TYPE).clone();
                         return ResolvedType::new_vector(e_ty);
@@ -1100,7 +1171,7 @@ impl ProjectContext {
                 log::error!("addr:{:?} should not be here.", addr);
                 return ret;
             }
-            LeadingNameAccess_::Name(name) | LeadingNameAccess_::GlobalAddress(name)=> name.value,
+            LeadingNameAccess_::Name(name) | LeadingNameAccess_::GlobalAddress(name) => name.value,
         };
         self.inner_first_visit(|scope| {
             for (name2, item) in scope

@@ -783,6 +783,9 @@ impl Project {
                 };
 
                 let (item, module) = project_context.find_name_chain_item(chain, self);
+                if item.is_some() {
+                    log::warn!("process Exp_::Call, is_build_in(item) = {}", item.clone().unwrap().is_build_in());
+                }
                 if visitor.need_call_pair() {
                     if let Item::Fun(_f) = item.clone().unwrap_or_default() {
                         let addr = project_context.get_current_addr_and_module_name();
@@ -832,12 +835,12 @@ impl Project {
                 if visitor.current_vistor_handler_is_inlay_hints() {
                     return;
                 }
-                log::trace!("process Exp_::Call, item = {}", item);
+                log::warn!("process Exp_::Call, item = {}", item);
                 visitor.handle_item_or_access(self, project_context, &item);
                 if visitor.finished() {
                     return;
                 }
-                
+
                 for expr in exprs.value.iter() {
                     log::trace!("process Exp_::Call, expr = {:?}", expr);
                     self.visit_expr(expr, project_context, visitor);
@@ -846,6 +849,21 @@ impl Project {
                     }
                 }
             }
+            
+            Exp_::DotCall(_, fun_name, _, _, call_paren_exp) => {
+                let opt_item = project_context.find_name_corresponding_item(fun_name);
+                let item = ItemOrAccess::Access(Access::ExprAccessChain(
+                    Spanned::new(exp.loc, NameAccessChain_::single(*fun_name)),
+                    None,
+                    Box::new(opt_item.unwrap_or_default()),
+                ));
+                log::warn!("process Exp_::DotCall, item = {}", item);
+                visitor.handle_item_or_access(self, project_context, &item);
+                for paren_exp in &call_paren_exp.value {
+                    self.visit_expr(&paren_exp, project_context, visitor);
+                }
+            }
+
             Exp_::Pack(ref chain, fields) => {
                 self.visit_type_apply(
                     &Spanned {

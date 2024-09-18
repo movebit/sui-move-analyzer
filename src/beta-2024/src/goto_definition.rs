@@ -126,6 +126,8 @@ impl ItemOrAccessHandler for Handler {
         _project_context: &ProjectContext,
         item_or_access: &ItemOrAccess,
     ) {
+        log::warn!("handle_item_or_access<goto>, item_or_access = {}", item_or_access);
+        log::warn!(">> handle_item_or_access<goto>, self.result = {:?}", self.result);
         match item_or_access {
             ItemOrAccess::Item(item) => match item {
                 Item::Use(x) => {
@@ -204,6 +206,7 @@ impl ItemOrAccessHandler for Handler {
             },
             ItemOrAccess::Access(access) => match access {
                 Access::AccessFiled(AccessFiled { from, to, item, .. }) => {
+                    log::warn!("-- handle_item_or_access<goto>, AccessFiled");
                     if self.match_loc(&from.loc(), services) {
                         if let Some(t) = services.convert_loc_range(&to.loc()) {
                             self.result = Some(t);
@@ -216,6 +219,8 @@ impl ItemOrAccessHandler for Handler {
                     }
                 }
                 Access::ExprAccessChain(chain, _, item) if item.is_build_in() => {
+                    log::warn!("-- handle_item_or_access<goto>, ExprAccessChain");
+                    log::warn!("-- handle_item_or_access<goto>, chain.name = {}", chain.value);
                     if self.match_loc(&chain.loc, services) {
                         if let Some(t) = services.convert_loc_range(&chain.loc) {
                             self.result = Some(t);
@@ -223,29 +228,46 @@ impl ItemOrAccessHandler for Handler {
                         }
                     }
                 }
-                _ => {
-                    log::trace!("access:{}", access);
-                    if let Some((access, def)) = access.access_module() {
-                        if self.match_loc(&access, services) {
-                            if let Some(t) = services.convert_loc_range(&def) {
-                                self.result = Some(t);
-                                self.result_loc = Some(def);
-                                self.result_item_or_access = Some(item_or_access.clone());
-                                return;
+                Access::ExprAccessChain(chain,  _, item) => {
+                    match chain.value {
+                        move_compiler::parser::ast::NameAccessChain_::Single(..) => {
+                            log::warn!("-- handle_item_or_access<goto> Single, ExprAccessChain");
+                            log::warn!("-- handle_item_or_access<goto> Single, chain.name = {}", chain.value);
+                            log::warn!("-- handle_item_or_access<goto> Single, chain.loc = {:?}", services.convert_loc_range(&chain.loc));
+                            if self.match_loc(&chain.loc, services) {
+                                if let Some(t) = services.convert_loc_range(&item.def_loc()) {
+                                    self.result = Some(t);
+                                    self.result_item_or_access = Some(item_or_access.clone());
+                                }
+                            }
+                        }
+                        _ => {
+                            log::warn!("access:{}", access);
+                            if let Some((access, def)) = access.access_module() {
+                                if self.match_loc(&access, services) {
+                                    if let Some(t) = services.convert_loc_range(&def) {
+                                        self.result = Some(t);
+                                        self.result_loc = Some(def);
+                                        self.result_item_or_access = Some(item_or_access.clone());
+                                        return;
+                                    }
+                                }
+                            }
+                            let locs = access.access_def_loc();
+                            if self.match_loc(&locs.0, services) {
+                                if let Some(t) = services.convert_loc_range(&locs.1) {
+                                    self.result = Some(t);
+                                    self.result_loc = Some(locs.1);
+                                    self.result_item_or_access = Some(item_or_access.clone());
+                                }
                             }
                         }
                     }
-                    let locs = access.access_def_loc();
-                    if self.match_loc(&locs.0, services) {
-                        if let Some(t) = services.convert_loc_range(&locs.1) {
-                            self.result = Some(t);
-                            self.result_loc = Some(locs.1);
-                            self.result_item_or_access = Some(item_or_access.clone());
-                        }
-                    }
                 }
+                _ => {}
             },
         }
+        log::warn!("<< handle_item_or_access<goto>, self.result = {:?}", self.result);
     }
 
     fn function_or_spec_body_should_visit(&self, range: &FileRange) -> bool {

@@ -470,3 +470,46 @@ pub fn read_move_toml(path: &Path) -> Option<PathBuf> {
         }
     }
 }
+
+pub fn test_update_defs(context: &mut Context, fpath: PathBuf, content: &str) {
+    use move_compiler::parser::syntax::parse_file_string;
+    let file_hash = FileHash::new(content);
+    let mut env 
+        = CompilationEnv::new(
+            Flags::testing(),
+            Default::default(), 
+            Default::default(),
+            Default::default(),
+            Some(
+                PackageConfig {
+                    is_dependency: false,
+                    warning_filter: WarningFilters::new_for_source(),
+                    flavor: Flavor::default(),
+                    edition: Edition::E2024_BETA,
+                },
+            ),
+    );
+    let defs = parse_file_string(&mut env, file_hash, content, None);
+    let defs = match defs {
+        std::result::Result::Ok(x) => x,
+        std::result::Result::Err(d) => {
+            log::error!("update file failed,err:{:?}", d);
+            return;
+        }
+    };
+    let (defs, _) = defs;
+    context.projects.update_defs(fpath.clone(), defs);
+    context.ref_caches.clear();
+    context
+        .projects
+        .hash_file
+        .as_ref()
+        .borrow_mut()
+        .update(fpath.clone(), file_hash);
+    context
+        .projects
+        .file_line_mapping
+        .as_ref()
+        .borrow_mut()
+        .update(fpath, content);
+}
