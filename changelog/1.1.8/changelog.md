@@ -1,4 +1,4 @@
-# Changelog for sui-move-analyzer of v1.1.8
+# lsp-server v1.1.8
 
 ## 1. New feature
   Added diagnostic hints and diagnostic information based on lexical and syntax analysis for single file.
@@ -27,3 +27,14 @@
 
 ### 1.6 Unexpected token
 ![Alt text](img/image-6.png)
+
+# lsp-server v1.1.9
+upgrade dependence of MystenLabs/sui
+
+# lsp-server v1.2.0
+support method syntax in [move2024] 
+
+example:
+```move
+clock.timestamp_ms()
+```
