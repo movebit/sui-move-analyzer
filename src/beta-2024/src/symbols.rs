@@ -343,7 +343,7 @@ fn type_to_ide_string(sp!(_, t): &Type) -> String {
             for ty in vec_ty.iter() {
                 result_string = format!("{} + {}", result_string, type_to_ide_string(ty));
             }
-            format!("{} + {}", result_string, type_to_ide_string(box_ty.as_ref()));
+            result_string = format!("{} + {}", result_string, type_to_ide_string(box_ty.as_ref()));
             result_string
         },
         Type_::Anything => "_".to_string(),
