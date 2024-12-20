@@ -734,6 +734,31 @@ const Reg = {
                 void vscode.window.showErrorMessage('generate failed: ' + (err as string));
             });
         });
+
+        context.registerCommand('goto_definition', async (_context, ...args) => {
+            const loc = args[0] as { range: vscode.Range; fpath: string };
+ 
+            const client = context.getClient();
+            if (client === undefined) {
+                return;
+            }
+            
+            if (loc.range.start.line == 0 && loc.range.end.line == 0 &&
+                loc.range.start.character == 0 && loc.range.end.character == 0) {
+                    void vscode.window.showWarningMessage(
+                        "Sorry, for goto-to-definition of Inlay-Hints, Sui Move Analyzer not supports this def temporarily ."
+                    );
+            } else {
+                try {
+                    const document = await vscode.workspace.openTextDocument(loc.fpath);
+                    await vscode.window.showTextDocument(document, { selection: loc.range, preserveFocus: false });
+                } catch (error) {
+                    // 处理错误
+                    console.error('Error opening file:', error);
+                }
+               
+            }
+        });
     },
 
 };
