@@ -52,45 +52,6 @@ impl MultiProject {
         sender: &lsp_server::Connection,
         mani: &PathBuf,
     ) -> anyhow::Result<Project> {
-        if LOAD_DEPS {
-            use std::{
-                process::{Command, Stdio},
-                time::Duration,
-            };
-            use wait_timeout::ChildExt;
-            let mut c = Command::new("sui");
-            c.current_dir(mani.as_path());
-            c.args([
-                "move",
-                "build",
-                "--fetch-deps-only",
-                "--skip-fetch-latest-git-deps",
-            ]);
-            c.stdin(Stdio::null())
-                .stdout(Stdio::null())
-                .stderr(Stdio::null());
-
-            let mut child = c.spawn().unwrap();
-            let mut fetch_ok = false;
-            match child.wait_timeout(Duration::new(30, 0)) {
-                Ok(_) => {
-                    fetch_ok = true;
-                }
-                Err(err) => {
-                    log::error!("exec cmd fetch deps failed,err:{:?}", err);
-                }
-            }
-            let _ = child.kill();
-            if !fetch_ok {
-                log::error!("fetch deps failed");
-                send_show_message(
-                    sender,
-                    lsp_types::MessageType::ERROR,
-                    format!("project at {:?} can't fetch deps.\nMaybe you need execute 'sui move build --fetch-deps-only --skip-fetch-latest-git-deps' yourself.", mani.as_path()),
-                );
-                return anyhow::Result::Err(anyhow::anyhow!("fetch deps failed"));
-            }
-        }
         Project::new(mani, self, |msg: String| {
             send_show_message(sender, MessageType::ERROR, msg)
         })

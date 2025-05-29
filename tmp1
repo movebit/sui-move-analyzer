@@ -1,0 +1,93 @@
+[INFO]: 🎯  Checking for the Wasm target...
+[INFO]: 🌀  Compiling to Wasm...
+warning: both `/data/zhangxiao/rust-depend/cargo/config` and `/data/zhangxiao/rust-depend/cargo/config.toml` exist. Using `/data/zhangxiao/rust-depend/cargo/config`
+warning: unused manifest key: build
+   Compiling getrandom v0.2.16
+   Compiling quote v1.0.40
+   Compiling num-traits v0.2.19
+   Compiling psm v0.1.26
+   Compiling stacker v0.1.21
+   Compiling block-buffer v0.9.0
+   Compiling digest v0.9.0
+   Compiling parking_lot v0.12.3
+   Compiling dashmap v5.5.3
+   Compiling findshlibs v0.10.2
+   Compiling getrandom v0.3.3
+   Compiling symbolic-common v10.2.1
+   Compiling pprof v0.11.1
+   Compiling petgraph v0.5.1
+   Compiling backtrace v0.3.75
+error: the wasm*-unknown-unknown targets are not supported by default, you may need to enable the "js" feature. For more information see: https://docs.rs/getrandom/#webassembly-support
+   --> /data/zhangxiao/rust-depend/cargo/registry/src/mirrors.ustc.edu.cn-12df342d903acd47/getrandom-0.2.16/src/lib.rs:346:9
+    |
+346 | /         compile_error!("the wasm*-unknown-unknown targets are not supported by \
+347 | |                         default, you may need to enable the \"js\" feature. \
+348 | |                         For more information see: \
+349 | |                         https://docs.rs/getrandom/#webassembly-support");
+    | |________________________________________________________________________^
+
+error[E0433]: failed to resolve: use of undeclared crate or module `imp`
+   --> /data/zhangxiao/rust-depend/cargo/registry/src/mirrors.ustc.edu.cn-12df342d903acd47/getrandom-0.2.16/src/lib.rs:402:9
+    |
+402 |         imp::getrandom_inner(dest)?;
+    |         ^^^ use of undeclared crate or module `imp`
+
+error: The wasm32-unknown-unknown targets are not supported by default; you may need to enable the "wasm_js" configuration flag. Note that enabling the `wasm_js` feature flag alone is insufficient. For more information see: https://docs.rs/getrandom/0.3.3/#webassembly-support
+   --> /data/zhangxiao/rust-depend/cargo/registry/src/mirrors.ustc.edu.cn-12df342d903acd47/getrandom-0.3.3/src/backends.rs:168:9
+    |
+168 | /         compile_error!(concat!(
+169 | |             "The wasm32-unknown-unknown targets are not supported by default; \
+170 | |             you may need to enable the \"wasm_js\" configuration flag. Note \
+171 | |             that enabling the `wasm_js` feature flag alone is insufficient. \
+172 | |             For more information see: \
+173 | |             https://docs.rs/getrandom/", env!("CARGO_PKG_VERSION"), "/#webassembly-support"
+174 | |         ));
+    | |__________^
+
+error[E0425]: cannot find function `fill_inner` in module `backends`
+  --> /data/zhangxiao/rust-depend/cargo/registry/src/mirrors.ustc.edu.cn-12df342d903acd47/getrandom-0.3.3/src/lib.rs:99:19
+   |
+99 |         backends::fill_inner(dest)?;
+   |                   ^^^^^^^^^^ not found in `backends`
+
+error[E0425]: cannot find function `inner_u32` in module `backends`
+   --> /data/zhangxiao/rust-depend/cargo/registry/src/mirrors.ustc.edu.cn-12df342d903acd47/getrandom-0.3.3/src/lib.rs:128:15
+    |
+128 |     backends::inner_u32()
+    |               ^^^^^^^^^ not found in `backends`
+    |
+help: consider importing this function
+    |
+33  + use crate::util::inner_u32;
+    |
+help: if you import `inner_u32`, refer to it directly
+    |
+128 -     backends::inner_u32()
+128 +     inner_u32()
+    |
+
+error[E0425]: cannot find function `inner_u64` in module `backends`
+   --> /data/zhangxiao/rust-depend/cargo/registry/src/mirrors.ustc.edu.cn-12df342d903acd47/getrandom-0.3.3/src/lib.rs:142:15
+    |
+142 |     backends::inner_u64()
+    |               ^^^^^^^^^ not found in `backends`
+    |
+help: consider importing this function
+    |
+33  + use crate::util::inner_u64;
+    |
+help: if you import `inner_u64`, refer to it directly
+    |
+142 -     backends::inner_u64()
+142 +     inner_u64()
+    |
+
+For more information about this error, try `rustc --explain E0433`.
+error: could not compile `getrandom` (lib) due to 2 previous errors
+warning: build failed, waiting for other jobs to finish...
+For more information about this error, try `rustc --explain E0425`.
+error: could not compile `getrandom` (lib) due to 4 previous errors
+Error: Compiling your crate to WebAssembly failed
+Caused by: Compiling your crate to WebAssembly failed
+Caused by: failed to execute `cargo build`: exited with exit status: 101
+  full command: cd "/data/zhangxiao/move/sui-move-analyzer" && "cargo" "build" "--lib" "--release" "--target" "wasm32-unknown-unknown"

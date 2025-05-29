@@ -12,7 +12,6 @@ edition = "2021"
 dirs-next = "2.0.0"
 once_cell = "1.7.2"
 cfg-if = "1.0.0"
-wait-timeout = "0.2.0"
 regex = "1.5.5"
 bisection = "0.1.0"
 codespan = "0.11.1"
@@ -26,7 +25,7 @@ lsp-types = "0.94.0"
 petgraph = "0.5.1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.64"
-tempfile = "3.2.0"
+tempfile = "3.16.0"
 url = "2.2.2"
 clap = { version = "3.1.8", features = ["derive"] }
 crossbeam = "0.8"
@@ -36,12 +35,17 @@ stderrlog = "0.5.4"
 enum-iterator = "1.2.0"
 stacker = "0.1.15"
 
+
 # different version of sui compliler
 beta-2024 = {path = "src/beta-2024"}
-move-package = { git = "https://github.com/MystenLabs/sui.git", rev = "6e1cf7a1a9971fedd8b7830e586029d6c2cf801a", package = "move-package" }
+#move-package = { git = "https://github.com/MystenLabs/sui.git", tag = "devnet-v1.49.0", package = "move-package" }
 
-[target.'cfg(not(target_os= "windows"))'.dependencies]
-pprof = { version = "0.11.0" , features = ["flamegraph" , "protobuf"]}
+[patch.crates-io]
+named-lock = { git = "https://github.com/hapeeeeee/named-lock", branch = "master" }
+
+[lib]
+crate-type = ["cdylib", "rlib"]
 
 [build]
-target = "x86_64-pc-windows-gnu"
+target = "wasm32-unknown-unknown"
+
