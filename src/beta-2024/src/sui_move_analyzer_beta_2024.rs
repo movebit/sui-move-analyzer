@@ -141,7 +141,7 @@ pub fn on_notification(context: &mut Context, diag_sender: DiagSender, notificat
             let parameters =
                 serde_json::from_value::<DidSaveTextDocumentParams>(notification.params.clone())
                     .expect("could not deserialize DidSaveTextDocumentParams request");
-            let fpath = parameters.text_document.uri.to_file_path().unwrap();
+            let fpath = get_path_from_url(&parameters.text_document.uri).unwrap();
             let fpath = path_concat(&std::env::current_dir().unwrap(), &fpath);
             let content = std::fs::read_to_string(fpath.as_path());
             let content = match content {
@@ -160,7 +160,7 @@ pub fn on_notification(context: &mut Context, diag_sender: DiagSender, notificat
             let parameters =
                 serde_json::from_value::<DidChangeTextDocumentParams>(notification.params.clone())
                     .expect("could not deserialize DidChangeTextDocumentParams request");
-            let fpath = parameters.text_document.uri.to_file_path().unwrap();
+            let fpath = get_path_from_url(&parameters.text_document.uri).unwrap();
             let fpath = path_concat(&std::env::current_dir().unwrap(), &fpath);
             update_defs(
                 context,
@@ -174,7 +174,7 @@ pub fn on_notification(context: &mut Context, diag_sender: DiagSender, notificat
             let parameters =
                 serde_json::from_value::<DidOpenTextDocumentParams>(notification.params.clone())
                     .expect("could not deserialize DidOpenTextDocumentParams request");
-            let fpath = parameters.text_document.uri.to_file_path().unwrap();
+            let fpath = get_path_from_url(&parameters.text_document.uri).unwrap();
             let fpath = path_concat(&std::env::current_dir().unwrap(), &fpath);
             let (mani, _) = match discover_manifest_and_kind(&fpath) {
                 Some(x) => x,
@@ -210,7 +210,8 @@ pub fn on_notification(context: &mut Context, diag_sender: DiagSender, notificat
             let parameters =
                 serde_json::from_value::<DidCloseTextDocumentParams>(notification.params.clone())
                     .expect("could not deserialize DidCloseTextDocumentParams request");
-            let fpath = parameters.text_document.uri.to_file_path().unwrap();
+            let fpath = get_path_from_url(&parameters.text_document.uri).unwrap();
+
             let fpath = path_concat(&std::env::current_dir().unwrap(), &fpath);
             let (_, _) = match crate::utils::discover_manifest_and_kind(&fpath) {
                 Some(x) => x,
@@ -339,7 +340,8 @@ fn make_diag(context: &Context, diag_sender: DiagSender, fpath: PathBuf) {
 }
 
 fn send_not_project_file_error(context: &mut Context, fpath: PathBuf, is_open: bool) {
-    let url = url::Url::from_file_path(fpath.as_path()).unwrap();
+    // let url = url::Url::from_file_path(fpath.as_path()).unwrap();
+    let url = get_url_from_path(fpath.as_path()).unwrap();
     let content = std::fs::read_to_string(fpath.as_path()).unwrap_or_else(|_| "".to_string());
     let lines: Vec<_> = content.lines().collect();
     let last_line = lines.len();
@@ -384,7 +386,7 @@ pub fn send_diag(context: &mut Context, mani: PathBuf, x: DiagnosticsBeta2024) {
     for x in x.into_codespan_format() {
         let (s, msg, (loc, m), _, notes) = x;
         if let Some(r) = context.projects.convert_loc_range(&loc) {
-            let url = url::Url::from_file_path(r.path.as_path()).unwrap();
+            let url = get_url_from_path(r.path.as_path()).unwrap();
             let d = lsp_types::Diagnostic {
                 range: r.mk_location().range,
                 severity: Some(match s {

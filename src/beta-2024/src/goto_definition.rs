@@ -3,7 +3,7 @@
 
 use super::{context::*, item::*, project::*, project_context::*, types::ResolvedType};
 
-use crate::utils::{path_concat, FileRange, GetPosition, GetPositionStruct};
+use crate::utils::{get_path_from_url, path_concat, FileRange, GetPosition, GetPositionStruct};
 use lsp_server::*;
 
 use lsp_types::*;
@@ -16,12 +16,13 @@ pub fn on_go_to_def_request(context: &Context, request: &Request) -> lsp_server:
     eprintln!("on_go_to_def_request request = {:?}", request);
     let parameters = serde_json::from_value::<GotoDefinitionParams>(request.params.clone())
         .expect("could not deserialize go-to-def request");
-    let fpath = parameters
+
+    let fpath = get_path_from_url(&parameters
         .text_document_position_params
         .text_document
         .uri
-        .to_file_path()
-        .unwrap();
+    ).unwrap();
+
     let loc = parameters.text_document_position_params.position;
     let line = loc.line;
     let col = loc.character;
@@ -300,12 +301,12 @@ pub fn on_go_to_type_def_request(context: &Context, request: &Request) -> lsp_se
     log::info!("on_go_to_type_def_request request = {:?}", request);
     let parameters = serde_json::from_value::<GotoDefinitionParams>(request.params.clone())
         .expect("could not deserialize go-to-def request");
-    let fpath = parameters
+    let fpath = get_path_from_url(&parameters
         .text_document_position_params
         .text_document
         .uri
-        .to_file_path()
-        .unwrap();
+    ).unwrap();
+
     let loc = parameters.text_document_position_params.position;
     let line = loc.line;
     let col = loc.character;

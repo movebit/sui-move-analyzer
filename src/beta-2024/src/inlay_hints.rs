@@ -8,6 +8,7 @@ use super::project::*;
 use super::project_context::*;
 use super::types::ResolvedType;
 
+use crate::utils::get_path_from_url;
 use crate::utils::{
     path_concat, FileRange, GetPosition, GetPositionStruct, MoveAnalyzerClientCommands,
 };
@@ -26,7 +27,7 @@ pub fn on_inlay_hints(context: &Context, request: &Request, config: InlayHintsCo
     eprintln!("on_inlay_hints request = {:?}", request);
     let parameters = serde_json::from_value::<InlayHintParams>(request.params.clone())
         .expect("could not deserialize go-to-def request");
-    let fpath = parameters.text_document.uri.to_file_path().unwrap();
+    let fpath = get_path_from_url(&parameters.text_document.uri).unwrap();
     let fpath = path_concat(
         std::env::current_dir().unwrap().as_path(),
         fpath.as_path(),

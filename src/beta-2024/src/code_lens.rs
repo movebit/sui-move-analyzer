@@ -14,7 +14,7 @@ use move_compiler::shared::Identifier;
 pub fn move_get_test_code_lens(context: &Context, request: &lsp_server::Request) {
     let parameters = serde_json::from_value::<CodeLensParams>(request.params.clone())
         .expect("could not deserialize  CodeLensParams request");
-    let fpath = parameters.text_document.uri.to_file_path().unwrap();
+    let fpath = get_path_from_url(&parameters.text_document.uri).unwrap();
     let fpath = path_concat(
         std::env::current_dir().unwrap().as_path(),
         fpath.as_path(),

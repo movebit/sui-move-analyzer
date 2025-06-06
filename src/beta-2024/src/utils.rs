@@ -7,6 +7,8 @@ use move_command_line_common::files::FileHash;
 use move_ir_types::location::*;
 use move_package::source_package::layout::SourcePackageLayout;
 use move_symbol_pool::Symbol;
+#[cfg(target_arch = "wasm32")]
+use url::Url;
 use std::{collections::HashMap, path::*, vec};
 
 /// Converts a location from the byte index format to the line/character (Position) format, where
@@ -146,7 +148,8 @@ impl FileRange {
                 character: self.col_end,
             },
         };
-        let uri = url::Url::from_file_path(self.path.as_path()).unwrap();
+        
+        let uri = get_url_from_path(self.path.as_path()).unwrap();
         lsp_types::Location::new(uri, range)
     }
 }
@@ -342,9 +345,7 @@ impl From<&Location> for PathAndRange {
     fn from(value: &Location) -> Self {
         Self {
             range: value.range,
-            fpath: value
-                .uri
-                .to_file_path()
+            fpath: get_path_from_url(&value.uri)
                 .unwrap()
                 .to_str()
                 .unwrap()
@@ -355,33 +356,33 @@ impl From<&Location> for PathAndRange {
 
 pub const PROJECT_FILE_NAME: &str = "Move.toml";
 
-#[cfg(not(target_os = "windows"))]
-pub fn cpu_pprof(_seconds: u64) {
-    use std::{fs::File, str::FromStr, time::Duration};
-    let guard = pprof::ProfilerGuardBuilder::default()
-        .frequency(1000)
-        .blocklist(&["libc", "libgcc", "pthread", "vdso"])
-        .build()
-        .unwrap();
-    std::thread::spawn(move || loop {
-        std::thread::sleep(Duration::new(_seconds, 0));
-        match guard.report().build() {
-            Result::Ok(report) => {
-                // let mut tmp = std::env::temp_dir();
-                let mut tmp = PathBuf::from_str("/Users/yuyang/.move-analyzer").unwrap();
 
-                tmp.push("move-analyzer-flamegraph.svg");
-                let file = File::create(tmp.clone()).unwrap();
-                report.flamegraph(file).unwrap();
-                eprintln!("pprof file at {:?}", tmp.as_path());
-            }
-            Result::Err(e) => {
-                log::error!("build report failed,err:{}", e);
-            }
-        };
-    });
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn get_path_from_url(url: &Url) ->  Result<PathBuf, ()> {
+    url.to_file_path()
 }
-#[cfg(target_os = "windows")]
-pub fn cpu_pprof(_seconds: u64) {
-    log::error!("Can't run pprof in Windows");
+
+#[cfg(target_arch = "wasm32")]
+pub fn get_path_from_url(url: &Url) ->  Result<PathBuf, ()> {
+    Ok(PathBuf::from(url.path()))
+}
+
+// 添加条件编译
+#[cfg(not(target_arch = "wasm32"))]
+pub fn get_url_from_path(path: impl AsRef<Path>) -> Result<Url, ()> {
+    Url::from_file_path(path)
+}
+
+#[cfg(target_arch = "wasm32")]
+pub fn get_url_from_path(path: impl AsRef<Path>) -> Result<Url, ()> {
+    // 在 wasm 环境中，我们构造一个虚拟的 file URL
+    let path_str = path.as_ref().to_string_lossy();
+    // 确保路径以 / 开头
+    let path_str = if !path_str.starts_with('/') {
+        format!("/{}", path_str)
+    } else {
+        path_str.into_owned()
+    };
+    Ok(Url::parse(&format!("file://{}", path_str)).unwrap())
 }

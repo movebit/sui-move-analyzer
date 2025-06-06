@@ -2,9 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
-    project::ConvertLoc,
-    context::Context,
-    utils::discover_manifest_and_kind,
+    context::Context, project::ConvertLoc, utils::{discover_manifest_and_kind, get_url_from_path}
 };
 use move_compiler::{
     cfgir::visitor::AbstractInterpreterVisitor,
@@ -107,7 +105,7 @@ pub fn on_run_linter(context: &Context, request: &Request) {
                 }
                 
                 if let Some(r) = context.projects.convert_loc_range(&loc) {
-                    let url = url::Url::from_file_path(r.path.as_path()).unwrap();
+                    let url = get_url_from_path(r.path.as_path()).unwrap();
                     let d = lsp_types::Diagnostic {
                         range: r.mk_location().range,
                         severity: Some(match s {
@@ -143,7 +141,7 @@ pub fn on_run_linter(context: &Context, request: &Request) {
 
                 for (loc2, detail_str2) in loc_str_vec {
                     if let Some(r) = context.projects.convert_loc_range(&loc2) {
-                        let url = url::Url::from_file_path(r.path.as_path()).unwrap();
+                        let url = get_url_from_path(r.path.as_path()).unwrap();
                         let d = lsp_types::Diagnostic {
                             range: r.mk_location().range,
                             severity: Some(match s {

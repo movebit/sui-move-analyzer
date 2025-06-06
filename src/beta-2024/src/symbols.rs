@@ -48,7 +48,7 @@
 
 use crate::{
     context::Context,
-    diagnostics::{lsp_diagnostics, lsp_empty_diagnostics}, project::{ConvertLoc, Project}, 
+    diagnostics::{lsp_diagnostics, lsp_empty_diagnostics}, project::{ConvertLoc, Project}, utils::{get_path_from_url, get_url_from_path}, 
 };
 use crate::utils::discover_manifest_and_kind;
 use anyhow::{anyhow, Result};
@@ -840,12 +840,12 @@ pub fn on_go_to_def_request(context: &Context, request: &Request, symbols: &Symb
     let parameters = serde_json::from_value::<GotoDefinitionParams>(request.params.clone())
         .expect("could not deserialize go-to-def request");
 
-    let fpath = parameters
+    let fpath = get_path_from_url(&parameters
         .text_document_position_params
         .text_document
         .uri
-        .to_file_path()
-        .unwrap();
+    ).unwrap();
+
     let loc = parameters.text_document_position_params.position;
     let line = loc.line;
     let col = loc.character;
@@ -867,7 +867,7 @@ pub fn on_go_to_def_request(context: &Context, request: &Request, symbols: &Symb
             };
             let path = symbols.file_name_mapping.get(&u.def_loc.fhash).unwrap();
             let loc = Location {
-                uri: Url::from_file_path(path.as_str()).unwrap(),
+                uri: get_url_from_path(path.as_str()).unwrap(),
                 range,
             };
             Some(serde_json::to_value(loc).unwrap())
@@ -880,12 +880,11 @@ pub fn on_go_to_type_def_request(context: &Context, request: &Request, symbols: 
     let parameters = serde_json::from_value::<GotoTypeDefinitionParams>(request.params.clone())
         .expect("could not deserialize go-to-type-def request");
 
-    let fpath = parameters
+    let fpath = get_path_from_url(& parameters
         .text_document_position_params
         .text_document
         .uri
-        .to_file_path()
-        .unwrap();
+    ).unwrap();
     let loc = parameters.text_document_position_params.position;
     let line = loc.line;
     let col = loc.character;
@@ -905,7 +904,8 @@ pub fn on_go_to_type_def_request(context: &Context, request: &Request, symbols: 
                 };
                 let path = symbols.file_name_mapping.get(&u.def_loc.fhash).unwrap();
                 let loc = Location {
-                    uri: Url::from_file_path(path.as_str()).unwrap(),
+                    // uri: Url::from_file_path(path.as_str()).unwrap(),
+                    uri: get_url_from_path(path.as_str()).unwrap(),
                     range,
                 };
                 Some(serde_json::to_value(loc).unwrap())
@@ -920,12 +920,12 @@ pub fn on_references_request(context: &Context, request: &Request, symbols: &Sym
     let parameters = serde_json::from_value::<ReferenceParams>(request.params.clone())
         .expect("could not deserialize references request");
 
-    let fpath = parameters
+    let fpath = get_path_from_url(&parameters
         .text_document_position
         .text_document
         .uri
-        .to_file_path()
-        .unwrap();
+    ).unwrap();
+
     let loc = parameters.text_document_position.position;
     let line = loc.line;
     let col = loc.character;
@@ -955,7 +955,8 @@ pub fn on_references_request(context: &Context, request: &Request, symbols: &Sym
                         };
                         let path = symbols.file_name_mapping.get(&ref_loc.fhash).unwrap();
                         locs.push(Location {
-                            uri: Url::from_file_path(path.as_str()).unwrap(),
+                            // uri: Url::from_file_path(path.as_str()).unwrap(),
+                            uri: get_url_from_path(path.as_str()).unwrap(),
                             range,
                         });
                     }
@@ -976,12 +977,11 @@ pub fn on_hover_request(context: &Context, request: &Request, symbols: &Symbols)
     let parameters = serde_json::from_value::<HoverParams>(request.params.clone())
         .expect("could not deserialize hover request");
 
-    let fpath = parameters
+    let fpath = get_path_from_url(& parameters
         .text_document_position_params
         .text_document
         .uri
-        .to_file_path()
-        .unwrap();
+    ).unwrap();
     let loc = parameters.text_document_position_params.position;
     let line = loc.line;
     let col = loc.character;
@@ -1054,7 +1054,7 @@ pub fn on_document_symbol_request(context: &Context, request: &Request, _symbols
     eprintln!("on_document_symbol_request: {:?}", request);
     let parameters = serde_json::from_value::<DocumentSymbolParams>(request.params.clone())
         .expect("could not deserialize document symbol request");
-    let fpath = parameters.text_document.uri.to_file_path().unwrap();
+    let fpath = get_path_from_url(&parameters.text_document.uri).unwrap();
     eprintln!("symbol_request file path = {:?}", fpath.as_path());
     
     let path_project = match context.projects.get_project(&fpath) {

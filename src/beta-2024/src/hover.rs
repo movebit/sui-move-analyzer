@@ -14,12 +14,12 @@ pub fn on_hover_request(context: &Context, request: &Request) -> lsp_server::Res
     log::info!("on_hover_request request = {:?}", request);
     let parameters = serde_json::from_value::<HoverParams>(request.params.clone())
         .expect("could not deserialize hover request");
-    let fpath = parameters
+
+    let fpath = get_path_from_url(&parameters
         .text_document_position_params
         .text_document
         .uri
-        .to_file_path()
-        .unwrap();
+    ).unwrap();
     
     let loc = parameters.text_document_position_params.position;
     let line = loc.line;

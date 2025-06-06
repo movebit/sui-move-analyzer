@@ -12,12 +12,12 @@ pub fn on_references_request(context: &mut Context, request: &Request) -> lsp_se
     log::info!("on_references_request request = {:?}", request);
     let parameters = serde_json::from_value::<ReferenceParams>(request.params.clone())
         .expect("could not deserialize references request");
-    let fpath = parameters
+    let fpath = get_path_from_url(&parameters
         .text_document_position
         .text_document
         .uri
-        .to_file_path()
-        .unwrap();
+    ).unwrap();
+
     let loc = parameters.text_document_position.position;
     let line = loc.line;
     let col = loc.character;

@@ -118,12 +118,12 @@ pub fn on_completion_request(context: &Context, request: &Request) {
     eprintln!("on_completion_request request = {:?}", request);
     let parameters = serde_json::from_value::<CompletionParams>(request.params.clone())
         .expect("could not deserialize references request");
-    let fpath = parameters
+    let fpath = get_path_from_url(&parameters
         .text_document_position
         .text_document
         .uri
-        .to_file_path()
-        .unwrap();
+    ).unwrap();
+
     eprintln!("completion_request file path = {:?}", fpath.as_path());
     let loc = parameters.text_document_position.position;
     let line = loc.line;
