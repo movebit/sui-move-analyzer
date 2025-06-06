@@ -33,14 +33,13 @@ tempfile = "3.16.0"
 url = "2.2.2"
 clap = { version = "3.1.8", features = ["derive"] }
 crossbeam = "0.8"
-#move-command-line-common = { git = "https://github.com/MystenLabs/sui.git", tag = "devnet-v1.49.0", package = "move-command-line-common" }
-#move-ir-types = { git = "https://github.com/MystenLabs/sui.git", tag = "devnet-v1.49.0", package = "move-ir-types" }
+move-command-line-common = { git = "https://github.com/MystenLabs/sui.git", tag = "devnet-v1.49.0", package = "move-command-line-common" }
+move-ir-types = { git = "https://github.com/MystenLabs/sui.git", tag = "devnet-v1.49.0", package = "move-ir-types" }
 move-compiler = { git = "https://github.com/MystenLabs/sui.git", tag = "devnet-v1.49.0", package = "move-compiler" }
 move-package = { git = "https://github.com/MystenLabs/sui.git", tag = "devnet-v1.49.0", package = "move-package" }
 move-symbol-pool = { git = "https://github.com/MystenLabs/sui.git", tag = "devnet-v1.49.0", package = "move-symbol-pool" }
-#move-core-types = { git = "https://github.com/MystenLabs/sui.git", tag = "devnet-v1.49.0", package = "move-core-types" }
-#move-cli = { git = "https://github.com/MystenLabs/sui.git", tag = "devnet-v1.49.0", package = "move-cli" }
-#move-model = { git = "https://github.com/MystenLabs/sui.git", tag = "devnet-v1.49.0", package = "move-model" }
+move-core-types = { git = "https://github.com/MystenLabs/sui.git", tag = "devnet-v1.49.0", package = "move-core-types" }
+move-model = { git = "https://github.com/MystenLabs/sui.git", tag = "devnet-v1.49.0", package = "move-model" }
 move-proc-macros= { git = "https://github.com/MystenLabs/sui.git", tag = "devnet-v1.49.0", package = "move-proc-macros" }
 walkdir = "2"
 log = "0.4.14"
