@@ -1,3 +1,5 @@
 target/
 *.lock
 *build*
+pkg/
+tmp1/

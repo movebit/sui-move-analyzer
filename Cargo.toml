@@ -1,12 +1,15 @@
 [package]
-name = "sui-move-analyzer"
-version = "1.2.0"
+name = "beta-2024"
+version = "1.1.4"
 authors = ["Diem Association <opensource@diem.com>"]
 description = "A language server for Move"
 repository = "https://github.com/move-language/move"
 license = "Apache-2.0"
 publish = false
 edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 dirs-next = "2.0.0"
@@ -29,24 +32,65 @@ tempfile = "3.16.0"
 url = "2.2.2"
 clap = { version = "3.1.8", features = ["derive"] }
 crossbeam = "0.8"
+# move-command-line-common = { git = "https://github.com/MystenLabs/sui.git", tag = "devnet-v1.49.0", package = "move-command-line-common" }
+# move-ir-types = { git = "https://github.com/MystenLabs/sui.git", tag = "devnet-v1.49.0", package = "move-ir-types" }
+# move-compiler = { git = "https://github.com/MystenLabs/sui.git", tag = "devnet-v1.49.0", package = "move-compiler" }
+# move-package = { git = "https://github.com/MystenLabs/sui.git", tag = "devnet-v1.49.0", package = "move-package" }
+# move-symbol-pool = { git = "https://github.com/MystenLabs/sui.git", tag = "devnet-v1.49.0", package = "move-symbol-pool" }
+# move-core-types = { git = "https://github.com/MystenLabs/sui.git", tag = "devnet-v1.49.0", package = "move-core-types" }
+# move-model = { git = "https://github.com/MystenLabs/sui.git", tag = "devnet-v1.49.0", package = "move-model" }
+# move-proc-macros= { git = "https://github.com/MystenLabs/sui.git", tag = "devnet-v1.49.0", package = "move-proc-macros" }
+
+move-command-line-common = { git = "https://github.com/movebit/sui_for_analyzer.git", branch = "sui_move_analyzer", package = "move-command-line-common" }
+move-ir-types = { git = "https://github.com/movebit/sui_for_analyzer.git", branch = "sui_move_analyzer", package = "move-ir-types" }
+move-compiler = { git = "https://github.com/movebit/sui_for_analyzer.git", branch = "sui_move_analyzer", package = "move-compiler" }
+move-package = { git = "https://github.com/movebit/sui_for_analyzer.git", branch = "sui_move_analyzer", package = "move-package" }
+move-symbol-pool = { git = "https://github.com/movebit/sui_for_analyzer.git", branch = "sui_move_analyzer", package = "move-symbol-pool" }
+move-core-types = { git = "https://github.com/movebit/sui_for_analyzer.git", branch = "sui_move_analyzer", package = "move-core-types" }
+move-model = { git = "https://github.com/movebit/sui_for_analyzer.git", branch = "sui_move_analyzer", package = "move-model" }
+move-proc-macros= { git = "https://github.com/movebit/sui_for_analyzer.git", branch = "sui_move_analyzer", package = "move-proc-macros" }
 walkdir = "2"
 log = "0.4.14"
 stderrlog = "0.5.4"
 enum-iterator = "1.2.0"
 stacker = "0.1.15"
 
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+web-sys = { version = "0.3", features = ["Window", "Location", "MessageEvent", "MessagePort"] }
+js-sys = "0.3"
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4.29"
+wasm_sync = { version = "0.1.0", optional = true }
+getrandom = { version = "0.3.3", features = ["wasm_js"] }
 
-# different version of sui compliler
-beta-2024 = {path = "src/beta-2024"}
-#move-package = { git = "https://github.com/MystenLabs/sui.git", tag = "devnet-v1.49.0", package = "move-package" }
-move-package = { git = "https://github.com/MystenLabs/sui.git", rev = "6e1cf7a1a9971fedd8b7830e586029d6c2cf801a", package = "move-package" }
+[dependencies.getrandom_0_2]
+package = "getrandom"
+version = "0.2.16"
+features = ["js"]
+
+[package.metadata.cargo-all-features]
+skip_feature_sets = ["getrandom/js"]
+
+[workspace.dependencies]
+getrandom = { version = "0.2.16", features = ["js", "wasm-bindgen"] }
 
 [patch.crates-io]
 named-lock = { git = "https://github.com/hapeeeeee/named-lock", branch = "master" }
 
-[lib]
-crate-type = ["cdylib", "rlib"]
+
+[unstable]
+build-std = ['std', 'panic_abort']
 
 [build]
 target = "wasm32-unknown-unknown"
+rustflags = [
+    "--cfg", "getrandom_backend=\"wasm_js\"",
+    "-C", "target-feature=+atomics,+bulk-memory,+mutable-globals"
+]
+
+[features]
+aptos = []
+sui = []
+
+
 

@@ -86,8 +86,8 @@ fn init_context_manager(connection: &lsp_server::Connection) -> ContextManager {
     context_manager
 }
 
-fn main() {
-
+fn main() {}
+fn run() {
 
     // For now, sui-move-analyzer only responds to options built-in to clap,
     // such as `--help` or `--version`.
@@ -202,7 +202,7 @@ fn main() {
                     Ok(Message::Response(_)) => {},
                     Ok(Message::Notification(notification)) => {
                         eprintln!("listened Notification({:?})...", notification.method.as_str());
-                        let _version = get_compiler_version_from_notification(&notification);
+                        // let _version = get_compiler_version_from_notification(&notification);
                         match notification.method.as_str() {
                             lsp_types::notification::Exit::METHOD => break,
                             lsp_types::notification::Cancel::METHOD => {
@@ -278,6 +278,7 @@ pub fn get_compiler_version_from_requsets(request: &Request) -> String {
 
 pub fn get_file_pathbuf_from_requsets(_request: &Request) -> Option<PathBuf> {
     None
+}
 //     match request.method.as_str() {
 //         lsp_types::request::Completion::METHOD => {
 //             let parameters = serde_json::from_value::<CompletionParams>(request.params.clone())
@@ -389,80 +390,80 @@ pub fn get_file_pathbuf_from_requsets(_request: &Request) -> Option<PathBuf> {
 //         }
 //         _ => None,
 //     }
-}
+// }
 
-pub fn get_compiler_version_from_notification(notification: &Notification) -> String {
-    let file = match get_file_pathbuf_from_notification(&notification) {
-        Some(fpath) => {
-            if let Some(x) = fpath.parent() {
-                match read_move_toml(x) {
-                    Some(file) => file,
-                    None => return String::from("beta_2024"),
-                }
-            } else {
-                return String::from("beta_2024");
-            }
-        }
-        None => return String::from("beta_2024"),
-    };
+// pub fn get_compiler_version_from_notification(notification: &Notification) -> String {
+//     let file = match get_file_pathbuf_from_notification(&notification) {
+//         Some(fpath) => {
+//             if let Some(x) = fpath.parent() {
+//                 match read_move_toml(x) {
+//                     Some(file) => file,
+//                     None => return String::from("beta_2024"),
+//                 }
+//             } else {
+//                 return String::from("beta_2024");
+//             }
+//         }
+//         None => return String::from("beta_2024"),
+//     };
 
-    let tv = parse_move_manifest_from_file(&file);
-    match tv {
-        Ok(x) => {
-            if let Some(edition) = x.package.edition {
-                if edition.edition.as_str() == "2024" {
-                    if let Some(release) = edition.release {
-                        if release.as_str() == "alpha" {
-                            return String::from("alpha_2024");
-                        }
-                    }
-                }
-            }
-        }
-        Err(_) => return String::from("beta_2024"),
-    }
-    return String::from("beta_2024");
-}
+//     let tv = parse_move_manifest_from_file(&file);
+//     match tv {
+//         Ok(x) => {
+//             if let Some(edition) = x.package.edition {
+//                 if edition.edition.as_str() == "2024" {
+//                     if let Some(release) = edition.release {
+//                         if release.as_str() == "alpha" {
+//                             return String::from("alpha_2024");
+//                         }
+//                     }
+//                 }
+//             }
+//         }
+//         Err(_) => return String::from("beta_2024"),
+//     }
+//     return String::from("beta_2024");
+// }
 
-pub fn get_file_pathbuf_from_notification(notification: &Notification) -> Option<PathBuf> {
-    match notification.method.as_str() {
-        lsp_types::notification::DidSaveTextDocument::METHOD => {
-            use lsp_types::DidSaveTextDocumentParams;
-            let parameters =
-                serde_json::from_value::<DidSaveTextDocumentParams>(notification.params.clone())
-                    .expect("could not deserialize DidSaveTextDocumentParams request");
-            let fpath = parameters.text_document.uri.to_file_path().unwrap();
-            let fpath = beta_2024::utils::path_concat(&std::env::current_dir().unwrap(), &fpath);
-            Some(fpath)
-        }
-        lsp_types::notification::DidChangeTextDocument::METHOD => {
-            use lsp_types::DidChangeTextDocumentParams;
-            let parameters =
-                serde_json::from_value::<DidChangeTextDocumentParams>(notification.params.clone())
-                    .expect("could not deserialize DidChangeTextDocumentParams request");
-            let fpath = parameters.text_document.uri.to_file_path().unwrap();
-            let fpath = beta_2024::utils::path_concat(&std::env::current_dir().unwrap(), &fpath);
-            Some(fpath)
-        }
-        lsp_types::notification::DidOpenTextDocument::METHOD => {
-            use lsp_types::DidOpenTextDocumentParams;
-            let parameters =
-                serde_json::from_value::<DidOpenTextDocumentParams>(notification.params.clone())
-                    .expect("could not deserialize DidOpenTextDocumentParams request");
-            let fpath = parameters.text_document.uri.to_file_path().unwrap();
-            let fpath = beta_2024::utils::path_concat(&std::env::current_dir().unwrap(), &fpath);
-            Some(fpath)
-        }
-        lsp_types::notification::DidCloseTextDocument::METHOD => {
-            use lsp_types::DidCloseTextDocumentParams;
-            let parameters =
-                serde_json::from_value::<DidCloseTextDocumentParams>(notification.params.clone())
-                    .expect("could not deserialize DidCloseTextDocumentParams request");
-            let fpath = parameters.text_document.uri.to_file_path().unwrap();
-            let fpath = beta_2024::utils::path_concat(&std::env::current_dir().unwrap(), &fpath);
-            Some(fpath)
-        }
+// pub fn get_file_pathbuf_from_notification(notification: &Notification) -> Option<PathBuf> {
+//     match notification.method.as_str() {
+//         lsp_types::notification::DidSaveTextDocument::METHOD => {
+//             use lsp_types::DidSaveTextDocumentParams;
+//             let parameters =
+//                 serde_json::from_value::<DidSaveTextDocumentParams>(notification.params.clone())
+//                     .expect("could not deserialize DidSaveTextDocumentParams request");
+//             let fpath = parameters.text_document.uri.to_file_path().unwrap();
+//             let fpath = beta_2024::utils::path_concat(&std::env::current_dir().unwrap(), &fpath);
+//             Some(fpath)
+//         }
+//         lsp_types::notification::DidChangeTextDocument::METHOD => {
+//             use lsp_types::DidChangeTextDocumentParams;
+//             let parameters =
+//                 serde_json::from_value::<DidChangeTextDocumentParams>(notification.params.clone())
+//                     .expect("could not deserialize DidChangeTextDocumentParams request");
+//             let fpath = parameters.text_document.uri.to_file_path().unwrap();
+//             let fpath = beta_2024::utils::path_concat(&std::env::current_dir().unwrap(), &fpath);
+//             Some(fpath)
+//         }
+//         lsp_types::notification::DidOpenTextDocument::METHOD => {
+//             use lsp_types::DidOpenTextDocumentParams;
+//             let parameters =
+//                 serde_json::from_value::<DidOpenTextDocumentParams>(notification.params.clone())
+//                     .expect("could not deserialize DidOpenTextDocumentParams request");
+//             let fpath = parameters.text_document.uri.to_file_path().unwrap();
+//             let fpath = beta_2024::utils::path_concat(&std::env::current_dir().unwrap(), &fpath);
+//             Some(fpath)
+//         }
+//         lsp_types::notification::DidCloseTextDocument::METHOD => {
+//             use lsp_types::DidCloseTextDocumentParams;
+//             let parameters =
+//                 serde_json::from_value::<DidCloseTextDocumentParams>(notification.params.clone())
+//                     .expect("could not deserialize DidCloseTextDocumentParams request");
+//             let fpath = parameters.text_document.uri.to_file_path().unwrap();
+//             let fpath = beta_2024::utils::path_concat(&std::env::current_dir().unwrap(), &fpath);
+//             Some(fpath)
+//         }
 
-        _ => None,
-    }
-}
+//         _ => None,
+//     }
+// }
