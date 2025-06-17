@@ -1,0 +1,1 @@
+wasm-pack build --target web -- . -Z build-std=std,panic_abort 
