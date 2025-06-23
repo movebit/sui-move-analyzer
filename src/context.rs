@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use super::utils::*;
-use crate::{project::*, references::ReferencesCache, symbols::Symbols, vfs::VirtualFileSystem};
+use crate::{project::*, references::ReferencesCache, WasmConnection};
 use im::HashSet;
 use lsp_server::Connection;
 use lsp_types::{notification::Notification, MessageType};
@@ -11,6 +11,7 @@ use move_command_line_common::files::FileHash;
 use move_compiler::parser::ast::Definition;
 use move_ir_types::location::Loc;
 use move_package::source_package::layout::SourcePackageLayout;
+use wasm_bindgen::JsValue;
 use std::{
     cell::RefCell,
     collections::HashMap,
@@ -19,17 +20,19 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+
 /// The context within which the language server is running.
-pub struct Context<'a> {
+pub struct Context {
     /// The connection with the language server's client.
-    pub connection: &'a Connection,
-    /// The files that the language server is providing information about.
-    pub files: VirtualFileSystem,
-    /// Symbolication information
-    pub symbols: Arc<Mutex<Symbols>>,
     pub projects: MultiProject,
     pub ref_caches: ReferencesCache,
     pub diag_version: FileDiags,
+}
+
+impl std::fmt::Debug for Context {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Ok(())
+    }
 }
 
 impl_convert_loc!(MultiProject);
@@ -49,7 +52,7 @@ impl MultiProject {
 
     pub fn load_project(
         &mut self,
-        sender: &lsp_server::Connection,
+        sender: &WasmConnection,
         mani: &PathBuf,
     ) -> anyhow::Result<Project> {
         Project::new(mani, self, |msg: String| {
@@ -112,25 +115,23 @@ impl MultiProject {
 }
 
 pub(crate) fn send_show_message(
-    sender: &lsp_server::Connection,
-    typ: lsp_types::MessageType,
+    conn: &WasmConnection,
+    _mty: MessageType,
     msg: String,
 ) {
-    use std::time::Duration;
-    sender
-        .sender
-        .send_timeout(
-            lsp_server::Message::Notification(lsp_server::Notification {
-                method: lsp_types::notification::ShowMessage::METHOD.into(),
-                params: serde_json::to_value(lsp_types::LogMessageParams { typ, message: msg })
-                    .unwrap(),
-            }),
-            Duration::new(5, 0),
-        )
-        .unwrap();
+    let json_val: serde_json::Value = serde_wasm_bindgen::from_value(JsValue::from_str(msg.as_str())).unwrap();
+    conn.send_response(
+        crate::WasmResponse { 
+            id: "".to_string(), 
+            method: "msg".to_string(), 
+            params: Some(json_val), 
+            result: None, 
+            error: None, 
+        }
+    );
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct FileDiags {
     diags: HashMap<PathBuf, HashMap<url::Url, usize>>,
 }
@@ -160,7 +161,7 @@ impl FileDiags {
 static LOAD_DEPS: bool = false;
 
 impl MultiProject {
-    pub fn try_reload_projects(&mut self, connection: &Connection) {
+    pub fn try_reload_projects(&mut self, connection: &WasmConnection) {
         let mut all = Vec::new();
         let not_founds = {
             let mut x = Vec::new();
