@@ -65,7 +65,7 @@ pub mod sui_move_analyzer_beta_2024;
 // SPDX-License-Identifier: Apache-2.0
 
 
-use std::{path::PathBuf, str::FromStr};
+use std::{fmt::format, path::PathBuf, str::FromStr};
 
 use move_command_line_common::files::FileHash;
 use move_compiler::{diagnostics::WarningFilters, editions::{Edition, Flavor}, shared::{CompilationEnv, PackageConfig}, Flags};
@@ -138,9 +138,14 @@ fn with_context<F, R>(f: F, conn: &WasmConnection, val: Value) -> R
 where
     F: FnOnce(&mut Context, &WasmConnection, Value) -> R,
 {
+    console_log!("222222222");
+    console_log!("lsp server: with_context: {:?}", val.get("id").unwrap().as_str());
     GLOBAL_CONTEXT.with(|cell| {
+        console_log!("333333333333");
         let ctx_cell = cell.get().expect("Context not initialized");
+        console_log!("44444444444444");
         let mut ctx = ctx_cell.borrow_mut();
+        console_log!("55555555555555");
         f(&mut ctx, conn, val)
     })
 }
@@ -204,12 +209,15 @@ impl WasmConnection {
                         
                         match method.as_str() {
                             Some("DidOpenTextDocument") => {
+                                console_log!("DidOpenTextDocument 000");
                                 spawn_local(async move {
+                                    console_log!("DidOpenTextDocument 111");
                                     with_context(
-                                        |ctx, conn, val| handle_open_document(ctx, conn, val.into()),
+                                        |ctx, conn, val| handle_open_document(ctx, conn, val),
                                         &conn,
                                         value
                                     );
+                                    console_log!("DidOpenTextDocument 222");
                                 });
                             }
                             Some("DidChangeTextDocument") => {
@@ -324,15 +332,28 @@ fn check_features() {
 
 
 fn handle_open_document<'a>(context: &'a mut Context, conn: &'a WasmConnection, value: Value) {
-    console_log!("lsp server: open document: {:?}", value.get("id").unwrap().as_str());
+    console_log!("lsp server: open document: {:?}", value.get("id").unwrap());
     #[derive(Deserialize)]
-    struct OpenDocumentParams { pub uri: String };
-
-    let request: lsp_server::Request = serde_json::from_value(value).unwrap();
-    let params: OpenDocumentParams =  serde_json::from_value::<OpenDocumentParams>(request.params).unwrap();
-
+    struct OpenDocumentParams { pub url: String };
+    console_log!("aaaaaaaaaaaa");
+    let request: lsp_server::Request = match serde_json::from_value(value) {
+        Ok(r) => r,
+        Err(e) => {
+            console_log!("lsp_server::Request from value failed: {:?}", e);
+            return;
+        }
+    };
+    console_log!("bbbbbbbbbbbbbb");
+    let params: OpenDocumentParams = match serde_json::from_value::<OpenDocumentParams>(request.params) {
+        Ok(p) => p,
+        Err(e) => {
+            console_log!("OpenDocumentParams from value failed: {:?}", e);
+            return;
+        }
+    };
+    console_log!("cccccccccccccccc");
     
-    let fpath = PathBuf::from_str(params.uri.as_str()).unwrap();
+    let fpath = PathBuf::from_str(params.url.as_str()).unwrap();
     let (mani, _) = match discover_manifest_and_kind(&fpath) {
         Some(x) => x,
         None => {
