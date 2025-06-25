@@ -273,11 +273,14 @@ impl GetPosition for GetPositionStruct {
 
 pub fn discover_manifest_and_kind(x: &Path) -> Option<(PathBuf, SourcePackageLayout)> {
     let mut x: Vec<_> = x.components().collect();
+    println!("x.components().collect(): {:?}", x);
     // We should be able at least pop one.
     x.pop()?;
+    println!("x.components().collect(): {:?}", x);
     let mut layout: Option<&SourcePackageLayout> = None;
     while !x.is_empty() {
         while !x.is_empty() {
+            println!("x.last(): {:?}", x.last());
             layout = x
                 .last()
                 .and_then(|x| match x.as_os_str().to_str().unwrap() {
@@ -292,6 +295,7 @@ pub fn discover_manifest_and_kind(x: &Path) -> Option<(PathBuf, SourcePackageLay
             x.pop();
         }
         let layout = layout?;
+        println!("layout: {:?}", layout);
         // Pop tests or sources ...
         x.pop()?;
         let mut manifest_dir = PathBuf::new();
@@ -301,10 +305,13 @@ pub fn discover_manifest_and_kind(x: &Path) -> Option<(PathBuf, SourcePackageLay
         // check if manifest exists.
         let mut manifest_file = manifest_dir.clone();
         manifest_file.push(PROJECT_FILE_NAME);
+        println!("manifest_file: {:?}", manifest_file);
         if manifest_file.exists() {
             return Some((manifest_dir, layout.clone()));
         }
-    }
+        println!("manifest_file not exists");
+    } // /workspace/Move2024/Move.toml
+      // /workspace/Move2024/Move.toml
     None
 }
 
@@ -334,6 +341,7 @@ impl MoveAnalyzerClientCommands {
     }
 }
 use lsp_types::Range;
+
 
 #[derive(Clone, serde::Serialize)]
 pub struct PathAndRange {

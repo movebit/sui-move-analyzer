@@ -57,6 +57,7 @@ pub mod sui_move_analyzer_beta_2024;
 
 
 
+
 // pub mod sui_move_analyzer_beta_2024;
 // pub mod sui_move_analyzer_alpha_2024;
 
@@ -89,80 +90,87 @@ use serde_wasm_bindgen;
 
 use crate::{context::{FileDiags, MultiProject}, utils::discover_manifest_and_kind};
 
-mod console {
-    use wasm_bindgen::prelude::*;
-
-    #[wasm_bindgen]
-    extern "C" {
-        #[wasm_bindgen(js_namespace = console)]
-        pub fn log(s: &str);
-    }
-}
-
-#[macro_export]
-macro_rules! console_log {
-    ($($t:tt)*) => (crate::console::log(&format!($($t)*)))
-}
-
 use once_cell::unsync::OnceCell;
 use std::cell::RefCell;
-
-thread_local! {
-    pub static GLOBAL_CONTEXT: OnceCell<RefCell<Context>> = OnceCell::new();
-}
-
-// pub fn with_context<F, R>(f: F, conn: &WasmConnection, val: Value) -> R
-// where
-//     F: FnOnce(&mut Context, &WasmConnection, Value) -> R,
-// {
-//     GLOBAL_CONTEXT.with(|cell| {
-//         let ctx_cell = cell.get().expect("Context not initialized");
-//         let mut ctx = ctx_cell.borrow_mut();
-//         f(&mut ctx, conn, val)
-//     })
-// }
-
-// pub fn with_context<F, Fut>(f: F, conn: &WasmConnection, val: Value) -> Fut
-// where
-//     F: for<'a> FnOnce(&'a mut Context, &'a WasmConnection, Value) -> Fut,
-//     Fut: std::future::Future<Output = ()>,
-// {
-//     GLOBAL_CONTEXT.with(|cell| {
-//         let ctx_cell = cell.get().expect("Context not initialized");
-//         let mut ctx = ctx_cell.borrow_mut();
-//         f(&mut ctx, conn, val)
-//     })
-// }
-
-fn with_context<F, R>(f: F, conn: &WasmConnection, val: Value) -> R
-where
-    F: FnOnce(&mut Context, &WasmConnection, Value) -> R,
-{
-    console_log!("222222222");
-    console_log!("lsp server: with_context: {:?}", val.get("id").unwrap().as_str());
-    GLOBAL_CONTEXT.with(|cell| {
-        console_log!("333333333333");
-        let ctx_cell = cell.get().expect("Context not initialized");
-        console_log!("44444444444444");
-        let mut ctx = ctx_cell.borrow_mut();
-        console_log!("55555555555555");
-        f(&mut ctx, conn, val)
-    })
-}
-
-
-#[wasm_bindgen]
+use std::borrow::Borrow;
+use std::borrow::BorrowMut;
 pub struct WasmConnection {
-    post_message: Function,
+    message_callback: Option<extern "C" fn(*const u8, usize)>,
 }
 
 impl WasmConnection {
-    fn send_response(&self, response: WasmResponse) {
-        let msg = serde_wasm_bindgen::to_value(&response).unwrap();
-        if let Err(e) = self.post_message.call1(&JsValue::NULL, &msg) {
-            console_log!("Error sending response: {:?}", e);
+    pub fn new() -> Self {
+        WasmConnection {
+            message_callback: None,
         }
     }
+
+    pub fn set_callback(&mut self, callback: extern "C" fn(*const u8, usize)) {
+        println!("rust set_callback");
+        self.message_callback = Some(callback);
+        println!("callback is set: {:?}", self.message_callback.is_some());
+    }
+
+    fn send_response(&self, response: WasmResponse) {
+        println!("callback is set: {:?}", self.message_callback.is_some());
+        println!("send_response 11111111111");
+        if let Ok(bytes) = serde_json::to_vec(&response) {
+            println!("send_response 2222222222222");
+            if let Some(callback) = self.message_callback {
+                println!("send_response 333333333333");
+                let ptr = bytes.as_ptr();
+                let len = bytes.len();
+                std::mem::forget(bytes); // 防止数据被提前释放
+                callback(ptr, len);
+            }
+        }
+    }
+}
+
+thread_local! {
+    pub static GLOBAL_CONTEXT: OnceCell<RefCell<Context>> = OnceCell::new();
+    pub static GLOBAL_CONNECTION: RefCell<WasmConnection> = RefCell::new(WasmConnection::new());
+}
+
+pub fn init_context() {
+    let context = Context {
+        projects: MultiProject::default(),
+        ref_caches: Default::default(),
+        diag_version: FileDiags::new(),
+    };
+
+    GLOBAL_CONTEXT.with(|cell| {
+        cell.set(RefCell::new(context)).unwrap();
+    });
+}
+
+#[link(wasm_import_module = "env")]
+extern "C" {
+    fn js_message_callback(ptr: *const u8, len: usize);
+}
+
+// 注册回调的外部函数
+#[no_mangle]
+pub extern "C" fn register_message_callback(callback: extern "C" fn(*const u8, usize)) {
+    println!("rust register_message_callback");
+    GLOBAL_CONNECTION.with(|conn| {
+        conn.borrow_mut().set_callback(callback);
+    });
+}
+
+fn with_context<F, R>(f: F, val: lsp_server::Request) -> R
+where
+    F: FnOnce(&mut Context, lsp_server::Request) -> R,
+{
+    println!("222222222");
+    GLOBAL_CONTEXT.with(|cell| {
+        println!("333333333333");
+        let ctx_cell = cell.get().expect("Context not initialized");
+        println!("44444444444444");
+        let mut ctx = ctx_cell.borrow_mut();
+        println!("55555555555555");
+        f(&mut ctx, val)
+    })
 }
 
 #[derive(Serialize)]
@@ -174,96 +182,88 @@ pub struct WasmResponse {
     pub error: Option<serde_json::Value>,
 }
 
-#[wasm_bindgen]
-impl WasmConnection {
-    #[wasm_bindgen(constructor)]
-    pub fn new(post_message: Function, port: MessagePort) -> Result<WasmConnection, JsValue> {
-        console_log!("Creating new WasmConnection");
-        check_features();
-        // ---------------------------
-        let conn: WasmConnection = WasmConnection {
-            post_message: post_message,
-        };
+// #[wasm_bindgen]
+// impl WasmConnection {
+//     #[wasm_bindgen(constructor)]
+//     pub fn new(post_message: Function, port: MessagePort) -> Result<WasmConnection, JsValue> {
+//         println!("Creating new WasmConnection");
+//         check_features();
+//         // ---------------------------
+//         let conn: WasmConnection = WasmConnection {
+//             post_message: post_message,
+//         };
 
-        let context = Context {
-            projects: MultiProject::default(),
-            ref_caches: Default::default(),
-            diag_version: FileDiags::new(),
-        };
+        
 
-        GLOBAL_CONTEXT.with(|cell| {
-            cell.set(RefCell::new(context)).unwrap();
-        });
-
-        let conn_weak = conn.clone();
-        let callback = Closure::wrap(Box::new(move |e: MessageEvent| {
-            console_log!("Received message in Rust");
+//         let conn_weak = conn.clone();
+//         let callback = Closure::wrap(Box::new(move |e: MessageEvent| {
+//             println!("Received message in Rust");
             
-            if let Some(message) = e.data().as_string() {
-                console_log!("Message content: {}", message);
+//             if let Some(message) = e.data().as_string() {
+//                 println!("Message content: {}", message);
                 
-                if let Ok(value) = serde_json::from_str::<Value>(&message) {
-                    if let Some(method) = value.get("method") {
-                        let conn = conn_weak.clone();
-                        let value = value.clone();
+//                 if let Ok(value) = serde_json::from_str::<Value>(&message) {
+//                     if let Some(method) = value.get("method") {
+//                         let conn = conn_weak.clone();
+//                         let value = value.clone();
                         
-                        match method.as_str() {
-                            Some("DidOpenTextDocument") => {
-                                console_log!("DidOpenTextDocument 000");
-                                spawn_local(async move {
-                                    console_log!("DidOpenTextDocument 111");
-                                    with_context(
-                                        |ctx, conn, val| handle_open_document(ctx, conn, val),
-                                        &conn,
-                                        value
-                                    );
-                                    console_log!("DidOpenTextDocument 222");
-                                });
-                            }
-                            Some("DidChangeTextDocument") => {
-                                spawn_local(async move {
-                                    with_context(
-                                        |ctx, conn, val| handle_did_change(ctx, conn, val),
-                                        &conn,
-                                        value
-                                    );
-                                });
-                            }
-                            Some("GotoDefinition") => {
-                                spawn_local(async move {
-                                    with_context(
-                                        |ctx, conn, val| handle_goto_definition(ctx, conn, val),
-                                        &conn,
-                                        value
-                                    );
-                                });
-                            }
-                            Some(unkonown) => {
-                                console_log!("Unhandled method: {}", unkonown);
-                            }
-                            None => {
-                                console_log!("Method is not a string");
-                            }
-                        }
-                    }
-                }
-            }
-        }) as Box<dyn FnMut(MessageEvent)>);
+//                         match method.as_str() {
+//                             Some("DidOpenTextDocument") => {
+//                                 println!("DidOpenTextDocument 000");
+//                                 spawn_local(async move {
+//                                     println!("DidOpenTextDocument 111");
+//                                     with_context(
+//                                         |ctx, conn, val| handle_open_document(ctx, conn, val),
+//                                         &conn,
+//                                         value
+//                                     );
+//                                     println!("DidOpenTextDocument 222");
+//                                 });
+//                             }
+//                             Some("DidChangeTextDocument") => {
+//                                 spawn_local(async move {
+//                                     with_context(
+//                                         |ctx, conn, val| handle_did_change(ctx, conn, val),
+//                                         &conn,
+//                                         value
+//                                     );
+//                                 });
+//                             }
+//                             Some("GotoDefinition") => {
+//                                 spawn_local(async move {
+//                                     with_context(
+//                                         |ctx, conn, val| handle_goto_definition(ctx, conn, val),
+//                                         &conn,
+//                                         value
+//                                     );
+//                                 });
+//                             }
+//                             Some(unkonown) => {
+//                                 println!("Unhandled method: {}", unkonown);
+//                             }
+//                             None => {
+//                                 println!("Method is not a string");
+//                             }
+//                         }
+//                     }
+//                 }
+//             }
+//         }) as Box<dyn FnMut(MessageEvent)>);
 
-        port.set_onmessage(Some(callback.as_ref().unchecked_ref()));
-        callback.forget();
+//         port.set_onmessage(Some(callback.as_ref().unchecked_ref()));
+//         callback.forget();
 
-        Ok(conn)
-    }
-}
+//         Ok(conn)
+//     }
+// }
 
-impl Clone for WasmConnection {
-    fn clone(&self) -> Self {
-        WasmConnection {
-            post_message: self.post_message.clone(),
-        }
-    }
-}
+// impl Clone for WasmConnection {
+//     fn clone(&self) -> Self {
+//         WasmConnection {
+//             post_message: self.post_message.clone(),
+//         }
+//     }
+// }
 
 fn update_defs(context: &mut Context, fpath: PathBuf, content: &str) {
     use move_compiler::parser::syntax::parse_file_string;
@@ -309,55 +309,48 @@ fn update_defs(context: &mut Context, fpath: PathBuf, content: &str) {
 }
 
 fn check_features() {
-    console_log!("检查编译条件:");
+    println!("检查编译条件:");
     
     #[cfg(target_arch = "wasm32")]
-    console_log!("✅ target_arch = wasm32");
+    println!("✅ target_arch = wasm32");
     
     #[cfg(not(target_arch = "wasm32"))]
     println!("❌ target_arch != wasm32");
     
     #[cfg(target_feature = "atomics")]
-    console_log!("✅ atomics feature 已启用");
+    println!("✅ atomics feature 已启用");
     
     #[cfg(not(target_feature = "atomics"))]
-    console_log!("❌ atomics feature 未启用");
+    println!("❌ atomics feature 未启用");
     
     #[cfg(all(target_arch = "wasm32", target_feature = "atomics"))]
-    console_log!("✅ wasm.rs 将被使用");
+    println!("✅ wasm.rs 将被使用");
     
     #[cfg(not(all(target_arch = "wasm32", target_feature = "atomics")))]
-    console_log!("❌ wasm.rs 未启用，使用 native.rs");
+    println!("❌ wasm.rs 未启用，使用 native.rs");
 }
 
 
-fn handle_open_document<'a>(context: &'a mut Context, conn: &'a WasmConnection, value: Value) {
-    console_log!("lsp server: open document: {:?}", value.get("id").unwrap());
+fn handle_open_document<'a>(context: &'a mut Context, request: lsp_server::Request) {
     #[derive(Deserialize)]
     struct OpenDocumentParams { pub url: String };
-    console_log!("aaaaaaaaaaaa");
-    let request: lsp_server::Request = match serde_json::from_value(value) {
-        Ok(r) => r,
-        Err(e) => {
-            console_log!("lsp_server::Request from value failed: {:?}", e);
-            return;
-        }
-    };
-    console_log!("bbbbbbbbbbbbbb");
+
     let params: OpenDocumentParams = match serde_json::from_value::<OpenDocumentParams>(request.params) {
         Ok(p) => p,
         Err(e) => {
-            console_log!("OpenDocumentParams from value failed: {:?}", e);
+            println!("OpenDocumentParams from value failed: {:?}", e);
             return;
         }
     };
-    console_log!("cccccccccccccccc");
     
     let fpath = PathBuf::from_str(params.url.as_str()).unwrap();
     let (mani, _) = match discover_manifest_and_kind(&fpath) {
         Some(x) => x,
         None => {
-            console_log!("not move project.");
+            println!("not move project.");
+            GLOBAL_CONNECTION.with(|conn| {
+                crate::context::send_show_message(conn, lsp_types::MessageType::ERROR, "from send_show_message".to_string());
+            });
             // send_not_project_file_error(context, fpath, true);
             return;
         }
@@ -370,40 +363,103 @@ fn handle_open_document<'a>(context: &'a mut Context, conn: &'a WasmConnection, 
             return;
         }
         None => {
-            console_log!("project '{:?}' not found try load.", fpath.as_path());
+            println!("project '{:?}' not found try load.", fpath.as_path());
         }
     };
-    let p = match context.projects.load_project(&conn, &mani) {
-        anyhow::Result::Ok(x) => x,
-        anyhow::Result::Err(e) => {
-            log::error!("load project failed,err:{:?}", e);
-            return;
-        }
-    };
-    context.projects.insert_project(p);
+    GLOBAL_CONNECTION.with(|conn| {
+        let p = match context.projects.load_project(conn, &mani) {
+            anyhow::Result::Ok(x) => x,
+            anyhow::Result::Err(e) => {
+                log::error!("load project failed,err:{:?}", e);
+                return;
+            }
+        };
+        context.projects.insert_project(p);
+    })
+    
     // make_diag(context, diag_sender, fpath);
 
 }
 
-fn handle_did_change(context: &mut Context, conn: &WasmConnection, value: Value) {
+fn handle_did_change(context: &mut Context, request: lsp_server::Request) {
     // let request: lsp_server::Request = serde_json::from_value(value).unwrap();
-    // console_log!("lsp server: change document: {:?}", value.get("id").unwrap());
+    // println!("lsp server: change document: {:?}", value.get("id").unwrap());
 
     // let val = value.get("params").expect("no params");
-    // console_log!("lsp server: change document: {:?}", value);
+    // println!("lsp server: change document: {:?}", value);
 
     // let url = val.get("url").unwrap().as_str().unwrap();
     // let content = val.get("content").unwrap().as_str().unwrap();
-    // console_log!("lsp server: change document: {:?}, {:?}", url, content);
+    // println!("lsp server: change document: {:?}, {:?}", url, content);
 }
 
-fn handle_goto_definition<'a>(context: &'a mut Context, conn: &'a WasmConnection, value: Value) {
-    // console_log!("lsp server: goto definition");
-    // console_log!("lsp server: goto definition: {:?}", value.get("id").unwrap());
-    // console_log!("lsp server: goto definition: {:?}", value.get("params").expect("no params"));
+fn handle_goto_definition<'a>(context: &'a mut Context, request: lsp_server::Request) {
+    // println!("lsp server: goto definition");
+    // println!("lsp server: goto definition: {:?}", value.get("id").unwrap());
+    // println!("lsp server: goto definition: {:?}", value.get("params").expect("no params"));
     // let val = value.get("params").expect("no params");
     // let url = val.get("url").unwrap().as_str().unwrap();
     // let line = val.get("pos").unwrap().get("line").unwrap().as_u64().unwrap();
     // let col = val.get("pos").unwrap().get("col").unwrap().as_u64().unwrap();
-    // console_log!("url: {:?}, line: {:?}, col: {:?}", url, line, col);
+    // println!("url: {:?}, line: {:?}, col: {:?}", url, line, col);
+}
+
+
+#[derive(Deserialize)]
+struct Input {
+    id: String,
+}
+
+#[derive(Serialize)]
+struct Output {
+    message: String,
+}
+
+#[no_mangle]
+pub extern "C" fn process_message(ptr: *const u8, len: usize) -> *mut u8 {
+    // 读取输入
+    let data = unsafe { std::slice::from_raw_parts(ptr, len) };
+
+    let request: lsp_server::Request = match serde_json::from_slice(data) {
+        Ok(r) => r,
+        Err(e) => {
+            println!("lsp_server::Request from value failed: {:?}", e);
+            return std::ptr::null_mut();
+        }
+    };
+    println!("process_message input  data{:?}", data);
+    
+    // 构造输出
+    let method = request.method.clone();
+    match method.as_str() {
+        "DidOpenTextDocument" => {
+            println!("DidOpenTextDocument 000");
+            with_context(
+                |ctx, request| handle_open_document(ctx, request),
+                request
+            );
+        }
+        "DidChangeTextDocument" => {
+            with_context(
+                |ctx, request| handle_did_change(ctx, request),
+                request
+            );
+        }
+        "GotoDefinition" => {
+            with_context(
+                |ctx, request| handle_goto_definition(ctx, request),
+                request
+            );
+        }
+        _ => {
+            println!("Method is not a string");
+        }
+    }
+    return std::ptr::null_mut();
+    // // 序列化输出
+    // let output_str = serde_json::to_string(&output).unwrap();
+    // let output_bytes = output_str.into_bytes();
+    
+    // // 返回
+    // Box::into_raw(output_bytes.into_boxed_slice()) as *mut u8
 }

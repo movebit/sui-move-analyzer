@@ -52,7 +52,7 @@ impl MultiProject {
 
     pub fn load_project(
         &mut self,
-        sender: &WasmConnection,
+        sender: &RefCell<WasmConnection>,
         mani: &PathBuf,
     ) -> anyhow::Result<Project> {
         Project::new(mani, self, |msg: String| {
@@ -115,12 +115,12 @@ impl MultiProject {
 }
 
 pub(crate) fn send_show_message(
-    conn: &WasmConnection,
+    conn: &RefCell<WasmConnection>,
     _mty: MessageType,
     msg: String,
 ) {
-    let json_val: serde_json::Value = serde_wasm_bindgen::from_value(JsValue::from_str(msg.as_str())).unwrap();
-    conn.send_response(
+    let json_val: serde_json::Value = serde_json::json!(msg);
+    conn.borrow().send_response(
         crate::WasmResponse { 
             id: "".to_string(), 
             method: "msg".to_string(), 
@@ -161,7 +161,7 @@ impl FileDiags {
 static LOAD_DEPS: bool = false;
 
 impl MultiProject {
-    pub fn try_reload_projects(&mut self, connection: &WasmConnection) {
+    pub fn try_reload_projects(&mut self, connection: &RefCell<WasmConnection>) {
         let mut all = Vec::new();
         let not_founds = {
             let mut x = Vec::new();

@@ -11,12 +11,9 @@ use lsp_types::{
 use move_command_line_common::files::FileHash;
 use move_compiler::{diagnostics::WarningFilters, editions::{Edition, Flavor}, shared::*};
 use std::{
-    collections::HashMap,
-    path::{Path, PathBuf},
-    sync::{Arc, Mutex},
+    cell::RefCell, collections::HashMap, path::{Path, PathBuf}, sync::{Arc, Mutex}
 };
 use crate::{utils::path_concat, WasmConnection};
-use crate::console_log;
 
 use crate::{
     code_lens,
@@ -35,7 +32,7 @@ use crate::{
 use url::Url;
 pub type DiagnosticsBeta2024 = move_compiler::diagnostics::Diagnostics;
 
-pub fn try_reload_projects(context: &mut Context, conn: &WasmConnection) {
+pub fn try_reload_projects(context: &mut Context, conn: &RefCell<WasmConnection>) {
     context.projects.try_reload_projects(conn);
 }
 
@@ -93,144 +90,144 @@ pub fn on_response(_context: &Context, _response: &Response) {
 
 type DiagSender = Arc<Mutex<Sender<(PathBuf, DiagnosticsBeta2024)>>>;
 
-pub fn on_notification(context: &mut Context, conn: &WasmConnection, diag_sender: DiagSender, notification: &Notification) {
-    // let (diag_sender, _) 
-    //     = bounded::<(PathBuf, move_compiler::diagnostics::Diagnostics)>(1);
-    // let diag_sender = Arc::new(Mutex::new(diag_sender));
-    fn update_defs(context: &mut Context, fpath: PathBuf, content: &str) {
-        use move_compiler::parser::syntax::parse_file_string;
-        let file_hash = FileHash::new(content);
-        let mut env 
-            = CompilationEnv::new(
-                Flags::testing(),
-                Default::default(), 
-                Default::default(),
-                Default::default(),
-                Some(
-                    PackageConfig {
-                        is_dependency: false,
-                        warning_filter: WarningFilters::new_for_source(),
-                        flavor: Flavor::default(),
-                        edition: Edition::E2024_BETA,
-                    },
-                ),
-        );
-        let defs = parse_file_string(&mut env, file_hash, content, None);
-        let defs = match defs {
-            std::result::Result::Ok(x) => x,
-            std::result::Result::Err(d) => {
-                log::error!("update file failed,err:{:?}", d);
-                return;
-            }
-        };
-        let (defs, _) = defs;
-        context.projects.update_defs(fpath.clone(), defs);
-        context.ref_caches.clear();
-        context
-            .projects
-            .hash_file
-            .as_ref()
-            .borrow_mut()
-            .update(fpath.clone(), file_hash);
-        context
-            .projects
-            .file_line_mapping
-            .as_ref()
-            .borrow_mut()
-            .update(fpath, content);
-    }
+// pub fn on_notification(context: &mut Context, conn: &WasmConnection, diag_sender: DiagSender, notification: &Notification) {
+//     // let (diag_sender, _) 
+//     //     = bounded::<(PathBuf, move_compiler::diagnostics::Diagnostics)>(1);
+//     // let diag_sender = Arc::new(Mutex::new(diag_sender));
+//     fn update_defs(context: &mut Context, fpath: PathBuf, content: &str) {
+//         use move_compiler::parser::syntax::parse_file_string;
+//         let file_hash = FileHash::new(content);
+//         let mut env 
+//             = CompilationEnv::new(
+//                 Flags::testing(),
+//                 Default::default(), 
+//                 Default::default(),
+//                 Default::default(),
+//                 Some(
+//                     PackageConfig {
+//                         is_dependency: false,
+//                         warning_filter: WarningFilters::new_for_source(),
+//                         flavor: Flavor::default(),
+//                         edition: Edition::E2024_BETA,
+//                     },
+//                 ),
+//         );
+//         let defs = parse_file_string(&mut env, file_hash, content, None);
+//         let defs = match defs {
+//             std::result::Result::Ok(x) => x,
+//             std::result::Result::Err(d) => {
+//                 log::error!("update file failed,err:{:?}", d);
+//                 return;
+//             }
+//         };
+//         let (defs, _) = defs;
+//         context.projects.update_defs(fpath.clone(), defs);
+//         context.ref_caches.clear();
+//         context
+//             .projects
+//             .hash_file
+//             .as_ref()
+//             .borrow_mut()
+//             .update(fpath.clone(), file_hash);
+//         context
+//             .projects
+//             .file_line_mapping
+//             .as_ref()
+//             .borrow_mut()
+//             .update(fpath, content);
+//     }
 
-    match notification.method.as_str() {
-        lsp_types::notification::DidSaveTextDocument::METHOD => {
-            use lsp_types::DidSaveTextDocumentParams;
-            let parameters =
-                serde_json::from_value::<DidSaveTextDocumentParams>(notification.params.clone())
-                    .expect("could not deserialize DidSaveTextDocumentParams request");
-            let fpath = get_path_from_url(&parameters.text_document.uri).unwrap();
-            let fpath = path_concat(&std::env::current_dir().unwrap(), &fpath);
-            let content = std::fs::read_to_string(fpath.as_path());
-            let content = match content {
-                Ok(x) => x,
-                Err(err) => {
-                    log::error!("read file failed,err:{:?}", err);
-                    return;
-                }
-            };
-            log::trace!("update_defs(beta) >>");
-            update_defs(context, fpath.clone(), content.as_str());
-            make_diag(context, diag_sender, fpath);
-        }
-        lsp_types::notification::DidChangeTextDocument::METHOD => {
-            use lsp_types::DidChangeTextDocumentParams;
-            let parameters =
-                serde_json::from_value::<DidChangeTextDocumentParams>(notification.params.clone())
-                    .expect("could not deserialize DidChangeTextDocumentParams request");
-            let fpath = get_path_from_url(&parameters.text_document.uri).unwrap();
-            let fpath = path_concat(&std::env::current_dir().unwrap(), &fpath);
-            update_defs(
-                context,
-                fpath,
-                parameters.content_changes.last().unwrap().text.as_str(),
-            );
-        }
+//     match notification.method.as_str() {
+//         lsp_types::notification::DidSaveTextDocument::METHOD => {
+//             use lsp_types::DidSaveTextDocumentParams;
+//             let parameters =
+//                 serde_json::from_value::<DidSaveTextDocumentParams>(notification.params.clone())
+//                     .expect("could not deserialize DidSaveTextDocumentParams request");
+//             let fpath = get_path_from_url(&parameters.text_document.uri).unwrap();
+//             let fpath = path_concat(&std::env::current_dir().unwrap(), &fpath);
+//             let content = std::fs::read_to_string(fpath.as_path());
+//             let content = match content {
+//                 Ok(x) => x,
+//                 Err(err) => {
+//                     log::error!("read file failed,err:{:?}", err);
+//                     return;
+//                 }
+//             };
+//             log::trace!("update_defs(beta) >>");
+//             update_defs(context, fpath.clone(), content.as_str());
+//             make_diag(context, diag_sender, fpath);
+//         }
+//         lsp_types::notification::DidChangeTextDocument::METHOD => {
+//             use lsp_types::DidChangeTextDocumentParams;
+//             let parameters =
+//                 serde_json::from_value::<DidChangeTextDocumentParams>(notification.params.clone())
+//                     .expect("could not deserialize DidChangeTextDocumentParams request");
+//             let fpath = get_path_from_url(&parameters.text_document.uri).unwrap();
+//             let fpath = path_concat(&std::env::current_dir().unwrap(), &fpath);
+//             update_defs(
+//                 context,
+//                 fpath,
+//                 parameters.content_changes.last().unwrap().text.as_str(),
+//             );
+//         }
 
-        lsp_types::notification::DidOpenTextDocument::METHOD => {
-            use lsp_types::DidOpenTextDocumentParams;
-            let parameters =
-                serde_json::from_value::<DidOpenTextDocumentParams>(notification.params.clone())
-                    .expect("could not deserialize DidOpenTextDocumentParams request");
-            let fpath = get_path_from_url(&parameters.text_document.uri).unwrap();
-            let fpath = path_concat(&std::env::current_dir().unwrap(), &fpath);
-            let (mani, _) = match discover_manifest_and_kind(&fpath) {
-                Some(x) => x,
-                None => {
-                    console_log!("not move project.");
-                    // send_not_project_file_error(context, fpath, true);
-                    return;
-                }
-            };
-            match context.projects.get_project(&fpath) {
-                Some(_) => {
-                    if let Ok(x) = std::fs::read_to_string(fpath.as_path()) {
-                        update_defs(context, fpath.clone(), x.as_str());
-                    };
-                    return;
-                }
-                None => {
-                    console_log!("project '{:?}' not found try load.", fpath.as_path());
-                }
-            };
-            let p = match context.projects.load_project(&conn, &mani) {
-                anyhow::Result::Ok(x) => x,
-                anyhow::Result::Err(e) => {
-                    log::error!("load project failed,err:{:?}", e);
-                    return;
-                }
-            };
-            context.projects.insert_project(p);
-            make_diag(context, diag_sender, fpath);
-        }
-        lsp_types::notification::DidCloseTextDocument::METHOD => {
-            use lsp_types::DidCloseTextDocumentParams;
-            let parameters =
-                serde_json::from_value::<DidCloseTextDocumentParams>(notification.params.clone())
-                    .expect("could not deserialize DidCloseTextDocumentParams request");
-            let fpath = get_path_from_url(&parameters.text_document.uri).unwrap();
+//         lsp_types::notification::DidOpenTextDocument::METHOD => {
+//             use lsp_types::DidOpenTextDocumentParams;
+//             let parameters =
+//                 serde_json::from_value::<DidOpenTextDocumentParams>(notification.params.clone())
+//                     .expect("could not deserialize DidOpenTextDocumentParams request");
+//             let fpath = get_path_from_url(&parameters.text_document.uri).unwrap();
+//             let fpath = path_concat(&std::env::current_dir().unwrap(), &fpath);
+//             let (mani, _) = match discover_manifest_and_kind(&fpath) {
+//                 Some(x) => x,
+//                 None => {
+//                     println!("not move project.");
+//                     // send_not_project_file_error(context, fpath, true);
+//                     return;
+//                 }
+//             };
+//             match context.projects.get_project(&fpath) {
+//                 Some(_) => {
+//                     if let Ok(x) = std::fs::read_to_string(fpath.as_path()) {
+//                         update_defs(context, fpath.clone(), x.as_str());
+//                     };
+//                     return;
+//                 }
+//                 None => {
+//                     println!("project '{:?}' not found try load.", fpath.as_path());
+//                 }
+//             };
+//             let p = match context.projects.load_project(&conn, &mani) {
+//                 anyhow::Result::Ok(x) => x,
+//                 anyhow::Result::Err(e) => {
+//                     log::error!("load project failed,err:{:?}", e);
+//                     return;
+//                 }
+//             };
+//             context.projects.insert_project(p);
+//             make_diag(context, diag_sender, fpath);
+//         }
+//         lsp_types::notification::DidCloseTextDocument::METHOD => {
+//             use lsp_types::DidCloseTextDocumentParams;
+//             let parameters =
+//                 serde_json::from_value::<DidCloseTextDocumentParams>(notification.params.clone())
+//                     .expect("could not deserialize DidCloseTextDocumentParams request");
+//             let fpath = get_path_from_url(&parameters.text_document.uri).unwrap();
 
-            let fpath = path_concat(&std::env::current_dir().unwrap(), &fpath);
-            let (_, _) = match crate::utils::discover_manifest_and_kind(&fpath) {
-                Some(x) => x,
-                None => {
-                    console_log!("not move project.");
-                    // send_not_project_file_error(context, fpath, false);
-                    return;
-                }
-            };
-        }
+//             let fpath = path_concat(&std::env::current_dir().unwrap(), &fpath);
+//             let (_, _) = match crate::utils::discover_manifest_and_kind(&fpath) {
+//                 Some(x) => x,
+//                 None => {
+//                     println!("not move project.");
+//                     // send_not_project_file_error(context, fpath, false);
+//                     return;
+//                 }
+//             };
+//         }
 
-        _ => {},
-    }
-}
+//         _ => {},
+//     }
+// }
 
 fn get_package_compile_diagnostics(
     pkg_path: &Path,
