@@ -83,7 +83,7 @@ named-lock = { git = "https://github.com/hapeeeeee/named-lock", branch = "master
 build-std = ['std', 'panic_abort']
 
 [build]
-target = "wasm32-unknown-unknown"
+target = "wasm32-wasip1-threads"
 rustflags = [
     "-C", "target-feature=+atomics,+bulk-memory,+mutable-globals"
 ]
