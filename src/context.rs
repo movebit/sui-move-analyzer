@@ -120,7 +120,7 @@ pub(crate) fn send_show_message(
     msg: String,
 ) {
     let json_val: serde_json::Value = serde_json::json!(msg);
-    conn.borrow().send_response(
+    conn.borrow_mut().send_response(
         crate::WasmResponse { 
             id: "".to_string(), 
             method: "msg".to_string(), 
