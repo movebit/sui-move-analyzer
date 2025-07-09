@@ -7,9 +7,9 @@ use move_command_line_common::files::FileHash;
 use move_ir_types::location::*;
 use move_package::source_package::layout::SourcePackageLayout;
 use move_symbol_pool::Symbol;
+use std::{collections::HashMap, path::*, vec};
 #[cfg(target_arch = "wasm32")]
 use url::Url;
-use std::{collections::HashMap, path::*, vec};
 
 /// Converts a location from the byte index format to the line/character (Position) format, where
 /// line/character are 0-based.
@@ -88,10 +88,14 @@ impl FileLineMapping {
             // this is a dummy fix.
             end_index = start_index;
         }
-        let vec = self.m.get(filepath)?; 
+        let vec = self.m.get(filepath)?;
         let too_big = vec.last().map(|x| *x <= end_index).unwrap_or(false);
         if too_big {
-            log::error!("end index too big. vec.last() = {:?}, end index = {:?}", vec.last(), end_index);
+            log::error!(
+                "end index too big. vec.last() = {:?}, end index = {:?}",
+                vec.last(),
+                end_index
+            );
             return None;
         }
         fn search(vec: &[ByteIndex], byte_index: ByteIndex) -> (u32, u32) {
@@ -148,7 +152,7 @@ impl FileRange {
                 character: self.col_end,
             },
         };
-        
+
         let uri = get_url_from_path(self.path.as_path()).unwrap();
         lsp_types::Location::new(uri, range)
     }
@@ -310,8 +314,7 @@ pub fn discover_manifest_and_kind(x: &Path) -> Option<(PathBuf, SourcePackageLay
             return Some((manifest_dir, layout.clone()));
         }
         println!("manifest_file not exists");
-    } // /workspace/Move2024/Move.toml
-      // /workspace/Move2024/Move.toml
+    }
     None
 }
 
@@ -342,7 +345,6 @@ impl MoveAnalyzerClientCommands {
 }
 use lsp_types::Range;
 
-
 #[derive(Clone, serde::Serialize)]
 pub struct PathAndRange {
     range: Range,
@@ -364,15 +366,13 @@ impl From<&Location> for PathAndRange {
 
 pub const PROJECT_FILE_NAME: &str = "Move.toml";
 
-
-
 #[cfg(not(target_arch = "wasm32"))]
-pub fn get_path_from_url(url: &Url) ->  Result<PathBuf, ()> {
+pub fn get_path_from_url(url: &Url) -> Result<PathBuf, ()> {
     url.to_file_path()
 }
 
 #[cfg(target_arch = "wasm32")]
-pub fn get_path_from_url(url: &Url) ->  Result<PathBuf, ()> {
+pub fn get_path_from_url(url: &Url) -> Result<PathBuf, ()> {
     Ok(PathBuf::from(url.path()))
 }
 

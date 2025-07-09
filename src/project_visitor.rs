@@ -112,7 +112,7 @@ impl Project {
 
     /// Entrance for `ItemOrAccessHandler` base on analyze.
     pub fn run_full_visitor(&self, visitor: &mut dyn ItemOrAccessHandler) {
-        log::info!("run visitor for {} ", visitor);
+        println!("run visitor for {} ", visitor);
         self.project_context.clear_scopes_and_addresses();
 
         // visit should `rev`.
@@ -145,7 +145,7 @@ impl Project {
         filepath: &PathBuf,
         enter_import: bool,
     ) -> anyhow::Result<()> {
-        log::info!("run visitor part for {} ", visitor);
+        println!("run visitor part for {} ", visitor);
         self.get_defs(filepath, |provider| {
             self.visit(
                 &self.project_context,
@@ -469,6 +469,7 @@ impl Project {
                 },
             );
             let range = self.convert_loc_range(&f.loc);
+            println!("function({:?}) range: {:?}", f.name, range);
             if range.is_none() {
                 return;
             }
@@ -476,7 +477,7 @@ impl Project {
                 return;
             }
             let _guard = project_context.clone_scope_and_enter(addr, module_name, false);
-            log::info!("provider.with_function range = {:?}", range);
+            println!("provider.with_function range = {:?}", range);
             self.visit_function(f, project_context, visitor);
         });
 
@@ -495,7 +496,7 @@ impl Project {
         expr: Option<&Exp>,
         has_decl_ty: bool,
     ) {
-        log::info!("visit_bind:{:?}", bind);
+        println!("visit_bind:{:?}", bind);
         match &bind.value {
             Bind_::Var(_, var) => {
                 let item = ItemOrAccess::Item(Item::Var {
@@ -636,14 +637,14 @@ impl Project {
                 }
             }
             for s in seq.1.iter() {
-                log::trace!("visit_block sequence_item = {:?}", s);
+                // println!("visit_block sequence_item = {:?}", s);
                 self.visit_sequence_item(s, scopes, visitor);
                 if visitor.finished() {
                     return;
                 }
             }
             if let Some(ref exp) = seq.3.as_ref() {
-                log::trace!("visit_block exp = {:?}", exp);
+                println!("visit_block: visit_expr");
                 self.visit_expr(exp, scopes, visitor);
             }
         });
@@ -683,23 +684,23 @@ impl Project {
         project_context: &ProjectContext,
         visitor: &mut dyn ItemOrAccessHandler,
     ) {
-        log::trace!("visit_expr:{:?}", exp);
+        // println!("visit_expr:{:?}", exp);
         if visitor.need_expr_type() {
             let ty = self.get_expr_type(exp, project_context);
             visitor.handle_expr_typ(exp, ty);
         }
-
+        
         let handle_dot = |e: &Exp,
                           field: &Name,
                           project_context: &ProjectContext,
                           visitor: &mut dyn ItemOrAccessHandler,
                           _has_ref: Option<bool>| {
-            log::trace!("handle_dot({})", field);
+            println!("handle_dot({})", field);
             // self.visit_expr(e, project_context, visitor);
             if visitor.finished() {
                 return;
             }
-            log::trace!(
+            println!(
                 "handle_dot --> inlay_hint.handle_item_or_access({}) continue",
                 field
             );
@@ -732,7 +733,7 @@ impl Project {
                 visitor.handle_item_or_access(self, project_context, &item);
             }
         };
-
+        println!("visit_expr match &exp.value");
         match &exp.value {
             Exp_::Value(ref v) => {
                 if let Some(name) = get_name_from_value(v) {
@@ -741,23 +742,24 @@ impl Project {
                 }
             }
             Exp_::Move(_, expr) | Exp_::Copy(_, expr) => {
-                log::trace!("process Exp_::Move|Copy, expr = {:?}", expr);
+                println!("process Exp_::Move|Copy, expr = {:?}", expr);
                 self.visit_expr(expr.as_ref(), project_context, visitor);
             }
             Exp_::Name(chain) => {
-                log::trace!("process Exp_::Name, chain = {}", chain);
+                println!("process Exp_::Name, chain = {}", chain);
                 let (item, module) = project_context.find_name_chain_item(chain, self);
                 let item = ItemOrAccess::Access(Access::ExprAccessChain(
                     chain.clone(),
                     module,
                     Box::new(item.unwrap_or_default()),
                 ));
-                log::trace!("process Exp_::Name, item = {}", item);
+                println!("process Exp_::Name, item = {}", item);
                 visitor.handle_item_or_access(self, project_context, &item);
                 if visitor.finished() {}
             }
 
             Exp_::Call(ref chain, ref exprs) => {
+                println!("\n\n================== Exp_::Call");
                 let chain_clone = chain.clone();
                 match chain_clone.value {
                     NameAccessChain_::Single(path_entry) => {
@@ -784,7 +786,7 @@ impl Project {
 
                 let (item, module) = project_context.find_name_chain_item(chain, self);
                 if item.is_some() {
-                    log::warn!("process Exp_::Call, is_build_in(item) = {}", item.clone().unwrap().is_build_in());
+                    println!("process Exp_::Call, is_build_in(item) = {}", item.clone().unwrap().is_build_in());
                 }
                 if visitor.need_call_pair() {
                     if let Item::Fun(_f) = item.clone().unwrap_or_default() {
@@ -835,14 +837,14 @@ impl Project {
                 if visitor.current_vistor_handler_is_inlay_hints() {
                     return;
                 }
-                log::warn!("process Exp_::Call, item = {}", item);
+                println!("process Exp_::Call, item = {}", item);
                 visitor.handle_item_or_access(self, project_context, &item);
                 if visitor.finished() {
                     return;
                 }
 
                 for expr in exprs.value.iter() {
-                    log::trace!("process Exp_::Call, expr = {:?}", expr);
+                    println!("process Exp_::Call, expr = {:?}", expr);
                     self.visit_expr(expr, project_context, visitor);
                     if visitor.finished() {
                         return;
@@ -857,7 +859,7 @@ impl Project {
                     None,
                     Box::new(opt_item.unwrap_or_default()),
                 ));
-                log::warn!("process Exp_::DotCall, item = {}", item);
+                println!("process Exp_::DotCall, item = {}", item);
                 visitor.handle_item_or_access(self, project_context, &item);
                 for paren_exp in &call_paren_exp.value {
                     self.visit_expr(&paren_exp, project_context, visitor);
@@ -1087,7 +1089,7 @@ impl Project {
                 }
             },
             Exp_::Dot(e, field) => {
-                log::trace!("process Exp_::Dot, field = {}", field);
+                println!("process Exp_::Dot, field = {}", field);
                 handle_dot(e, field, project_context, visitor, None);
             }
             Exp_::Index(e, index) => {
@@ -1176,7 +1178,7 @@ impl Project {
             if visitor.finished() {
                 return;
             }
-            log::info!(
+            println!(
                 "visit_function, function.body.value = {:?}",
                 function.body.value
             );
