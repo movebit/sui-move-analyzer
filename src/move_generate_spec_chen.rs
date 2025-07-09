@@ -42,9 +42,7 @@ impl FunSpecGenerator {
                 Exp_::While(_, _) => {}
                 Exp_::Loop(_) => {}
                 Exp_::Block(_) => {}
-                Exp_::Lambda(_, _, e) => {
-                    collect_spec_exp_(ret, e.as_ref())
-                }
+                Exp_::Lambda(_, _, e) => collect_spec_exp_(ret, e.as_ref()),
                 Exp_::Quant(_, _, _, _, _) => {}
                 Exp_::ExpList(es) => {
                     for e in es.iter() {

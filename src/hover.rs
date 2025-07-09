@@ -20,7 +20,7 @@
 //         .text_document
 //         .uri
 //     ).unwrap();
-    
+
 //     let loc = parameters.text_document_position_params.position;
 //     let line = loc.line;
 //     let col = loc.character;

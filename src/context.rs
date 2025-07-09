@@ -11,7 +11,6 @@ use move_command_line_common::files::FileHash;
 use move_compiler::parser::ast::Definition;
 use move_ir_types::location::Loc;
 use move_package::source_package::layout::SourcePackageLayout;
-use wasm_bindgen::JsValue;
 use std::{
     cell::RefCell,
     collections::HashMap,
@@ -19,7 +18,7 @@ use std::{
     rc::Rc,
     sync::{Arc, Mutex},
 };
-
+use wasm_bindgen::JsValue;
 
 /// The context within which the language server is running.
 pub struct Context {
@@ -114,21 +113,15 @@ impl MultiProject {
     }
 }
 
-pub(crate) fn send_show_message(
-    conn: &RefCell<WasmConnection>,
-    _mty: MessageType,
-    msg: String,
-) {
+pub(crate) fn send_show_message(conn: &RefCell<WasmConnection>, _mty: MessageType, msg: String) {
     let json_val: serde_json::Value = serde_json::json!(msg);
-    conn.borrow_mut().send_response(
-        crate::WasmResponse { 
-            id: "".to_string(), 
-            method: "msg".to_string(), 
-            params: Some(json_val), 
-            result: None, 
-            error: None, 
-        }
-    );
+    conn.borrow_mut().send_response(crate::WasmResponse {
+        id: "".to_string(),
+        method: "msg".to_string(),
+        params: Some(json_val),
+        result: None,
+        error: None,
+    });
 }
 
 #[derive(Default, Debug)]

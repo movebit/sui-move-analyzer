@@ -187,7 +187,7 @@
 // //         &mut env,
 // //         fh,
 // //         r#"
-// //         module 0x1::xxx { 
+// //         module 0x1::xxx {
 // //             fun aaa() :u8 {1}
 // //         }
 // //     "#,

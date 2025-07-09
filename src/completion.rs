@@ -286,7 +286,7 @@
 //                                         LeadingNameAccess_::AnonymousAddress(addr) => {
 //                                             addr.into_inner()
 //                                         }
-//                                         LeadingNameAccess_::Name(name) | 
+//                                         LeadingNameAccess_::Name(name) |
 //                                         LeadingNameAccess_::GlobalAddress(name) => {
 //                                             services.name_2_addr(name.value)
 //                                         }
@@ -330,7 +330,7 @@
 //                                         LeadingNameAccess_::AnonymousAddress(addr) => {
 //                                             addr.into_inner()
 //                                         }
-//                                         LeadingNameAccess_::Name(name) 
+//                                         LeadingNameAccess_::Name(name)
 //                                         | LeadingNameAccess_::GlobalAddress(name) => {
 //                                             services.name_2_addr(name.value)
 //                                         }
@@ -405,7 +405,7 @@
 //                                 for entry in name_path.entries.iter() {
 //                                     if self.match_loc(&entry.name.loc, services) {
 //                                         let addr = match &space.value {
-//                                             LeadingNameAccess_::Name(name) 
+//                                             LeadingNameAccess_::Name(name)
 //                                             | LeadingNameAccess_::GlobalAddress(name) => {
 //                                                 services.name_2_addr(name.value)
 //                                             }
@@ -491,7 +491,7 @@
 //                                     for entry in name_path.entries.iter() {
 //                                         if self.match_loc(&entry.name.loc, services) {
 //                                             let addr = match &leading_name_access.value {
-//                                                 LeadingNameAccess_::Name(name) 
+//                                                 LeadingNameAccess_::Name(name)
 //                                                 | LeadingNameAccess_::GlobalAddress(name) => {
 //                                                     services.name_2_addr(name.value)
 //                                                 }
@@ -515,7 +515,7 @@
 //                                             }
 //                                         }
 //                                     }
-//                                 } 
+//                                 }
 //                             }
 //                         }
 //                     }

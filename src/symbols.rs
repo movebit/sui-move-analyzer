@@ -48,7 +48,7 @@
 
 // use crate::{
 //     context::Context,
-//     diagnostics::{lsp_diagnostics, lsp_empty_diagnostics}, project::{ConvertLoc, Project}, utils::{get_path_from_url, get_url_from_path}, 
+//     diagnostics::{lsp_diagnostics, lsp_empty_diagnostics}, project::{ConvertLoc, Project}, utils::{get_path_from_url, get_url_from_path},
 // };
 // use crate::utils::discover_manifest_and_kind;
 // use anyhow::{anyhow, Result};
@@ -383,7 +383,7 @@
 //         } => format!("{}", name),
 //         Address::NamedUnassigned(name) => format!("{}", name),
 //     }
-    
+
 // }
 
 // fn type_list_to_ide_string(types: &[Type]) -> String {
@@ -1056,7 +1056,7 @@
 //         .expect("could not deserialize document symbol request");
 //     let fpath = get_path_from_url(&parameters.text_document.uri).unwrap();
 //     eprintln!("symbol_request file path = {:?}", fpath.as_path());
-    
+
 //     let path_project = match context.projects.get_project(&fpath) {
 //         Some(x) => x,
 //         None => {
@@ -1064,7 +1064,7 @@
 //             return ;
 //         }
 //     };
-    
+
 //     let (manifest_path, _) = match discover_manifest_and_kind(fpath.as_path()) {
 //         Some(x) => x,
 //         None => {
@@ -1089,7 +1089,7 @@
 //         match def {
 //             Definition::Module(def_module) => {
 //                 eprintln!("handle symbol, Module, {:?}", def_module.name);
-                
+
 //                 let range = match path_project.loc_to_range(&def_module.loc) {
 //                     Some(x) => x,
 //                     None => {
@@ -1114,7 +1114,7 @@
 //                                     return ;
 //                                 }
 //                             };
-                            
+
 //                             children.push(DocumentSymbol {
 //                                 name: x.name.to_string(),
 //                                 detail:None,
@@ -1125,7 +1125,7 @@
 //                                 tags: Some(vec![]),
 //                                 deprecated: Some(false),
 //                             });
-                        
+
 //                         }, // match def_module_member => function
 //                         ModuleMember::Struct(x) => {
 //                             let struct_range = match path_project.loc_to_range(&x.loc) {
@@ -1137,7 +1137,7 @@
 //                             };
 //                             let mut fields: Vec<DocumentSymbol> = vec![];
 //                             handle_struct_fields(path_project, x.clone(), &mut fields);
-                
+
 //                             children.push(DocumentSymbol {
 //                                 name: x.name.to_string(),
 //                                 detail: None,
@@ -1172,7 +1172,7 @@
 //                         _ => {},
 //                     } // match def_module_member
 //                 } // for def_module_member in def.member
-                
+
 //                 result_defs.push(DocumentSymbol {
 //                     name,
 //                     detail,
@@ -1194,7 +1194,7 @@
 
 //     // unwrap will succeed based on the logic above which the compiler is unable to figure out
 //     let response = lsp_server::Response::new_ok(
-//         request.id.clone(), 
+//         request.id.clone(),
 //         result_defs
 //     );
 //     if let Err(err) = context

@@ -419,15 +419,11 @@ impl Default for MacroCall {
 /// Get the last name of a access chain.
 pub(crate) fn get_name_chain_last_name(x: &NameAccessChain) -> &Name {
     match &x.value {
-        move_compiler::parser::ast::NameAccessChain_::Single(path_entry) => {
-            &path_entry.name
-        }
+        move_compiler::parser::ast::NameAccessChain_::Single(path_entry) => &path_entry.name,
         move_compiler::parser::ast::NameAccessChain_::Path(name_path) => {
             &name_path.entries.last().unwrap().name
         }
-        
     }
-    
 }
 
 impl std::fmt::Display for Item {
@@ -638,7 +634,9 @@ impl Access {
         match self {
             Self::ExprAccessChain(chain, Option::Some(module), _) => match &chain.value {
                 NameAccessChain_::Single(_) => None,
-                NameAccessChain_::Path(name_path) => Some((name_path.root.name.loc, module.name.loc())),
+                NameAccessChain_::Path(name_path) => {
+                    Some((name_path.root.name.loc, module.name.loc()))
+                }
             },
 
             Self::ApplyType(chain, Option::Some(module), _) => match &chain.value {

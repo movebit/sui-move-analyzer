@@ -3,14 +3,15 @@
 
 #[cfg(test)]
 mod tests {
-    use lsp_server::{Connection, Request, Response};
     use beta_2024::{
         context::{Context, FileDiags, MultiProject},
-        goto_definition, symbols,
+        goto_definition,
+        sui_move_analyzer_beta_2024::*,
+        symbols,
         utils::*,
         vfs::VirtualFileSystem,
-        sui_move_analyzer_beta_2024::*,
     };
+    use lsp_server::{Connection, Request, Response};
     use serde_json::json;
     use std::{
         path::PathBuf,

@@ -13,17 +13,13 @@ use std::path::PathBuf;
 
 /// Handles go-to-def request of the language server.
 pub fn on_go_to_def_request(
-    context: &Context, 
-    fpath: PathBuf, 
-    pos: lsp_types::Position
+    context: &Context,
+    fpath: PathBuf,
+    pos: lsp_types::Position,
 ) -> serde_json::Value {
     eprintln!("on_go_to_def_request fpath: {:?}, pos: {:?}", fpath, pos);
 
-    let mut handler = Handler::new(
-        fpath.clone(), 
-        pos.line, 
-        pos.character
-    );
+    let mut handler = Handler::new(fpath.clone(), pos.line, pos.character);
     let _ = match context.projects.get_project(&fpath) {
         Some(x) => x,
         None => {
@@ -103,8 +99,14 @@ impl ItemOrAccessHandler for Handler {
         _project_context: &ProjectContext,
         item_or_access: &ItemOrAccess,
     ) {
-        println!("handle_item_or_access<goto>, item_or_access = {}", item_or_access);
-        println!(">> handle_item_or_access<goto>, self.result = {:?}", self.result);
+        println!(
+            "handle_item_or_access<goto>, item_or_access = {}",
+            item_or_access
+        );
+        println!(
+            ">> handle_item_or_access<goto>, self.result = {:?}",
+            self.result
+        );
         match item_or_access {
             ItemOrAccess::Item(item) => match item {
                 Item::Use(x) => {
@@ -197,7 +199,10 @@ impl ItemOrAccessHandler for Handler {
                 }
                 Access::ExprAccessChain(chain, _, item) if item.is_build_in() => {
                     println!("-- handle_item_or_access<goto>, ExprAccessChain");
-                    println!("-- handle_item_or_access<goto>, chain.name = {}", chain.value);
+                    println!(
+                        "-- handle_item_or_access<goto>, chain.name = {}",
+                        chain.value
+                    );
                     if self.match_loc(&chain.loc, services) {
                         if let Some(t) = services.convert_loc_range(&chain.loc) {
                             self.result = Some(t);
@@ -205,52 +210,58 @@ impl ItemOrAccessHandler for Handler {
                         }
                     }
                 }
-                Access::ExprAccessChain(chain,  _, item) => {
-                    match chain.value {
-                        move_compiler::parser::ast::NameAccessChain_::Single(..) => {
-                            println!("-- handle_item_or_access<goto> Single, ExprAccessChain");
-                            println!("-- handle_item_or_access<goto> Single, chain.name = {}", chain.value);
-                            println!("-- handle_item_or_access<goto> Single, chain.loc = {:?}", services.convert_loc_range(&chain.loc));
-                            if self.match_loc(&chain.loc, services) {
-                                println!("match_loc true");
-                                if let Some(t) = services.convert_loc_range(&item.def_loc()) {
-                                    println!("services.convert_loc_range true");
-                                    self.result = Some(t);
-                                    self.result_item_or_access = Some(item_or_access.clone());
-                                }
-                            }
-                        }
-                        _ => {
-                            println!("access:{}", access);
-                            if let Some((access, def)) = access.access_module() {
-                                if self.match_loc(&access, services) {
-                                    if let Some(t) = services.convert_loc_range(&def) {
-                                        self.result = Some(t);
-                                        self.result_loc = Some(def);
-                                        self.result_item_or_access = Some(item_or_access.clone());
-                                        return;
-                                    }
-                                }
-                            }
-                            let locs = access.access_def_loc();
-                            if self.match_loc(&locs.0, services) {
-                                if let Some(t) = services.convert_loc_range(&locs.1) {
-                                    self.result = Some(t);
-                                    self.result_loc = Some(locs.1);
-                                    self.result_item_or_access = Some(item_or_access.clone());
-                                }
+                Access::ExprAccessChain(chain, _, item) => match chain.value {
+                    move_compiler::parser::ast::NameAccessChain_::Single(..) => {
+                        println!("-- handle_item_or_access<goto> Single, ExprAccessChain");
+                        println!(
+                            "-- handle_item_or_access<goto> Single, chain.name = {}",
+                            chain.value
+                        );
+                        println!(
+                            "-- handle_item_or_access<goto> Single, chain.loc = {:?}",
+                            services.convert_loc_range(&chain.loc)
+                        );
+                        if self.match_loc(&chain.loc, services) {
+                            println!("match_loc true");
+                            if let Some(t) = services.convert_loc_range(&item.def_loc()) {
+                                println!("services.convert_loc_range true");
+                                self.result = Some(t);
+                                self.result_item_or_access = Some(item_or_access.clone());
                             }
                         }
                     }
-                }
+                    _ => {
+                        println!("access:{}", access);
+                        if let Some((access, def)) = access.access_module() {
+                            if self.match_loc(&access, services) {
+                                if let Some(t) = services.convert_loc_range(&def) {
+                                    self.result = Some(t);
+                                    self.result_loc = Some(def);
+                                    self.result_item_or_access = Some(item_or_access.clone());
+                                    return;
+                                }
+                            }
+                        }
+                        let locs = access.access_def_loc();
+                        if self.match_loc(&locs.0, services) {
+                            if let Some(t) = services.convert_loc_range(&locs.1) {
+                                self.result = Some(t);
+                                self.result_loc = Some(locs.1);
+                                self.result_item_or_access = Some(item_or_access.clone());
+                            }
+                        }
+                    }
+                },
                 _ => {}
             },
         }
-        println!("<< handle_item_or_access<goto>, self.result = {:?}", self.result);
+        println!(
+            "<< handle_item_or_access<goto>, self.result = {:?}",
+            self.result
+        );
     }
 
     fn function_or_spec_body_should_visit(&self, range: &FileRange) -> bool {
-        
         let a = Self::in_range(self, range);
         println!("function_or_spec_body_should_visit, {}", a);
         a
@@ -278,15 +289,10 @@ impl GetPosition for Handler {
 }
 
 /// Handles go-to-def request of the language server
-pub fn on_go_to_type_def_request(
-    context: &Context, 
-    fpath: PathBuf, 
-    pos: lsp_types::Position
-) {
+pub fn on_go_to_type_def_request(context: &Context, fpath: PathBuf, pos: lsp_types::Position) {
     println!(
-        "on_go_to_type_def_request, fpath: {:?}, pos: {:?}", 
-        fpath,
-        pos
+        "on_go_to_type_def_request, fpath: {:?}, pos: {:?}",
+        fpath, pos
     );
     // let parameters = serde_json::from_value::<GotoDefinitionParams>(request.params.clone())
     //     .expect("could not deserialize go-to-def request");
@@ -397,10 +403,14 @@ pub fn on_go_to_type_def_request(
                     println!("Access::ApplyType");
                     type_defs(&mut locations, ty, modules);
                 }
-                _ => {println!("Access::None");}
+                _ => {
+                    println!("Access::None");
+                }
             },
         },
-        None => {println!("handler.result_item_or_access is None")}
+        None => {
+            println!("handler.result_item_or_access is None")
+        }
     };
     println!("3333333333");
     println!("goto definition result: {:?}", locations)

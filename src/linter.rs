@@ -90,20 +90,20 @@
 
 //             let mut result: HashMap<Url, Vec<lsp_types::Diagnostic>> = HashMap::new();
 //             let mut idx = 0;
-//             for (s, _, (loc, detail_str), loc_str_vec, suggest_str_vec ) 
+//             for (s, _, (loc, detail_str), loc_str_vec, suggest_str_vec )
 //                 in diags.clone().into_codespan_format() {
 //                 let diag_vec = diags.clone().into_vec();
 //                 let (severity, diag_ty_str) = diag_vec[idx].info().clone().render();
 //                 idx = idx + 1;
 //                 if !severity.contains("Lint") {
-//                     continue;                    
+//                     continue;
 //                 }
 //                 log::info!("severity = {:?}, diag_ty_str = {:?}", severity, diag_ty_str);
 //                 log::info!("loc = {:?}, detail_str = {:?}", loc, detail_str);
 //                 for suggest_str in suggest_str_vec.clone() {
 //                     log::info!("suggest_str = {:?}", suggest_str);
 //                 }
-                
+
 //                 if let Some(r) = context.projects.convert_loc_range(&loc) {
 //                     let url = get_url_from_path(r.path.as_path()).unwrap();
 //                     let d = lsp_types::Diagnostic {
@@ -214,7 +214,7 @@
 //             log::info!("result_msg = ----> \n{:?}", result_msg);
 //         }
 //     };
-    
+
 // }
 
 // fn default_addresses() -> BTreeMap<String, NumericalAddress> {
@@ -345,8 +345,8 @@
 //  */
 // fn run_project_linter(
 //     _cur_file: &Path,
-//     working_dir: &Path, 
-//     targets: Vec<std::string::String>, 
+//     working_dir: &Path,
+//     targets: Vec<std::string::String>,
 //     deps: &mut Vec<std::string::String>) -> Option<Diagnostics> {
 //     let lint_visitors = vec![
 //         ShareOwnedVerifier.visitor(),
@@ -381,7 +381,7 @@
 //     let (filter_attr_name, filters) = known_filters_for_linter();
 //     // let (files, comments_and_compiler_res) = Compiler::from_files(
 //     let (_, comments_and_compiler_res) = Compiler::from_files(
-//         None, 
+//         None,
 //         targets,
 //         deps.clone(),
 //         addrs,

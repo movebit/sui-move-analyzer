@@ -2,29 +2,37 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::{utils::path_concat, WasmConnection};
 use anyhow::Result;
 use crossbeam::channel::Sender;
 use lsp_server::{Notification, Request, Response};
-use lsp_types::{
-    notification::Notification as _, request::Request as _,
-};
+use lsp_types::{notification::Notification as _, request::Request as _};
 use move_command_line_common::files::FileHash;
-use move_compiler::{diagnostics::WarningFilters, editions::{Edition, Flavor}, shared::*};
-use std::{
-    cell::RefCell, collections::HashMap, path::{Path, PathBuf}, sync::{Arc, Mutex}
+use move_compiler::{
+    diagnostics::WarningFilters,
+    editions::{Edition, Flavor},
+    shared::*,
 };
-use crate::{utils::path_concat, WasmConnection};
+use std::{
+    cell::RefCell,
+    collections::HashMap,
+    path::{Path, PathBuf},
+    sync::{Arc, Mutex},
+};
 
 use crate::{
     code_lens,
     // completion::on_completion_request,
-
     context::Context,
-    goto_definition, hover, inlay_hints, inlay_hints::*,
+    goto_definition,
+    hover,
+    inlay_hints,
+    inlay_hints::*,
     // move_generate_spec_file::on_generate_spec_file,
     // move_generate_spec_sel::on_generate_spec_sel,
     project::ConvertLoc,
-    references, symbols,
+    references,
+    symbols,
     utils::*,
     // linter,
 };
@@ -37,8 +45,8 @@ pub fn try_reload_projects(context: &mut Context, conn: &RefCell<WasmConnection>
 }
 
 pub fn on_request(
-    context: &mut Context, 
-    request: &Request, 
+    context: &mut Context,
+    request: &Request,
     // inlay_hints_config: &mut InlayHintsConfig
 ) {
     log::info!("receive method:{}", request.method.as_str());
@@ -91,16 +99,16 @@ pub fn on_response(_context: &Context, _response: &Response) {
 type DiagSender = Arc<Mutex<Sender<(PathBuf, DiagnosticsBeta2024)>>>;
 
 // pub fn on_notification(context: &mut Context, conn: &WasmConnection, diag_sender: DiagSender, notification: &Notification) {
-//     // let (diag_sender, _) 
+//     // let (diag_sender, _)
 //     //     = bounded::<(PathBuf, move_compiler::diagnostics::Diagnostics)>(1);
 //     // let diag_sender = Arc::new(Mutex::new(diag_sender));
 //     fn update_defs(context: &mut Context, fpath: PathBuf, content: &str) {
 //         use move_compiler::parser::syntax::parse_file_string;
 //         let file_hash = FileHash::new(content);
-//         let mut env 
+//         let mut env
 //             = CompilationEnv::new(
 //                 Flags::testing(),
-//                 Default::default(), 
+//                 Default::default(),
 //                 Default::default(),
 //                 Default::default(),
 //                 Some(
@@ -232,25 +240,28 @@ type DiagSender = Arc<Mutex<Sender<(PathBuf, DiagnosticsBeta2024)>>>;
 fn get_package_compile_diagnostics(
     pkg_path: &Path,
 ) -> Result<move_compiler::diagnostics::Diagnostics> {
-    let file_content = std::fs::read_to_string(pkg_path).unwrap_or_else(|_| panic!("'{:?}' can't read_to_string", pkg_path));
+    let file_content = std::fs::read_to_string(pkg_path)
+        .unwrap_or_else(|_| panic!("'{:?}' can't read_to_string", pkg_path));
     let file_hash = FileHash::new(file_content.as_str());
     let mut env = CompilationEnv::new(
-        Flags::testing(), 
-        Default::default(), 
-        Default::default(), 
+        Flags::testing(),
         Default::default(),
-        Some(
-            PackageConfig {
-                is_dependency: false,
-                warning_filter: WarningFilters::new_for_source(),
-                flavor: Flavor::default(),
-                edition: Edition::E2024_BETA
-            }
-            
-        ),
+        Default::default(),
+        Default::default(),
+        Some(PackageConfig {
+            is_dependency: false,
+            warning_filter: WarningFilters::new_for_source(),
+            flavor: Flavor::default(),
+            edition: Edition::E2024_BETA,
+        }),
     );
 
-    if let Err(diags) = move_compiler::parser::syntax::parse_file_string(&mut env, file_hash, file_content.as_str(), None) {
+    if let Err(diags) = move_compiler::parser::syntax::parse_file_string(
+        &mut env,
+        file_hash,
+        file_content.as_str(),
+        None,
+    ) {
         return Ok(diags);
     } else {
         eprintln!("parse_file_string not has diag");
@@ -284,7 +295,7 @@ fn get_package_compile_diagnostics(
     //     };
     //     Ok(Default::default())
     // })?;
-    
+
     // let mut filterd_diagnostics = Diagnostics::new();
     // if let Some(x) = diagnostics.clone() {
     //     for diag in x.1.into_vec() {
@@ -298,7 +309,6 @@ fn get_package_compile_diagnostics(
     //     }
     // }
     // Ok(filterd_diagnostics)
-
 
     // match diagnostics {
     //     Some(x) => Ok(x.1),
@@ -330,7 +340,7 @@ fn make_diag(context: &Context, diag_sender: DiagSender, fpath: PathBuf) {
             Ok(x) => {
                 log::trace!("in new thread, get(beta) diags success");
                 x
-            },
+            }
             Err(err) => {
                 log::error!("get_package_compile_diagnostics failed,err:{:?}", err);
                 return;
@@ -456,7 +466,6 @@ fn make_diag(context: &Context, diag_sender: DiagSender, fpath: PathBuf) {
 //     }
 // }
 
-
 pub fn read_move_toml(path: &Path) -> Option<PathBuf> {
     let move_toml_path = path.join("Move.toml");
 
@@ -477,20 +486,17 @@ pub fn read_move_toml(path: &Path) -> Option<PathBuf> {
 pub fn test_update_defs(context: &mut Context, fpath: PathBuf, content: &str) {
     use move_compiler::parser::syntax::parse_file_string;
     let file_hash = FileHash::new(content);
-    let mut env 
-        = CompilationEnv::new(
-            Flags::testing(),
-            Default::default(), 
-            Default::default(),
-            Default::default(),
-            Some(
-                PackageConfig {
-                    is_dependency: false,
-                    warning_filter: WarningFilters::new_for_source(),
-                    flavor: Flavor::default(),
-                    edition: Edition::E2024_BETA,
-                },
-            ),
+    let mut env = CompilationEnv::new(
+        Flags::testing(),
+        Default::default(),
+        Default::default(),
+        Default::default(),
+        Some(PackageConfig {
+            is_dependency: false,
+            warning_filter: WarningFilters::new_for_source(),
+            flavor: Flavor::default(),
+            edition: Edition::E2024_BETA,
+        }),
     );
     let defs = parse_file_string(&mut env, file_hash, content, None);
     let defs = match defs {
