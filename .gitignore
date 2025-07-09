@@ -2,4 +2,4 @@ target/
 *.lock
 *build*
 pkg/
-tmp1/
+tmp/
