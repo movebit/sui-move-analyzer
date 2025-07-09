@@ -158,6 +158,7 @@ impl Project {
             return Ok(());
         }
         self.manifest_paths.push(manifest_path.clone());
+
         println!("load manifest file at {:?}", &manifest_path);
         if let Some(x) = multi.asts.get(&manifest_path) {
             self.modules.insert(manifest_path.clone(), x.clone());
@@ -166,17 +167,14 @@ impl Project {
             self.modules.insert(manifest_path.clone(), d.clone());
             multi.asts.insert(manifest_path.clone(), d);
 
-            println!("load_layout_files Sources");
             let source_paths =
                 self.load_layout_files(&manifest_path, SourcePackageLayout::Sources)?;
             if !is_main_source {
                 dependents_paths.extend(source_paths);
             }
 
-            println!("load_layout_files Sources Test");
             let _ = self.load_layout_files(&manifest_path, SourcePackageLayout::Tests);
             let _ = self.load_layout_files(&manifest_path, SourcePackageLayout::Scripts);
-            println!("load_layout_files Sources Scripts");
         }
 
         if !manifest_path.exists() {
@@ -213,14 +211,12 @@ impl Project {
             .borrow()
             .sources
             .len();
-        println!("lsp server: load_project: modules source len: {}", a);
 
         for (dep_name, de) in manifest
             .dependencies
             .iter()
             .chain(manifest.dev_dependencies.iter())
         {
-            println!("dep_name: {}, de: {:?}", dep_name.as_str(), de);
             let move_home = "/workspace";
 
             let repository_path = |kind: &DependencyKind| -> PathBuf {
@@ -292,7 +288,6 @@ impl Project {
         manifest_path: &PathBuf,
         kind: SourcePackageLayout,
     ) -> Result<Vec<PathBuf>> {
-        println!("load_layout_files 1111111");
         use move_compiler::parser::syntax::parse_file_string;
         let mut ret_paths = Vec::new();
         let mut env = CompilationEnv::new(
@@ -311,7 +306,6 @@ impl Project {
                 std::result::Result::Err(_e) => continue,
                 std::result::Result::Ok(x) => x,
             };
-            println!("\n\n========================");
             if file.file_type().is_file()
                 && match file.file_name().to_str() {
                     Some(s) => s.ends_with(".move"),
@@ -328,7 +322,6 @@ impl Project {
                 }
                 let file_content = fs::read_to_string(file.path())
                     .unwrap_or_else(|_| panic!("'{:?}' can't read_to_string", file.path()));
-                println!("load source file {:?}", file.path());
                 let file_hash = FileHash::new(file_content.as_str());
 
                 // This is a move file.
@@ -1290,7 +1283,6 @@ pub trait AstProvider: Clone {
     fn with_function(&self, mut call_back: impl FnMut(AccountAddress, Symbol, &Function)) {
         self.with_module_member(|addr, module_name, member, _| {
             if let ModuleMember::Function(c) = member {
-                println!("with_function body: {:?}", c.name);
                 call_back(addr, module_name, c)
             }
         });

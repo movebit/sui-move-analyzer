@@ -461,7 +461,6 @@ impl Project {
                 },
             );
             let range = self.convert_loc_range(&f.loc);
-            println!("function({:?}) range: {:?}", f.name, range);
             if range.is_none() {
                 return;
             }
@@ -469,7 +468,6 @@ impl Project {
                 return;
             }
             let _guard = project_context.clone_scope_and_enter(addr, module_name, false);
-            println!("provider.with_function range = {:?}", range);
             self.visit_function(f, project_context, visitor);
         });
 
@@ -488,7 +486,6 @@ impl Project {
         expr: Option<&Exp>,
         has_decl_ty: bool,
     ) {
-        println!("visit_bind:{:?}", bind);
         match &bind.value {
             Bind_::Var(_, var) => {
                 let item = ItemOrAccess::Item(Item::Var {
@@ -627,14 +624,12 @@ impl Project {
                 }
             }
             for s in seq.1.iter() {
-                // println!("visit_block sequence_item = {:?}", s);
                 self.visit_sequence_item(s, scopes, visitor);
                 if visitor.finished() {
                     return;
                 }
             }
             if let Some(ref exp) = seq.3.as_ref() {
-                println!("visit_block: visit_expr");
                 self.visit_expr(exp, scopes, visitor);
             }
         });
@@ -674,7 +669,6 @@ impl Project {
         project_context: &ProjectContext,
         visitor: &mut dyn ItemOrAccessHandler,
     ) {
-        // println!("visit_expr:{:?}", exp);
         if visitor.need_expr_type() {
             let ty = self.get_expr_type(exp, project_context);
             visitor.handle_expr_typ(exp, ty);
@@ -685,15 +679,11 @@ impl Project {
                           project_context: &ProjectContext,
                           visitor: &mut dyn ItemOrAccessHandler,
                           _has_ref: Option<bool>| {
-            println!("handle_dot({})", field);
             // self.visit_expr(e, project_context, visitor);
             if visitor.finished() {
                 return;
             }
-            println!(
-                "handle_dot --> inlay_hint.handle_item_or_access({}) continue",
-                field
-            );
+
             let struct_ty = self.get_expr_type(e, project_context);
             let struct_ty = match &struct_ty {
                 ResolvedType::Ref(_, ty) => ty.as_ref(),
@@ -723,7 +713,6 @@ impl Project {
                 visitor.handle_item_or_access(self, project_context, &item);
             }
         };
-        println!("visit_expr match &exp.value");
         match &exp.value {
             Exp_::Value(ref v) => {
                 if let Some(name) = get_name_from_value(v) {
@@ -732,24 +721,20 @@ impl Project {
                 }
             }
             Exp_::Move(_, expr) | Exp_::Copy(_, expr) => {
-                println!("process Exp_::Move|Copy, expr = {:?}", expr);
                 self.visit_expr(expr.as_ref(), project_context, visitor);
             }
             Exp_::Name(chain) => {
-                println!("process Exp_::Name, chain = {}", chain);
                 let (item, module) = project_context.find_name_chain_item(chain, self);
                 let item = ItemOrAccess::Access(Access::ExprAccessChain(
                     chain.clone(),
                     module,
                     Box::new(item.unwrap_or_default()),
                 ));
-                println!("process Exp_::Name, item = {}", item);
                 visitor.handle_item_or_access(self, project_context, &item);
                 if visitor.finished() {}
             }
 
             Exp_::Call(ref chain, ref exprs) => {
-                println!("\n\n================== Exp_::Call");
                 let chain_clone = chain.clone();
                 match chain_clone.value {
                     NameAccessChain_::Single(path_entry) => {
@@ -774,12 +759,6 @@ impl Project {
                 };
 
                 let (item, module) = project_context.find_name_chain_item(chain, self);
-                if item.is_some() {
-                    println!(
-                        "process Exp_::Call, is_build_in(item) = {}",
-                        item.clone().unwrap().is_build_in()
-                    );
-                }
                 if visitor.need_call_pair() {
                     if let Item::Fun(_f) = item.clone().unwrap_or_default() {
                         let addr = project_context.get_current_addr_and_module_name();
@@ -829,14 +808,12 @@ impl Project {
                 if visitor.current_vistor_handler_is_inlay_hints() {
                     return;
                 }
-                println!("process Exp_::Call, item = {}", item);
                 visitor.handle_item_or_access(self, project_context, &item);
                 if visitor.finished() {
                     return;
                 }
 
                 for expr in exprs.value.iter() {
-                    println!("process Exp_::Call, expr = {:?}", expr);
                     self.visit_expr(expr, project_context, visitor);
                     if visitor.finished() {
                         return;
@@ -851,7 +828,6 @@ impl Project {
                     None,
                     Box::new(opt_item.unwrap_or_default()),
                 ));
-                println!("process Exp_::DotCall, item = {}", item);
                 visitor.handle_item_or_access(self, project_context, &item);
                 for paren_exp in &call_paren_exp.value {
                     self.visit_expr(&paren_exp, project_context, visitor);
@@ -1089,7 +1065,6 @@ impl Project {
                 }
             },
             Exp_::Dot(e, _loc, field) => {
-                println!("process Exp_::Dot, field = {}", field);
                 handle_dot(e, field, project_context, visitor, None);
             }
             Exp_::Index(e, index) => {
@@ -1178,10 +1153,6 @@ impl Project {
             if visitor.finished() {
                 return;
             }
-            println!(
-                "visit_function, function.body.value = {:?}",
-                function.body.value
-            );
             match function.body.value {
                 FunctionBody_::Native => {}
                 FunctionBody_::Defined(ref seq) => self.visit_block(seq, project_context, visitor),

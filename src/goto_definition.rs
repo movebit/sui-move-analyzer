@@ -17,7 +17,7 @@ pub fn on_go_to_def_request(
     fpath: PathBuf,
     pos: lsp_types::Position,
 ) -> serde_json::Value {
-    eprintln!("on_go_to_def_request fpath: {:?}, pos: {:?}", fpath, pos);
+    println!("on_go_to_def_request fpath: {:?}, pos: {:?}", fpath, pos);
 
     let mut handler = Handler::new(fpath.clone(), pos.line, pos.character);
     let _ = match context.projects.get_project(&fpath) {
@@ -64,7 +64,6 @@ impl Handler {
 
     fn match_loc(&self, loc: &Loc, services: &dyn HandleItemService) -> bool {
         let r = services.convert_loc_range(loc);
-        println!("r: {:?}", r);
         match &r {
             Some(r) => GetPositionStruct::in_range(
                 &GetPositionStruct {
@@ -222,9 +221,7 @@ impl ItemOrAccessHandler for Handler {
                             services.convert_loc_range(&chain.loc)
                         );
                         if self.match_loc(&chain.loc, services) {
-                            println!("match_loc true");
                             if let Some(t) = services.convert_loc_range(&item.def_loc()) {
-                                println!("services.convert_loc_range true");
                                 self.result = Some(t);
                                 self.result_item_or_access = Some(item_or_access.clone());
                             }
@@ -263,7 +260,6 @@ impl ItemOrAccessHandler for Handler {
 
     fn function_or_spec_body_should_visit(&self, range: &FileRange) -> bool {
         let a = Self::in_range(self, range);
-        println!("function_or_spec_body_should_visit, {}", a);
         a
     }
 
@@ -327,7 +323,6 @@ pub fn on_go_to_type_def_request(context: &Context, fpath: PathBuf, pos: lsp_typ
         }
     };
     let _ = modules.run_visitor_for_file(&mut handler, &fpath, false);
-    println!("111111111111111");
     fn type_defs(ret: &mut Vec<Location>, ty: &ResolvedType, modules: &super::project::Project) {
         match ty {
             ResolvedType::UnKnown => {}
@@ -368,13 +363,11 @@ pub fn on_go_to_type_def_request(context: &Context, fpath: PathBuf, pos: lsp_typ
         }
     }
     fn item_type_defs(ret: &mut Vec<Location>, x: &Item, modules: &super::project::Project) {
-        println!("item_type_defs");
         match x {
             Item::Var { ty, .. } | Item::Parameter(_, ty) => {
                 type_defs(ret, ty, modules);
             }
             Item::Field(_, ty) => {
-                println!("Item::Field");
                 type_defs(ret, ty, modules);
             }
             Item::Struct(x) => {
@@ -386,33 +379,24 @@ pub fn on_go_to_type_def_request(context: &Context, fpath: PathBuf, pos: lsp_typ
         }
     }
     let mut locations = vec![];
-    println!("222222222222222");
     match &handler.result_item_or_access {
         Some(x) => match x {
             ItemOrAccess::Item(x) => item_type_defs(&mut locations, x, modules),
             ItemOrAccess::Access(x) => match x {
                 Access::ExprAccessChain(_, _, item) => {
-                    println!("Access::ExprAccessChain");
                     item_type_defs(&mut locations, item.as_ref(), modules);
                 }
                 Access::ExprVar(_, item) => {
-                    println!("Access::ExprVar");
                     item_type_defs(&mut locations, item.as_ref(), modules);
                 }
                 Access::ApplyType(_, _, ty) => {
-                    println!("Access::ApplyType");
                     type_defs(&mut locations, ty, modules);
                 }
-                _ => {
-                    println!("Access::None");
-                }
+                _ => {}
             },
         },
-        None => {
-            println!("handler.result_item_or_access is None")
-        }
+        None => {}
     };
-    println!("3333333333");
     println!("goto definition result: {:?}", locations)
     // let r = Response::new_ok(
     //     request.id.clone(),
