@@ -393,7 +393,7 @@ impl FunSpecGenerator {
                     || FunSpecGenerator::expr_has_spec_unsupprted(r.as_ref())
             }
             Exp_::Borrow(_, _) => true,
-            Exp_::Dot(l, _) => FunSpecGenerator::expr_has_spec_unsupprted(l.as_ref()),
+            Exp_::Dot(l, _, _) => FunSpecGenerator::expr_has_spec_unsupprted(l.as_ref()),
             Exp_::Index(l, r) => {
                 let mut bool_result = true;
                 bool_result |= FunSpecGenerator::expr_has_spec_unsupprted(l.as_ref());
@@ -545,7 +545,7 @@ impl FunSpecGenerator {
                 }
             }
             Exp_::Borrow(_, _) => Err(()),
-            Exp_::Dot(_, _) => r(),
+            Exp_::Dot(_, _, _) => r(),
             Exp_::Index(_, _) => r(),
             Exp_::Cast(_, _) => Err(()),
             Exp_::Annotate(_, _) => Err(()),
@@ -563,7 +563,7 @@ where
     T: AstDebug,
 {
     // use move_compiler::shared::ast_debug::AstWriter;
-    let mut w = AstWriter::new(false);
+    let mut w = AstWriter::verbose();
     e.ast_debug(&mut w);
     let x = w.to_string();
     // TOTO better way to do this.
@@ -701,7 +701,7 @@ fn names_and_modules_in_expr(
             Exp_::Borrow(_, e) => {
                 names_and_modules_in_expr_(names, modules, e.as_ref());
             }
-            Exp_::Dot(a, _) => {
+            Exp_::Dot(a, _, _) => {
                 names_and_modules_in_expr_(names, modules, a.as_ref());
             }
             Exp_::Index(a, b) => {

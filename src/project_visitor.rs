@@ -293,7 +293,7 @@ impl Project {
                 let fields = match &s.fields {
                     StructFields::Named(x) => {
                         let mut fields = Vec::with_capacity(x.len());
-                        for (f, ty) in x.iter() {
+                        for (_, f, ty) in x.iter() {
                             self.visit_type_apply(ty, scopes, visitor);
                             if visitor.finished() {
                                 return;
@@ -844,7 +844,7 @@ impl Project {
                 }
             }
 
-            Exp_::DotCall(_, fun_name, _, _, call_paren_exp) => {
+            Exp_::DotCall(_, _, fun_name, _, _, call_paren_exp) => {
                 let opt_item = project_context.find_name_corresponding_item(fun_name);
                 let item = ItemOrAccess::Access(Access::ExprAccessChain(
                     Spanned::new(exp.loc, NameAccessChain_::single(*fun_name)),
@@ -1054,7 +1054,11 @@ impl Project {
                     self.visit_expr(e, project_context, visitor);
                 }
             }
-            Exp_::Abort(e) => self.visit_expr(e.as_ref(), project_context, visitor),
+            Exp_::Abort(e) => {
+                if let Some(e) = e {
+                    self.visit_expr(e.as_ref(), project_context, visitor)
+                }
+            }
             Exp_::Break(_, _) => {
                 let item = ItemOrAccess::Access(Access::KeyWords("break"));
                 visitor.handle_item_or_access(self, project_context, &item);
@@ -1077,14 +1081,14 @@ impl Project {
                 self.visit_expr(right, project_context, visitor);
             }
             Exp_::Borrow(is_mut, e) => match &e.value {
-                Exp_::Dot(e, f) => {
+                Exp_::Dot(e, _loc, f) => {
                     handle_dot(e, f, project_context, visitor, Some(*is_mut));
                 }
                 _ => {
                     self.visit_expr(e.as_ref(), project_context, visitor);
                 }
             },
-            Exp_::Dot(e, field) => {
+            Exp_::Dot(e, _loc, field) => {
                 println!("process Exp_::Dot, field = {}", field);
                 handle_dot(e, field, project_context, visitor, None);
             }

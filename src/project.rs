@@ -5,7 +5,7 @@
 use super::{item::*, project_context::*, types::*, utils::*};
 use crate::context::MultiProject;
 use anyhow::{Ok, Result};
-use move_package::source_package::parsed_manifest::{CustomDepInfo, DependencyKind, GitInfo};
+use move_package::source_package::parsed_manifest::{DependencyKind, GitInfo, OnChainInfo};
 use once_cell::sync::Lazy;
 
 use move_command_line_common::files::FileHash;
@@ -246,21 +246,12 @@ impl Project {
                     .collect(),
 
                     // Downloaded packages are of the form <sanitized_node_url>_<address>_<package>
-                    DependencyKind::Custom(CustomDepInfo {
-                        node_url,
-                        package_address,
-                        package_name,
-                        subdir: _,
-                    }) => [
+                    DependencyKind::OnChain(OnChainInfo { id }) => [
                         &*move_home,
-                        &format!(
-                            "{}_{}_{}",
-                            regex::Regex::new(r"/|:|\.|@")
-                                .unwrap()
-                                .replace_all(node_url.as_str(), "_"),
-                            package_address.as_str(),
-                            package_name.as_str(),
-                        ),
+                        &regex::Regex::new(r"/|:|\.|@")
+                            .unwrap()
+                            .replace_all(id.as_str(), "_")
+                            .to_string(),
                     ]
                     .iter()
                     .collect(),
@@ -270,9 +261,7 @@ impl Project {
             let local_path = |kind: &DependencyKind| -> PathBuf {
                 let mut repo_path = repository_path(kind);
 
-                if let DependencyKind::Git(GitInfo { subdir, .. })
-                | DependencyKind::Custom(CustomDepInfo { subdir, .. }) = kind
-                {
+                if let DependencyKind::Git(GitInfo { subdir, .. }) = kind {
                     repo_path.push(subdir);
                 }
 
@@ -310,8 +299,10 @@ impl Project {
             Flags::testing(),
             Default::default(),
             Default::default(),
+            None,
             Default::default(),
             Default::default(),
+            None,
         );
         let mut p = manifest_path.clone();
         p.push(kind.location_str());
@@ -364,7 +355,7 @@ impl Project {
                     }
                 };
 
-                let defs = defs.0;
+                // let defs = defs.0;
 
                 if kind == SourcePackageLayout::Sources {
                     self.modules
@@ -834,7 +825,7 @@ impl Project {
                 let ty = self.get_expr_type(e, project_context);
                 ResolvedType::new_ref(*is_mut, ty)
             }
-            Exp_::Dot(e, name) => {
+            Exp_::Dot(e, _loc, name) => {
                 let ty = self.get_expr_type(e, project_context);
                 let ty = match &ty {
                     ResolvedType::Ref(_, ty) => ty.as_ref(),
@@ -1186,18 +1177,24 @@ pub(crate) fn attributes_has_test(x: &[Attributes]) -> AttrTest {
     use AttrTest::*;
     let mut is = No;
     x.iter().for_each(|x| {
-        x.value.iter().for_each(|x| match &x.value {
-            Attribute_::Name(name) => match name.value.as_str() {
-                "test" => is = Test,
-                "test_only" => is = TestOnly,
-                _ => {}
-            },
-            Attribute_::Assigned(_, _) => {}
-            Attribute_::Parameterized(name, _) => match name.value.as_str() {
-                "test" => is = Test,
-                "test_only" => is = TestOnly,
-                _ => {}
-            },
+        x.value.0.iter().for_each(|x| match &x.value {
+            Attribute_::Test | Attribute_::ExpectedFailure { .. } | Attribute_::RandomTest => {
+                is = Test
+            }
+            Attribute_::External { attrs } => attrs.value.iter().for_each(|y| match y.value {
+                ParsedAttribute_::Name(name) => match name.value.as_str() {
+                    "test" => is = Test,
+                    "test_only" => is = TestOnly,
+                    _ => {}
+                },
+                ParsedAttribute_::Assigned(_, _) => {}
+                ParsedAttribute_::Parameterized(name, _) => match name.value.as_str() {
+                    "test" => is = Test,
+                    "test_only" => is = TestOnly,
+                    _ => {}
+                },
+            }),
+            _ => {}
         })
     });
     is

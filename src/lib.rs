@@ -70,7 +70,7 @@ use std::{
 
 use move_command_line_common::files::FileHash;
 use move_compiler::{
-    diagnostics::WarningFilters,
+    diagnostics::warning_filters::WarningFiltersBuilder,
     editions::{Edition, Flavor},
     shared::{CompilationEnv, PackageConfig},
     Flags,
@@ -196,13 +196,15 @@ fn update_defs(context: &mut Context, fpath: PathBuf, content: &str) {
         Flags::testing(),
         Default::default(),
         Default::default(),
+        None,
         Default::default(),
         Some(PackageConfig {
             is_dependency: false,
-            warning_filter: WarningFilters::new_for_source(),
+            warning_filter: WarningFiltersBuilder::new_for_source(),
             flavor: Flavor::default(),
             edition: Edition::E2024_BETA,
         }),
+        None,
     );
     let defs = parse_file_string(&mut env, file_hash, content, None);
     let defs = match defs {
@@ -213,7 +215,7 @@ fn update_defs(context: &mut Context, fpath: PathBuf, content: &str) {
         }
     };
     println!("update defs 22222222");
-    let (defs, _) = defs;
+    // let (defs, _) = defs;
     context.projects.update_defs(fpath.clone(), defs);
     context.ref_caches.clear();
     context

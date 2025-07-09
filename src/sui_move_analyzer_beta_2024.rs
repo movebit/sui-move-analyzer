@@ -9,7 +9,7 @@ use lsp_server::{Notification, Request, Response};
 use lsp_types::{notification::Notification as _, request::Request as _};
 use move_command_line_common::files::FileHash;
 use move_compiler::{
-    diagnostics::WarningFilters,
+    diagnostics::warning_filters::WarningFiltersBuilder,
     editions::{Edition, Flavor},
     shared::*,
 };
@@ -247,13 +247,15 @@ fn get_package_compile_diagnostics(
         Flags::testing(),
         Default::default(),
         Default::default(),
+        None,
         Default::default(),
         Some(PackageConfig {
             is_dependency: false,
-            warning_filter: WarningFilters::new_for_source(),
+            warning_filter: WarningFiltersBuilder::new_for_source(),
             flavor: Flavor::default(),
             edition: Edition::E2024_BETA,
         }),
+        None,
     );
 
     if let Err(diags) = move_compiler::parser::syntax::parse_file_string(
@@ -490,13 +492,15 @@ pub fn test_update_defs(context: &mut Context, fpath: PathBuf, content: &str) {
         Flags::testing(),
         Default::default(),
         Default::default(),
+        None,
         Default::default(),
         Some(PackageConfig {
             is_dependency: false,
-            warning_filter: WarningFilters::new_for_source(),
+            warning_filter: WarningFiltersBuilder::new_for_source(),
             flavor: Flavor::default(),
             edition: Edition::E2024_BETA,
         }),
+        None,
     );
     let defs = parse_file_string(&mut env, file_hash, content, None);
     let defs = match defs {
@@ -506,7 +510,7 @@ pub fn test_update_defs(context: &mut Context, fpath: PathBuf, content: &str) {
             return;
         }
     };
-    let (defs, _) = defs;
+    // let (defs, _) = defs;
     context.projects.update_defs(fpath.clone(), defs);
     context.ref_caches.clear();
     context

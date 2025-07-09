@@ -53,7 +53,11 @@ impl FunSpecGenerator {
                     collect_spec_exp_(ret, &a.as_ref());
                     collect_spec_exp_(ret, &b.as_ref())
                 }
-                Exp_::Abort(e_exp) => collect_spec_exp_(ret, &e_exp.as_ref()),
+                Exp_::Abort(e_exp) => {
+                    if let Some(e) = e_exp {
+                        collect_spec_exp_(ret, &e.as_ref())
+                    }
+                }
                 Exp_::Dereference(e_exp) => collect_spec_exp_(ret, &e_exp.as_ref()),
                 Exp_::UnaryExp(_, e_exp) => collect_spec_exp_(ret, &e_exp.as_ref()),
                 Exp_::BinopExp(l, op, r) => {
@@ -69,7 +73,7 @@ impl FunSpecGenerator {
                 }
 
                 Exp_::Borrow(_, e) => collect_spec_exp_(ret, &e.as_ref()),
-                Exp_::Dot(e, _) => collect_spec_exp_(ret, &e.as_ref()),
+                Exp_::Dot(e, _, _) => collect_spec_exp_(ret, &e.as_ref()),
                 Exp_::Index(a, b) => {
                     collect_spec_exp_(ret, &a.as_ref());
                     for e in b.value.iter() {
