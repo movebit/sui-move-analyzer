@@ -66,7 +66,7 @@ pub mod sui_move_analyzer_beta_2024;
 // SPDX-License-Identifier: Apache-2.0
 
 
-use std::{fmt::format, path::PathBuf, str::FromStr};
+use std::{fmt::format, path::{Path, PathBuf}, str::FromStr};
 
 use move_command_line_common::files::FileHash;
 use move_compiler::{diagnostics::WarningFilters, editions::{Edition, Flavor}, shared::{CompilationEnv, PackageConfig}, Flags};
@@ -94,43 +94,49 @@ use once_cell::unsync::OnceCell;
 use std::cell::RefCell;
 use std::borrow::Borrow;
 use std::borrow::BorrowMut;
-pub struct WasmConnection {
-    message_callback: Option<extern "C" fn(*const u8, usize)>,
-}
+use std::env;
+use once_cell::sync::Lazy;
+use std::sync::Mutex;
+use crate::goto_definition::{on_go_to_type_def_request, on_go_to_def_request};
+
+#[derive(Debug)]
+pub struct WasmConnection;
 
 impl WasmConnection {
     pub fn new() -> Self {
-        WasmConnection {
-            message_callback: None,
-        }
+        WasmConnection {}
     }
 
-    pub fn set_callback(&mut self, callback: extern "C" fn(*const u8, usize)) {
-        println!("rust set_callback");
-        self.message_callback = Some(callback);
-        println!("callback is set: {:?}", self.message_callback.is_some());
-    }
-
-    fn send_response(&self, response: WasmResponse) {
-        println!("callback is set: {:?}", self.message_callback.is_some());
+    fn send_response(&mut self, response: WasmResponse) {
         println!("send_response 11111111111");
         if let Ok(bytes) = serde_json::to_vec(&response) {
             println!("send_response 2222222222222");
-            if let Some(callback) = self.message_callback {
-                println!("send_response 333333333333");
-                let ptr = bytes.as_ptr();
-                let len = bytes.len();
-                std::mem::forget(bytes); // 防止数据被提前释放
-                callback(ptr, len);
+            println!("send_response 333333333333");
+            let ptr = bytes.as_ptr();
+            let len = bytes.len();
+            std::mem::forget(bytes); // 防止数据被提前释放
+            // unsafe { callback(ptr, len); }
+            unsafe { 
+                js_message_callback(ptr, len);
             }
+            println!("send_response 44444444444");
+            
         }
     }
 }
 
 thread_local! {
     pub static GLOBAL_CONTEXT: OnceCell<RefCell<Context>> = OnceCell::new();
-    pub static GLOBAL_CONNECTION: RefCell<WasmConnection> = RefCell::new(WasmConnection::new());
+    pub static GLOBAL_CONNECTION: OnceCell<RefCell<WasmConnection>> = OnceCell::new();
 }
+
+
+// fn ensure_initialized() {
+//     static INIT: std::sync::Once = std::sync::Once::new();
+//     INIT.call_once(|| {
+//         init_context();
+//     });
+// }
 
 pub fn init_context() {
     let context = Context {
@@ -140,7 +146,14 @@ pub fn init_context() {
     };
 
     GLOBAL_CONTEXT.with(|cell| {
-        cell.set(RefCell::new(context)).unwrap();
+        if let Err(e) =  cell.set(RefCell::new(context)) {
+            println!("GLOBAL_CONTEXT init failed: {:?}", e)
+        }
+    });
+
+    let conn = WasmConnection::new();
+    GLOBAL_CONNECTION.with(|cell|{
+        cell.set(RefCell::new(conn)).unwrap();
     });
 }
 
@@ -149,26 +162,13 @@ extern "C" {
     fn js_message_callback(ptr: *const u8, len: usize);
 }
 
-// 注册回调的外部函数
-#[no_mangle]
-pub extern "C" fn register_message_callback(callback: extern "C" fn(*const u8, usize)) {
-    println!("rust register_message_callback");
-    GLOBAL_CONNECTION.with(|conn| {
-        conn.borrow_mut().set_callback(callback);
-    });
-}
-
 fn with_context<F, R>(f: F, val: lsp_server::Request) -> R
 where
     F: FnOnce(&mut Context, lsp_server::Request) -> R,
 {
-    println!("222222222");
     GLOBAL_CONTEXT.with(|cell| {
-        println!("333333333333");
         let ctx_cell = cell.get().expect("Context not initialized");
-        println!("44444444444444");
         let mut ctx = ctx_cell.borrow_mut();
-        println!("55555555555555");
         f(&mut ctx, val)
     })
 }
@@ -182,90 +182,9 @@ pub struct WasmResponse {
     pub error: Option<serde_json::Value>,
 }
 
-// #[wasm_bindgen]
-// impl WasmConnection {
-//     #[wasm_bindgen(constructor)]
-//     pub fn new(post_message: Function, port: MessagePort) -> Result<WasmConnection, JsValue> {
-//         println!("Creating new WasmConnection");
-//         check_features();
-//         // ---------------------------
-//         let conn: WasmConnection = WasmConnection {
-//             post_message: post_message,
-//         };
-
-        
-
-//         let conn_weak = conn.clone();
-//         let callback = Closure::wrap(Box::new(move |e: MessageEvent| {
-//             println!("Received message in Rust");
-            
-//             if let Some(message) = e.data().as_string() {
-//                 println!("Message content: {}", message);
-                
-//                 if let Ok(value) = serde_json::from_str::<Value>(&message) {
-//                     if let Some(method) = value.get("method") {
-//                         let conn = conn_weak.clone();
-//                         let value = value.clone();
-                        
-//                         match method.as_str() {
-//                             Some("DidOpenTextDocument") => {
-//                                 println!("DidOpenTextDocument 000");
-//                                 spawn_local(async move {
-//                                     println!("DidOpenTextDocument 111");
-//                                     with_context(
-//                                         |ctx, conn, val| handle_open_document(ctx, conn, val),
-//                                         &conn,
-//                                         value
-//                                     );
-//                                     println!("DidOpenTextDocument 222");
-//                                 });
-//                             }
-//                             Some("DidChangeTextDocument") => {
-//                                 spawn_local(async move {
-//                                     with_context(
-//                                         |ctx, conn, val| handle_did_change(ctx, conn, val),
-//                                         &conn,
-//                                         value
-//                                     );
-//                                 });
-//                             }
-//                             Some("GotoDefinition") => {
-//                                 spawn_local(async move {
-//                                     with_context(
-//                                         |ctx, conn, val| handle_goto_definition(ctx, conn, val),
-//                                         &conn,
-//                                         value
-//                                     );
-//                                 });
-//                             }
-//                             Some(unkonown) => {
-//                                 println!("Unhandled method: {}", unkonown);
-//                             }
-//                             None => {
-//                                 println!("Method is not a string");
-//                             }
-//                         }
-//                     }
-//                 }
-//             }
-//         }) as Box<dyn FnMut(MessageEvent)>);
-
-//         port.set_onmessage(Some(callback.as_ref().unchecked_ref()));
-//         callback.forget();
-
-//         Ok(conn)
-//     }
-// }
-
-// impl Clone for WasmConnection {
-//     fn clone(&self) -> Self {
-//         WasmConnection {
-//             post_message: self.post_message.clone(),
-//         }
-//     }
-// }
 
 fn update_defs(context: &mut Context, fpath: PathBuf, content: &str) {
+    println!("update_defs: fpath {:?}. content {:?}", fpath, content);
     use move_compiler::parser::syntax::parse_file_string;
     let file_hash = FileHash::new(content);
     let mut env 
@@ -291,6 +210,7 @@ fn update_defs(context: &mut Context, fpath: PathBuf, content: &str) {
             return;
         }
     };
+    println!("update defs 22222222");
     let (defs, _) = defs;
     context.projects.update_defs(fpath.clone(), defs);
     context.ref_caches.clear();
@@ -306,6 +226,7 @@ fn update_defs(context: &mut Context, fpath: PathBuf, content: &str) {
         .as_ref()
         .borrow_mut()
         .update(fpath, content);
+    println!("update defs 333333333")
 }
 
 fn check_features() {
@@ -332,7 +253,7 @@ fn check_features() {
 
 
 fn handle_open_document<'a>(context: &'a mut Context, request: lsp_server::Request) {
-    #[derive(Deserialize)]
+    #[derive(Deserialize, Debug)]
     struct OpenDocumentParams { pub url: String };
 
     let params: OpenDocumentParams = match serde_json::from_value::<OpenDocumentParams>(request.params) {
@@ -342,14 +263,14 @@ fn handle_open_document<'a>(context: &'a mut Context, request: lsp_server::Reque
             return;
         }
     };
-    
+
     let fpath = PathBuf::from_str(params.url.as_str()).unwrap();
     let (mani, _) = match discover_manifest_and_kind(&fpath) {
         Some(x) => x,
         None => {
             println!("not move project.");
             GLOBAL_CONNECTION.with(|conn| {
-                crate::context::send_show_message(conn, lsp_types::MessageType::ERROR, "from send_show_message".to_string());
+                crate::context::send_show_message(conn.get().unwrap(), lsp_types::MessageType::ERROR, "from send_show_message".to_string());
             });
             // send_not_project_file_error(context, fpath, true);
             return;
@@ -367,7 +288,7 @@ fn handle_open_document<'a>(context: &'a mut Context, request: lsp_server::Reque
         }
     };
     GLOBAL_CONNECTION.with(|conn| {
-        let p = match context.projects.load_project(conn, &mani) {
+        let p = match context.projects.load_project(conn.get().unwrap(), &mani) {
             anyhow::Result::Ok(x) => x,
             anyhow::Result::Err(e) => {
                 log::error!("load project failed,err:{:?}", e);
@@ -375,6 +296,7 @@ fn handle_open_document<'a>(context: &'a mut Context, request: lsp_server::Reque
             }
         };
         context.projects.insert_project(p);
+        println!("context.projects.projects len: {:?}", context.projects.projects.len());
     })
     
     // make_diag(context, diag_sender, fpath);
@@ -382,28 +304,39 @@ fn handle_open_document<'a>(context: &'a mut Context, request: lsp_server::Reque
 }
 
 fn handle_did_change(context: &mut Context, request: lsp_server::Request) {
-    // let request: lsp_server::Request = serde_json::from_value(value).unwrap();
-    // println!("lsp server: change document: {:?}", value.get("id").unwrap());
-
-    // let val = value.get("params").expect("no params");
-    // println!("lsp server: change document: {:?}", value);
-
-    // let url = val.get("url").unwrap().as_str().unwrap();
-    // let content = val.get("content").unwrap().as_str().unwrap();
-    // println!("lsp server: change document: {:?}, {:?}", url, content);
+    #[derive(Deserialize)]
+    struct ChangeDocumentParams { pub url: String, pub content: String };
+    let params = match serde_json::from_value::<ChangeDocumentParams>(request.params) {
+        Ok(p) => p,
+        Err(e) => {
+            println!("OpenDocumentParams from value failed: {:?}", e);
+            return;
+        }
+    };
+    
+    let fpath = PathBuf::from_str(params.url.as_str()).unwrap();
+    println!("context.projects.projects len: {:?}", context.projects.projects.len());
+    update_defs(
+        context,
+        fpath,
+        params.content.as_str(),
+    );
 }
 
-fn handle_goto_definition<'a>(context: &'a mut Context, request: lsp_server::Request) {
-    // println!("lsp server: goto definition");
-    // println!("lsp server: goto definition: {:?}", value.get("id").unwrap());
-    // println!("lsp server: goto definition: {:?}", value.get("params").expect("no params"));
-    // let val = value.get("params").expect("no params");
-    // let url = val.get("url").unwrap().as_str().unwrap();
-    // let line = val.get("pos").unwrap().get("line").unwrap().as_u64().unwrap();
-    // let col = val.get("pos").unwrap().get("col").unwrap().as_u64().unwrap();
-    // println!("url: {:?}, line: {:?}, col: {:?}", url, line, col);
+fn handle_goto_definition<'a>(context: &'a mut Context, request: lsp_server::Request) -> serde_json::Value {
+    println!("handle_goto_definition");
+    #[derive(Deserialize, Debug)]
+    struct GotoDefinitionParams { pub url: String, pub pos: lsp_types::Position };
+    let params = match serde_json::from_value::<GotoDefinitionParams>(request.params) {
+        Ok(p) => p,
+        Err(e) => {
+            println!("GotoDefinitionParams from value failed: {:?}", e);
+            return serde_json::Value::Null;
+        }
+    };
+    let fpath = PathBuf::from_str(params.url.as_str()).unwrap();
+    on_go_to_def_request(&context, fpath, params.pos)
 }
-
 
 #[derive(Deserialize)]
 struct Input {
@@ -424,10 +357,10 @@ pub extern "C" fn process_message(ptr: *const u8, len: usize) -> *mut u8 {
         Ok(r) => r,
         Err(e) => {
             println!("lsp_server::Request from value failed: {:?}", e);
-            return std::ptr::null_mut();
+            return serialize_empty();
         }
     };
-    println!("process_message input  data{:?}", data);
+    // println!("process_message input  data{:?}", data);
     
     // 构造输出
     let method = request.method.clone();
@@ -446,20 +379,52 @@ pub extern "C" fn process_message(ptr: *const u8, len: usize) -> *mut u8 {
             );
         }
         "GotoDefinition" => {
-            with_context(
+            let result = with_context(
                 |ctx, request| handle_goto_definition(ctx, request),
                 request
             );
+            return serialize_with_length_prefix(result);
         }
         _ => {
             println!("Method is not a string");
         }
     }
-    return std::ptr::null_mut();
+    return serialize_empty();
     // // 序列化输出
     // let output_str = serde_json::to_string(&output).unwrap();
     // let output_bytes = output_str.into_bytes();
     
     // // 返回
     // Box::into_raw(output_bytes.into_boxed_slice()) as *mut u8
+}
+
+pub fn serialize_with_length_prefix(value: Value) -> *mut u8 {
+    if let serde_json::Value::Null = value {
+        return serialize_empty();
+    }
+    
+    // 序列化为 JSON 字符串
+    let output_str = serde_json::to_string(&value).unwrap();
+    let output_bytes = output_str.as_bytes();
+
+    // 计算长度（u32，小端）
+    let len = output_bytes.len() as u32;
+    let mut buf = Vec::with_capacity(4 + output_bytes.len());
+
+    // 写入长度
+    buf.extend_from_slice(&len.to_le_bytes());
+
+    // 写入 JSON 字节
+    buf.extend_from_slice(output_bytes);
+    // 转成 Box<[u8]> 再 into_raw
+    let boxed_slice = buf.into_boxed_slice();
+    Box::into_raw(boxed_slice) as *mut u8
+}
+
+/// 返回一个只包含长度前缀=0 的 buffer
+pub fn serialize_empty() -> *mut u8 {
+    let mut buf = Vec::with_capacity(4);
+    buf.extend_from_slice(&0u32.to_le_bytes());
+    let boxed_slice = buf.into_boxed_slice();
+    Box::into_raw(boxed_slice) as *mut u8
 }
