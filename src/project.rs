@@ -11,7 +11,7 @@ use once_cell::sync::Lazy;
 use move_command_line_common::files::FileHash;
 use move_compiler::{
     parser::ast::{Definition, *},
-    shared::{Identifier, files::MappedFiles, *},
+    shared::{files::MappedFiles, Identifier, *},
 };
 use move_core_types::account_address::*;
 
@@ -27,8 +27,8 @@ use std::{
     time::SystemTime,
 };
 
-use std::{hash::Hash, path::PathBuf, rc::Rc};
 use std::sync::Arc;
+use std::{hash::Hash, path::PathBuf, rc::Rc};
 use walkdir::WalkDir;
 
 pub struct Project {
@@ -86,7 +86,7 @@ impl Project {
         report_err: impl FnMut(String) + Clone,
     ) -> Result<Self> {
         let working_dir = root_dir.into();
-        log::info!("scan modules at {:?}", &working_dir);
+        println!("scan modules at {:?}", &working_dir);
         let mut modules = Self {
             modules: Default::default(),
             manifests: Default::default(),
@@ -118,7 +118,7 @@ impl Project {
             return;
         }
         let (manifest, layout) = manifest.unwrap();
-        log::info!(
+        println!(
             "update defs for {:?} manifest:{:?} layout:{:?}",
             file_path.as_path(),
             manifest.as_path(),
@@ -127,8 +127,9 @@ impl Project {
 
         let mut mani_file = manifest.clone();
         mani_file.push(PROJECT_FILE_NAME);
-        self.manifest_mod_time.insert(mani_file.clone(), file_modify_time(mani_file.as_path()));
-    
+        self.manifest_mod_time
+            .insert(mani_file.clone(), file_modify_time(mani_file.as_path()));
+
         // delete old items.
         if let Some(defs) = old_defs.as_ref() {
             let x = VecDefAstProvider::new(defs, self, layout);
@@ -153,11 +154,11 @@ impl Project {
     ) -> Result<()> {
         let manifest_path = normal_path(manifest_path);
         if self.modules.get(&manifest_path).is_some() {
-            log::info!("manifest '{:?}' loaded before skipped.", &manifest_path);
+            println!("manifest '{:?}' loaded before skipped.", &manifest_path);
             return Ok(());
         }
         self.manifest_paths.push(manifest_path.clone());
-        eprintln!("load manifest file at {:?}", &manifest_path);
+        println!("load manifest file at {:?}", &manifest_path);
         if let Some(x) = multi.asts.get(&manifest_path) {
             self.modules.insert(manifest_path.clone(), x.clone());
         } else {
@@ -165,19 +166,24 @@ impl Project {
             self.modules.insert(manifest_path.clone(), d.clone());
             multi.asts.insert(manifest_path.clone(), d);
 
-            let source_paths = self.load_layout_files(&manifest_path, SourcePackageLayout::Sources)?;
+            println!("load_layout_files Sources");
+            let source_paths =
+                self.load_layout_files(&manifest_path, SourcePackageLayout::Sources)?;
             if !is_main_source {
                 dependents_paths.extend(source_paths);
             }
-    
+
+            println!("load_layout_files Sources Test");
             let _ = self.load_layout_files(&manifest_path, SourcePackageLayout::Tests);
             let _ = self.load_layout_files(&manifest_path, SourcePackageLayout::Scripts);
+            println!("load_layout_files Sources Scripts");
         }
 
         if !manifest_path.exists() {
             self.manifest_not_exists.insert(manifest_path);
             return anyhow::Result::Ok(());
         }
+
         {
             let mut file = manifest_path.clone();
             file.push(PROJECT_FILE_NAME);
@@ -200,23 +206,22 @@ impl Project {
             }
         };
         self.manifests.push(manifest.clone());
-        // load depends.
+        let a = self
+            .modules
+            .get(&manifest_path)
+            .unwrap()
+            .borrow()
+            .sources
+            .len();
+        println!("lsp server: load_project: modules source len: {}", a);
+
         for (dep_name, de) in manifest
             .dependencies
             .iter()
             .chain(manifest.dev_dependencies.iter())
         {
-            let move_home = Lazy::new(|| {
-                std::env::var("MOVE_HOME").unwrap_or_else(|_| {
-                    format!(
-                        "{}/.move",
-                        dirs_next::home_dir()
-                            .expect("user's home directory not found")
-                            .to_str()
-                            .unwrap()
-                    )
-                })
-            });
+            println!("dep_name: {}, de: {:?}", dep_name.as_str(), de);
+            let move_home = "/workspace";
 
             let repository_path = |kind: &DependencyKind| -> PathBuf {
                 match kind {
@@ -283,10 +288,9 @@ impl Project {
                 Dependency::Internal(x) => local_path(&x.kind),
             };
             let p = path_concat(manifest_path.as_path(), &de_path);
-            log::info!(
+            println!(
                 "load dependency for '{:?}' dep_name '{}'",
-                &manifest_path,
-                dep_name
+                &manifest_path, dep_name
             );
             self.load_project(&p, multi, report_err.clone(), false, dependents_paths)?;
         }
@@ -294,11 +298,21 @@ impl Project {
     }
 
     /// Load move files locate in sources and tests ...
-    pub(crate) fn load_layout_files(&mut self, manifest_path: &PathBuf, kind: SourcePackageLayout) -> Result<Vec<PathBuf>> {
+    pub(crate) fn load_layout_files(
+        &mut self,
+        manifest_path: &PathBuf,
+        kind: SourcePackageLayout,
+    ) -> Result<Vec<PathBuf>> {
+        println!("load_layout_files 1111111");
         use move_compiler::parser::syntax::parse_file_string;
         let mut ret_paths = Vec::new();
-        let mut env = CompilationEnv::new(Flags::testing(), Default::default(), 
-            Default::default(), Default::default(), Default::default());
+        let mut env = CompilationEnv::new(
+            Flags::testing(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+        );
         let mut p = manifest_path.clone();
         p.push(kind.location_str());
         for item in WalkDir::new(&p) {
@@ -306,6 +320,7 @@ impl Project {
                 std::result::Result::Err(_e) => continue,
                 std::result::Result::Ok(x) => x,
             };
+            println!("\n\n========================");
             if file.file_type().is_file()
                 && match file.file_name().to_str() {
                     Some(s) => s.ends_with(".move"),
@@ -322,7 +337,7 @@ impl Project {
                 }
                 let file_content = fs::read_to_string(file.path())
                     .unwrap_or_else(|_| panic!("'{:?}' can't read_to_string", file.path()));
-                log::info!("load source file {:?}", file.path());
+                println!("load source file {:?}", file.path());
                 let file_hash = FileHash::new(file_content.as_str());
 
                 // This is a move file.
@@ -338,8 +353,11 @@ impl Project {
                                 Arc::from(file_content.clone()),
                             ),
                         );
-                        let buffer =
-                            move_compiler::diagnostics::report_diagnostics_to_buffer(&MappedFiles::from(m), diags, false);
+                        let buffer = move_compiler::diagnostics::report_diagnostics_to_buffer(
+                            &MappedFiles::from(m),
+                            diags,
+                            false,
+                        );
                         let s = String::from_utf8_lossy(buffer.as_slice());
                         log::error!("{}", s);
                         continue;
@@ -591,9 +609,7 @@ impl Project {
                 Value_::HexString(_) => ResolvedType::new_build_in(BuildInType::NumType),
                 Value_::ByteString(_) => ResolvedType::new_build_in(BuildInType::String),
             },
-            Exp_::Move(_, x) | Exp_::Copy(_, x) => {
-                self.get_expr_type(x, project_context)
-            }
+            Exp_::Move(_, x) | Exp_::Copy(_, x) => self.get_expr_type(x, project_context),
             Exp_::Name(name) => {
                 let (item, _) = project_context.find_name_chain_item(name, self);
                 item.unwrap_or_default().to_type().unwrap_or_default()
@@ -615,21 +631,22 @@ impl Project {
                             }
                         }
                     }
-                    NameAccessChain_::Path(_) => {return  ResolvedType::UnKnown;}
+                    NameAccessChain_::Path(_) => {
+                        return ResolvedType::UnKnown;
+                    }
                 }
 
                 let type_args = match name.clone().value {
                     NameAccessChain_::Single(path_entry) => {
                         if let Some(x) = path_entry.tyargs {
                             Some(x.value)
-                        } else{
+                        } else {
                             None
                         }
-                        
-                    },
-                    NameAccessChain_::Path(_) => None
+                    }
+                    NameAccessChain_::Path(_) => None,
                 };
-                
+
                 let (item, _) = project_context.find_name_chain_item(name, self);
                 match item.unwrap_or_default() {
                     Item::SpecBuildInFun(b) => {
@@ -675,7 +692,6 @@ impl Project {
 
                 let mut types = HashMap::new();
 
-                
                 // try infer on field.
                 let fields_exprs: Vec<_> = fields
                     .iter()
@@ -703,7 +719,7 @@ impl Project {
                     })
                     .collect();
                 infer_type_parameter_on_expression(&mut types, &parameters, &expression_types);
-                
+
                 ResolvedType::Struct(
                     struct_item.to_struct_ref(),
                     struct_item
@@ -932,7 +948,9 @@ pub(crate) fn get_name_from_value(v: &Value) -> Option<&Name> {
     match &v.value {
         Value_::Address(ref x) => match &x.value {
             LeadingNameAccess_::AnonymousAddress(_) => None,
-            LeadingNameAccess_::Name(ref name) |LeadingNameAccess_::GlobalAddress(ref name) => Some(name),
+            LeadingNameAccess_::Name(ref name) | LeadingNameAccess_::GlobalAddress(ref name) => {
+                Some(name)
+            }
         },
         _ => None,
     }
@@ -1275,6 +1293,7 @@ pub trait AstProvider: Clone {
     fn with_function(&self, mut call_back: impl FnMut(AccountAddress, Symbol, &Function)) {
         self.with_module_member(|addr, module_name, member, _| {
             if let ModuleMember::Function(c) = member {
+                println!("with_function body: {:?}", c.name);
                 call_back(addr, module_name, c)
             }
         });
@@ -1293,7 +1312,6 @@ pub trait AstProvider: Clone {
             }
         });
     }
-    
 }
 
 #[derive(Clone)]

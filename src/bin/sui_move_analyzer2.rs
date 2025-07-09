@@ -15,6 +15,7 @@ use std::{
     path::{Path, PathBuf},
     str::FromStr,
     sync::{Arc, Mutex},
+    panic,
 };
 
 use sui_move_analyzer::{
@@ -82,7 +83,11 @@ pub fn init_log() {
 // }
 
 use sui_move_analyzer::init_context;
+fn hook_impl(info: &panic::PanicInfo) {
+    println!("panic: {}", info);
+}
 fn main() {
+    panic::set_hook(Box::new(hook_impl));
     init_context();
 }
 
@@ -216,7 +221,6 @@ fn main() {
 //                 }
 //             },
 //             recv(context_manager.connection.receiver) -> message => {
-
 //                 match message {
 //                     Ok(Message::Request(request)) =>{
 //                         // let version = get_compiler_version_from_requsets(&request);
