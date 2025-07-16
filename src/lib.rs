@@ -116,10 +116,7 @@ impl WasmConnection {
     }
 
     fn send_response(&mut self, response: WasmResponse) {
-        println!("send_response 11111111111");
         if let Ok(bytes) = serde_json::to_vec(&response) {
-            println!("send_response 2222222222222");
-            println!("send_response 333333333333");
             let ptr = bytes.as_ptr();
             let len = bytes.len();
             std::mem::forget(bytes); // 防止数据被提前释放
@@ -127,7 +124,6 @@ impl WasmConnection {
             unsafe {
                 js_message_callback(ptr, len);
             }
-            println!("send_response 44444444444");
         }
     }
 }
@@ -214,7 +210,6 @@ fn update_defs(context: &mut Context, fpath: PathBuf, content: &str) {
             return;
         }
     };
-    println!("update defs 22222222");
     // let (defs, _) = defs;
     context.projects.update_defs(fpath.clone(), defs);
     context.ref_caches.clear();
@@ -230,7 +225,6 @@ fn update_defs(context: &mut Context, fpath: PathBuf, content: &str) {
         .as_ref()
         .borrow_mut()
         .update(fpath, content);
-    println!("update defs 333333333")
 }
 
 fn check_features() {
@@ -347,6 +341,7 @@ fn handle_goto_definition<'a>(
         pub url: String,
         pub pos: lsp_types::Position,
     };
+
     let params = match serde_json::from_value::<GotoDefinitionParams>(request.params) {
         Ok(p) => p,
         Err(e) => {
