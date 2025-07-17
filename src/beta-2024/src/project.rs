@@ -5,13 +5,13 @@
 use super::{item::*, project_context::*, types::*, utils::*};
 use crate::context::MultiProject;
 use anyhow::{Ok, Result};
-use move_package::source_package::parsed_manifest::{CustomDepInfo, DependencyKind, GitInfo};
+use move_package::source_package::parsed_manifest::{DependencyKind, GitInfo, OnChainInfo};
 use once_cell::sync::Lazy;
 
 use move_command_line_common::files::FileHash;
 use move_compiler::{
     parser::ast::{Definition, *},
-    shared::{Identifier, files::MappedFiles, *},
+    shared::{files::MappedFiles, Identifier, *},
 };
 use move_core_types::account_address::*;
 
@@ -27,8 +27,8 @@ use std::{
     time::SystemTime,
 };
 
-use std::{hash::Hash, path::PathBuf, rc::Rc};
 use std::sync::Arc;
+use std::{hash::Hash, path::PathBuf, rc::Rc};
 use walkdir::WalkDir;
 
 pub struct Project {
@@ -127,8 +127,9 @@ impl Project {
 
         let mut mani_file = manifest.clone();
         mani_file.push(PROJECT_FILE_NAME);
-        self.manifest_mod_time.insert(mani_file.clone(), file_modify_time(mani_file.as_path()));
-    
+        self.manifest_mod_time
+            .insert(mani_file.clone(), file_modify_time(mani_file.as_path()));
+
         // delete old items.
         if let Some(defs) = old_defs.as_ref() {
             let x = VecDefAstProvider::new(defs, self, layout);
@@ -165,11 +166,12 @@ impl Project {
             self.modules.insert(manifest_path.clone(), d.clone());
             multi.asts.insert(manifest_path.clone(), d);
 
-            let source_paths = self.load_layout_files(&manifest_path, SourcePackageLayout::Sources)?;
+            let source_paths =
+                self.load_layout_files(&manifest_path, SourcePackageLayout::Sources)?;
             if !is_main_source {
                 dependents_paths.extend(source_paths);
             }
-    
+
             let _ = self.load_layout_files(&manifest_path, SourcePackageLayout::Tests);
             let _ = self.load_layout_files(&manifest_path, SourcePackageLayout::Scripts);
         }
@@ -240,22 +242,13 @@ impl Project {
                     .iter()
                     .collect(),
 
-                    // Downloaded packages are of the form <sanitized_node_url>_<address>_<package>
-                    DependencyKind::Custom(CustomDepInfo {
-                        node_url,
-                        package_address,
-                        package_name,
-                        subdir: _,
-                    }) => [
+                    // Downloaded packages are of the form <id>
+                    DependencyKind::OnChain(OnChainInfo { id }) => [
                         &*move_home,
-                        &format!(
-                            "{}_{}_{}",
-                            regex::Regex::new(r"/|:|\.|@")
-                                .unwrap()
-                                .replace_all(node_url.as_str(), "_"),
-                            package_address.as_str(),
-                            package_name.as_str(),
-                        ),
+                        &regex::Regex::new(r"/|:|\.|@")
+                            .unwrap()
+                            .replace_all(id.as_str(), "_")
+                            .to_string(),
                     ]
                     .iter()
                     .collect(),
@@ -265,9 +258,7 @@ impl Project {
             let local_path = |kind: &DependencyKind| -> PathBuf {
                 let mut repo_path = repository_path(kind);
 
-                if let DependencyKind::Git(GitInfo { subdir, .. })
-                | DependencyKind::Custom(CustomDepInfo { subdir, .. }) = kind
-                {
+                if let DependencyKind::Git(GitInfo { subdir, .. }) = kind {
                     repo_path.push(subdir);
                 }
 
@@ -294,11 +285,22 @@ impl Project {
     }
 
     /// Load move files locate in sources and tests ...
-    pub(crate) fn load_layout_files(&mut self, manifest_path: &PathBuf, kind: SourcePackageLayout) -> Result<Vec<PathBuf>> {
+    pub(crate) fn load_layout_files(
+        &mut self,
+        manifest_path: &PathBuf,
+        kind: SourcePackageLayout,
+    ) -> Result<Vec<PathBuf>> {
         use move_compiler::parser::syntax::parse_file_string;
         let mut ret_paths = Vec::new();
-        let mut env = CompilationEnv::new(Flags::testing(), Default::default(), 
-            Default::default(), Default::default(), Default::default());
+        let mut env = CompilationEnv::new(
+            Flags::testing(),
+            Default::default(),
+            Default::default(),
+            None,
+            Default::default(),
+            Default::default(),
+            None,
+        );
         let mut p = manifest_path.clone();
         p.push(kind.location_str());
         for item in WalkDir::new(&p) {
@@ -338,15 +340,16 @@ impl Project {
                                 Arc::from(file_content.clone()),
                             ),
                         );
-                        let buffer =
-                            move_compiler::diagnostics::report_diagnostics_to_buffer(&MappedFiles::from(m), diags, false);
+                        let buffer = move_compiler::diagnostics::report_diagnostics_to_buffer(
+                            &MappedFiles::from(m),
+                            diags,
+                            false,
+                        );
                         let s = String::from_utf8_lossy(buffer.as_slice());
                         log::error!("{}", s);
                         continue;
                     }
                 };
-
-                let defs = defs.0;
 
                 if kind == SourcePackageLayout::Sources {
                     self.modules
@@ -591,9 +594,7 @@ impl Project {
                 Value_::HexString(_) => ResolvedType::new_build_in(BuildInType::NumType),
                 Value_::ByteString(_) => ResolvedType::new_build_in(BuildInType::String),
             },
-            Exp_::Move(_, x) | Exp_::Copy(_, x) => {
-                self.get_expr_type(x, project_context)
-            }
+            Exp_::Move(_, x) | Exp_::Copy(_, x) => self.get_expr_type(x, project_context),
             Exp_::Name(name) => {
                 let (item, _) = project_context.find_name_chain_item(name, self);
                 item.unwrap_or_default().to_type().unwrap_or_default()
@@ -615,21 +616,22 @@ impl Project {
                             }
                         }
                     }
-                    NameAccessChain_::Path(_) => {return  ResolvedType::UnKnown;}
+                    NameAccessChain_::Path(_) => {
+                        return ResolvedType::UnKnown;
+                    }
                 }
 
                 let type_args = match name.clone().value {
                     NameAccessChain_::Single(path_entry) => {
                         if let Some(x) = path_entry.tyargs {
                             Some(x.value)
-                        } else{
+                        } else {
                             None
                         }
-                        
-                    },
-                    NameAccessChain_::Path(_) => None
+                    }
+                    NameAccessChain_::Path(_) => None,
                 };
-                
+
                 let (item, _) = project_context.find_name_chain_item(name, self);
                 match item.unwrap_or_default() {
                     Item::SpecBuildInFun(b) => {
@@ -675,7 +677,6 @@ impl Project {
 
                 let mut types = HashMap::new();
 
-                
                 // try infer on field.
                 let fields_exprs: Vec<_> = fields
                     .iter()
@@ -703,7 +704,7 @@ impl Project {
                     })
                     .collect();
                 infer_type_parameter_on_expression(&mut types, &parameters, &expression_types);
-                
+
                 ResolvedType::Struct(
                     struct_item.to_struct_ref(),
                     struct_item
@@ -818,7 +819,7 @@ impl Project {
                 let ty = self.get_expr_type(e, project_context);
                 ResolvedType::new_ref(*is_mut, ty)
             }
-            Exp_::Dot(e, name) => {
+            Exp_::Dot(e, _, name) => {
                 let ty = self.get_expr_type(e, project_context);
                 let ty = match &ty {
                     ResolvedType::Ref(_, ty) => ty.as_ref(),
@@ -932,7 +933,9 @@ pub(crate) fn get_name_from_value(v: &Value) -> Option<&Name> {
     match &v.value {
         Value_::Address(ref x) => match &x.value {
             LeadingNameAccess_::AnonymousAddress(_) => None,
-            LeadingNameAccess_::Name(ref name) |LeadingNameAccess_::GlobalAddress(ref name) => Some(name),
+            LeadingNameAccess_::Name(ref name) | LeadingNameAccess_::GlobalAddress(ref name) => {
+                Some(name)
+            }
         },
         _ => None,
     }
@@ -1168,18 +1171,24 @@ pub(crate) fn attributes_has_test(x: &[Attributes]) -> AttrTest {
     use AttrTest::*;
     let mut is = No;
     x.iter().for_each(|x| {
-        x.value.iter().for_each(|x| match &x.value {
-            Attribute_::Name(name) => match name.value.as_str() {
-                "test" => is = Test,
-                "test_only" => is = TestOnly,
-                _ => {}
-            },
-            Attribute_::Assigned(_, _) => {}
-            Attribute_::Parameterized(name, _) => match name.value.as_str() {
-                "test" => is = Test,
-                "test_only" => is = TestOnly,
-                _ => {}
-            },
+        x.value.0.iter().for_each(|x| match &x.value {
+            Attribute_::Test | Attribute_::ExpectedFailure { .. } | Attribute_::RandomTest => {
+                is = Test
+            }
+            Attribute_::External { attrs } => attrs.value.iter().for_each(|y| match y.value {
+                ParsedAttribute_::Name(name) => match name.value.as_str() {
+                    "test" => is = Test,
+                    "test_only" => is = TestOnly,
+                    _ => {}
+                },
+                ParsedAttribute_::Assigned(_, _) => {}
+                ParsedAttribute_::Parameterized(name, _) => match name.value.as_str() {
+                    "test" => is = Test,
+                    "test_only" => is = TestOnly,
+                    _ => {}
+                },
+            }),
+            _ => {}
         })
     });
     is
@@ -1293,7 +1302,6 @@ pub trait AstProvider: Clone {
             }
         });
     }
-    
 }
 
 #[derive(Clone)]

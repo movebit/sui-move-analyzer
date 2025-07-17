@@ -111,9 +111,7 @@ impl FunSpecGenerator {
                         for ellipsis in named_bindings.iter() {
                             if let Ellipsis::Binder(b) = ellipsis {
                                 insert_bind(r, &b.1, index);
-
                             }
-                            
                         }
                     }
                 }
@@ -395,7 +393,7 @@ impl FunSpecGenerator {
                     || FunSpecGenerator::expr_has_spec_unsupprted(r.as_ref())
             }
             Exp_::Borrow(_, _) => true,
-            Exp_::Dot(l, _) => FunSpecGenerator::expr_has_spec_unsupprted(l.as_ref()),
+            Exp_::Dot(l, _, _) => FunSpecGenerator::expr_has_spec_unsupprted(l.as_ref()),
             Exp_::Index(l, r) => {
                 let mut bool_result = true;
                 bool_result |= FunSpecGenerator::expr_has_spec_unsupprted(l.as_ref());
@@ -515,7 +513,7 @@ impl FunSpecGenerator {
         }
         match &e.value {
             Exp_::Value(_) => Err(()),
-            Exp_::Name(_) => {r()}
+            Exp_::Name(_) => r(),
             Exp_::Vector(_, _, _) => Err(()),
             // TODO
             Exp_::IfElse(_, _, _) => Err(()),
@@ -547,7 +545,7 @@ impl FunSpecGenerator {
                 }
             }
             Exp_::Borrow(_, _) => Err(()),
-            Exp_::Dot(_, _) => r(),
+            Exp_::Dot(_, _, _) => r(),
             Exp_::Index(_, _) => r(),
             Exp_::Cast(_, _) => Err(()),
             Exp_::Annotate(_, _) => Err(()),
@@ -611,7 +609,6 @@ fn names_and_modules_in_expr(
                         modules.insert(name.value);
                     }
                 },
-                
             }
         }
         fn handle_ty(names: &mut HashSet<Symbol>, modules: &mut HashSet<Symbol>, ty: &Type) {
@@ -651,10 +648,10 @@ fn names_and_modules_in_expr(
             Exp_::Copy(_, e) => {
                 names_and_modules_in_expr_(names, modules, e.as_ref());
             }
-            Exp_::Name(name, ) => {
+            Exp_::Name(name) => {
                 handle_name_access_chain(names, modules, name);
             }
-            Exp_::Call(chain,  exprs) => {
+            Exp_::Call(chain, exprs) => {
                 handle_name_access_chain(names, modules, chain);
                 handle_exprs(names, modules, &exprs.value);
             }
@@ -704,7 +701,7 @@ fn names_and_modules_in_expr(
             Exp_::Borrow(_, e) => {
                 names_and_modules_in_expr_(names, modules, e.as_ref());
             }
-            Exp_::Dot(a, _) => {
+            Exp_::Dot(a, _, _) => {
                 names_and_modules_in_expr_(names, modules, a.as_ref());
             }
             Exp_::Index(a, b) => {
@@ -712,7 +709,6 @@ fn names_and_modules_in_expr(
                 for e in b.value.iter() {
                     names_and_modules_in_expr_(names, modules, e);
                 }
-                
             }
             Exp_::Cast(a, _) => {
                 names_and_modules_in_expr_(names, modules, a.as_ref());
@@ -811,7 +807,9 @@ impl GroupShadowItemUse {
                     match &k.0 {
                         LeadingNameAccess_::AnonymousAddress(x) =>
                             format!("0x{}", x.into_inner().short_str_lossless()),
-                        LeadingNameAccess_::Name(name) | LeadingNameAccess_::GlobalAddress(name) => name.value.as_str().to_string(),
+                        LeadingNameAccess_::Name(name)
+                        | LeadingNameAccess_::GlobalAddress(name) =>
+                            name.value.as_str().to_string(),
                     },
                     k.1.as_str(),
                     v_str
@@ -829,7 +827,11 @@ enum ShadowItem {
     Local(ShadowItemLocal),
 }
 
-fn match_module_use(ret: &mut HashMap<Symbol, Vec<ShadowItem>>, addr_module: &ModuleIdent, module_use: &ModuleUse) {
+fn match_module_use(
+    ret: &mut HashMap<Symbol, Vec<ShadowItem>>,
+    addr_module: &ModuleIdent,
+    module_use: &ModuleUse,
+) {
     match module_use {
         ModuleUse::Module(alias) => {
             let name = if let Some(alias) = alias {

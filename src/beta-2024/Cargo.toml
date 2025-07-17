@@ -34,16 +34,18 @@ tempfile = "3.2.0"
 url = "2.2.2"
 clap = { version = "3.1.8", features = ["derive"] }
 crossbeam = "0.8"
-move-command-line-common = { git = "https://github.com/movebit/sui_for_analyzer.git", branch = "sui_move_analyzer", package = "move-command-line-common" }
-move-ir-types = { git = "https://github.com/movebit/sui_for_analyzer.git", branch = "sui_move_analyzer", package = "move-ir-types" }
-move-compiler = { git = "https://github.com/movebit/sui_for_analyzer.git", branch = "sui_move_analyzer", package = "move-compiler" }
-move-package = { git = "https://github.com/movebit/sui_for_analyzer.git", branch = "sui_move_analyzer", package = "move-package" }
-move-symbol-pool = { git = "https://github.com/movebit/sui_for_analyzer.git", branch = "sui_move_analyzer", package = "move-symbol-pool" }
-move-core-types = { git = "https://github.com/movebit/sui_for_analyzer.git", branch = "sui_move_analyzer", package = "move-core-types" }
-# move-cli = { git = "https://github.com/movebit/sui_for_analyzer.git", branch = "sui_move_analyzer", package = "move-cli" }
-move-model = { git = "https://github.com/movebit/sui_for_analyzer.git", branch = "sui_move_analyzer", package = "move-model" }
-sui-move-build4= { git = "https://github.com/movebit/sui_for_analyzer.git", branch = "sui_move_analyzer", package = "sui-move-build" }
-move-proc-macros= { git = "https://github.com/movebit/sui_for_analyzer.git", branch = "sui_move_analyzer", package = "move-proc-macros" }
+
+move-command-line-common = { git = "https://github.com/movebit/sui_for_analyzer_2025.git", branch = "analyzer", package = "move-command-line-common" }
+move-ir-types = { git = "https://github.com/movebit/sui_for_analyzer_2025.git", branch = "analyzer", package = "move-ir-types" }
+move-compiler = { git = "https://github.com/movebit/sui_for_analyzer_2025.git", branch = "analyzer", package = "move-compiler" }
+move-package = { git = "https://github.com/movebit/sui_for_analyzer_2025.git", branch = "analyzer", package = "move-package" }
+move-symbol-pool = { git = "https://github.com/movebit/sui_for_analyzer_2025.git", branch = "analyzer", package = "move-symbol-pool" }
+move-core-types = { git = "https://github.com/movebit/sui_for_analyzer_2025.git", branch = "analyzer", package = "move-core-types" }
+move-model = { git = "https://github.com/movebit/sui_for_analyzer_2025.git", branch = "analyzer", package = "move-model" }
+move-proc-macros= { git = "https://github.com/movebit/sui_for_analyzer_2025.git", branch = "analyzer", package = "move-proc-macros" }
+
+
+
 walkdir = "2"
 log = "0.4.14"
 stderrlog = "0.5.4"

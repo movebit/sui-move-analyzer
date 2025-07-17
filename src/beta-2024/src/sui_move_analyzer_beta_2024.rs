@@ -2,33 +2,28 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::utils::path_concat;
 use anyhow::Result;
 use crossbeam::channel::Sender;
 use lsp_server::{Notification, Request, Response};
-use lsp_types::{
-    notification::Notification as _, request::Request as _,
-};
+use lsp_types::{notification::Notification as _, request::Request as _};
 use move_command_line_common::files::FileHash;
-use move_compiler::{diagnostics::WarningFilters, editions::{Edition, Flavor}, shared::*};
+use move_compiler::{
+    diagnostics::warning_filters::WarningFiltersBuilder,
+    editions::{Edition, Flavor},
+    shared::*,
+};
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
-use crate::utils::path_concat;
 
 use crate::{
-    code_lens,
-    completion::on_completion_request,
-
-    context::Context,
-    goto_definition, hover, inlay_hints, inlay_hints::*,
-    move_generate_spec_file::on_generate_spec_file,
-    move_generate_spec_sel::on_generate_spec_sel,
-    project::ConvertLoc,
-    references, symbols,
+    code_lens, completion::on_completion_request, context::Context, goto_definition, hover,
+    inlay_hints, inlay_hints::*, linter, move_generate_spec_file::on_generate_spec_file,
+    move_generate_spec_sel::on_generate_spec_sel, project::ConvertLoc, references, symbols,
     utils::*,
-    linter,
 };
 // use move_symbol_pool::Symbol;
 use url::Url;
@@ -38,8 +33,12 @@ pub fn try_reload_projects(context: &mut Context) {
     context.projects.try_reload_projects(&context.connection);
 }
 
-pub fn on_request(context: &mut Context, request: &Request, inlay_hints_config: &mut InlayHintsConfig) {
-    log::info!("receive method:{}", request.method.as_str());
+pub fn on_request(
+    context: &mut Context,
+    request: &Request,
+    inlay_hints_config: &mut InlayHintsConfig,
+) {
+    eprintln!("receive method:{}", request.method.as_str());
     match request.method.as_str() {
         lsp_types::request::Completion::METHOD => on_completion_request(context, request),
         lsp_types::request::GotoDefinition::METHOD => {
@@ -88,27 +87,30 @@ pub fn on_response(_context: &Context, _response: &Response) {
 
 type DiagSender = Arc<Mutex<Sender<(PathBuf, DiagnosticsBeta2024)>>>;
 
-pub fn on_notification(context: &mut Context, diag_sender: DiagSender, notification: &Notification) {
-    // let (diag_sender, _) 
+pub fn on_notification(
+    context: &mut Context,
+    diag_sender: DiagSender,
+    notification: &Notification,
+) {
+    // let (diag_sender, _)
     //     = bounded::<(PathBuf, move_compiler::diagnostics::Diagnostics)>(1);
     // let diag_sender = Arc::new(Mutex::new(diag_sender));
     fn update_defs(context: &mut Context, fpath: PathBuf, content: &str) {
         use move_compiler::parser::syntax::parse_file_string;
         let file_hash = FileHash::new(content);
-        let mut env 
-            = CompilationEnv::new(
-                Flags::testing(),
-                Default::default(), 
-                Default::default(),
-                Default::default(),
-                Some(
-                    PackageConfig {
-                        is_dependency: false,
-                        warning_filter: WarningFilters::new_for_source(),
-                        flavor: Flavor::default(),
-                        edition: Edition::E2024_BETA,
-                    },
-                ),
+        let mut env = CompilationEnv::new(
+            Flags::testing(),
+            Default::default(),
+            Default::default(),
+            None,
+            Default::default(),
+            Some(PackageConfig {
+                is_dependency: false,
+                warning_filter: WarningFiltersBuilder::new_for_source(),
+                flavor: Flavor::default(),
+                edition: Edition::E2024_BETA,
+            }),
+            None,
         );
         let defs = parse_file_string(&mut env, file_hash, content, None);
         let defs = match defs {
@@ -118,7 +120,7 @@ pub fn on_notification(context: &mut Context, diag_sender: DiagSender, notificat
                 return;
             }
         };
-        let (defs, _) = defs;
+
         context.projects.update_defs(fpath.clone(), defs);
         context.ref_caches.clear();
         context
@@ -222,32 +224,37 @@ pub fn on_notification(context: &mut Context, diag_sender: DiagSender, notificat
             };
         }
 
-        _ => {},
+        _ => {}
     }
 }
 
 fn get_package_compile_diagnostics(
     pkg_path: &Path,
 ) -> Result<move_compiler::diagnostics::Diagnostics> {
-    let file_content = std::fs::read_to_string(pkg_path).unwrap_or_else(|_| panic!("'{:?}' can't read_to_string", pkg_path));
+    let file_content = std::fs::read_to_string(pkg_path)
+        .unwrap_or_else(|_| panic!("'{:?}' can't read_to_string", pkg_path));
     let file_hash = FileHash::new(file_content.as_str());
     let mut env = CompilationEnv::new(
-        Flags::testing(), 
-        Default::default(), 
-        Default::default(), 
+        Flags::testing(),
         Default::default(),
-        Some(
-            PackageConfig {
-                is_dependency: false,
-                warning_filter: WarningFilters::new_for_source(),
-                flavor: Flavor::default(),
-                edition: Edition::E2024_BETA
-            }
-            
-        ),
+        Default::default(),
+        None,
+        Default::default(),
+        Some(PackageConfig {
+            is_dependency: false,
+            warning_filter: WarningFiltersBuilder::new_for_source(),
+            flavor: Flavor::default(),
+            edition: Edition::E2024_BETA,
+        }),
+        None,
     );
 
-    if let Err(diags) = move_compiler::parser::syntax::parse_file_string(&mut env, file_hash, file_content.as_str(), None) {
+    if let Err(diags) = move_compiler::parser::syntax::parse_file_string(
+        &mut env,
+        file_hash,
+        file_content.as_str(),
+        None,
+    ) {
         return Ok(diags);
     } else {
         eprintln!("parse_file_string not has diag");
@@ -281,7 +288,7 @@ fn get_package_compile_diagnostics(
     //     };
     //     Ok(Default::default())
     // })?;
-    
+
     // let mut filterd_diagnostics = Diagnostics::new();
     // if let Some(x) = diagnostics.clone() {
     //     for diag in x.1.into_vec() {
@@ -295,7 +302,6 @@ fn get_package_compile_diagnostics(
     //     }
     // }
     // Ok(filterd_diagnostics)
-
 
     // match diagnostics {
     //     Some(x) => Ok(x.1),
@@ -327,7 +333,7 @@ fn make_diag(context: &Context, diag_sender: DiagSender, fpath: PathBuf) {
             Ok(x) => {
                 log::trace!("in new thread, get(beta) diags success");
                 x
-            },
+            }
             Err(err) => {
                 log::error!("get_package_compile_diagnostics failed,err:{:?}", err);
                 return;
@@ -380,7 +386,10 @@ fn send_not_project_file_error(context: &mut Context, fpath: PathBuf, is_open: b
 pub fn send_diag(context: &mut Context, mani: PathBuf, x: DiagnosticsBeta2024) {
     log::trace!("bin send_diag(beta) >>");
     let mut result: HashMap<Url, Vec<lsp_types::Diagnostic>> = HashMap::new();
-    log::trace!("bin send_diag(beta) x = {:?} <<", x.clone().into_codespan_format());
+    log::trace!(
+        "bin send_diag(beta) x = {:?} <<",
+        x.clone().into_codespan_format()
+    );
     for x in x.into_codespan_format() {
         let (s, msg, (loc, m), _, notes) = x;
         if let Some(r) = context.projects.convert_loc_range(&loc) {
@@ -441,7 +450,10 @@ pub fn send_diag(context: &mut Context, mani: PathBuf, x: DiagnosticsBeta2024) {
     }
     for (k, v) in result.into_iter() {
         let ds = lsp_types::PublishDiagnosticsParams::new(k.clone(), v, None);
-        log::trace!("bin send_diag(beta) serde_json::to_value(ds) = {:?} <<", serde_json::to_value(ds.clone()));
+        log::trace!(
+            "bin send_diag(beta) serde_json::to_value(ds) = {:?} <<",
+            serde_json::to_value(ds.clone())
+        );
         context
             .connection
             .sender
@@ -452,7 +464,6 @@ pub fn send_diag(context: &mut Context, mani: PathBuf, x: DiagnosticsBeta2024) {
             .unwrap();
     }
 }
-
 
 pub fn read_move_toml(path: &Path) -> Option<PathBuf> {
     let move_toml_path = path.join("Move.toml");
@@ -474,20 +485,19 @@ pub fn read_move_toml(path: &Path) -> Option<PathBuf> {
 pub fn test_update_defs(context: &mut Context, fpath: PathBuf, content: &str) {
     use move_compiler::parser::syntax::parse_file_string;
     let file_hash = FileHash::new(content);
-    let mut env 
-        = CompilationEnv::new(
-            Flags::testing(),
-            Default::default(), 
-            Default::default(),
-            Default::default(),
-            Some(
-                PackageConfig {
-                    is_dependency: false,
-                    warning_filter: WarningFilters::new_for_source(),
-                    flavor: Flavor::default(),
-                    edition: Edition::E2024_BETA,
-                },
-            ),
+    let mut env = CompilationEnv::new(
+        Flags::testing(),
+        Default::default(),
+        Default::default(),
+        None,
+        Default::default(),
+        Some(PackageConfig {
+            is_dependency: false,
+            warning_filter: WarningFiltersBuilder::new_for_source(),
+            flavor: Flavor::default(),
+            edition: Edition::E2024_BETA,
+        }),
+        None,
     );
     let defs = parse_file_string(&mut env, file_hash, content, None);
     let defs = match defs {
@@ -497,7 +507,7 @@ pub fn test_update_defs(context: &mut Context, fpath: PathBuf, content: &str) {
             return;
         }
     };
-    let (defs, _) = defs;
+
     context.projects.update_defs(fpath.clone(), defs);
     context.ref_caches.clear();
     context

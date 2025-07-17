@@ -86,10 +86,14 @@ impl FileLineMapping {
             // this is a dummy fix.
             end_index = start_index;
         }
-        let vec = self.m.get(filepath)?; 
+        let vec = self.m.get(filepath)?;
         let too_big = vec.last().map(|x| *x <= end_index).unwrap_or(false);
         if too_big {
-            log::error!("end index too big. vec.last() = {:?}, end index = {:?}", vec.last(), end_index);
+            log::error!(
+                "end index too big. vec.last() = {:?}, end index = {:?}",
+                vec.last(),
+                end_index
+            );
             return None;
         }
         fn search(vec: &[ByteIndex], byte_index: ByteIndex) -> (u32, u32) {

@@ -6,7 +6,7 @@ description = "A language server for Move"
 repository = "https://github.com/move-language/move"
 license = "Apache-2.0"
 publish = false
-edition = "2021"
+edition = "2024"
 
 [dependencies]
 dirs-next = "2.0.0"

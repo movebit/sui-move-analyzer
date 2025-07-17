@@ -260,7 +260,7 @@ impl Project {
         provider.with_const(|addr, name, c| {
             self.visit_const(Some((addr, name)), c, project_context, visitor);
         });
-        
+
         provider.with_struct(|addr, module_name, c| {
             let item = Item::StructNameRef(ItemStructNameRef {
                 addr,
@@ -781,15 +781,11 @@ impl Project {
                           project_context: &ProjectContext,
                           visitor: &mut dyn ItemOrAccessHandler,
                           _has_ref: Option<bool>| {
-            log::trace!("handle_dot({})", field);
             // self.visit_expr(e, project_context, visitor);
             if visitor.finished() {
                 return;
             }
-            log::trace!(
-                "handle_dot --> inlay_hint.handle_item_or_access({}) continue",
-                field
-            );
+
             let struct_ty = self.get_expr_type(e, project_context);
             let struct_ty = match &struct_ty {
                 ResolvedType::Ref(_, ty) => ty.as_ref(),
@@ -912,7 +908,6 @@ impl Project {
                     if visitor.current_vistor_handler_is_inlay_hints() {
                         return;
                     }
-                    log::trace!("process Exp_::Call, item = {}", item);
                     visitor.handle_item_or_access(self, project_context, &item);
                     if visitor.finished() {
                         return;
@@ -920,7 +915,6 @@ impl Project {
                 }
                 if let Some(ref types) = types {
                     for t in types.iter() {
-                        log::trace!("process Exp_::Call, t = {:?}", t);
                         self.visit_type_apply(t, project_context, visitor);
                         if visitor.finished() {
                             return;
@@ -928,7 +922,6 @@ impl Project {
                     }
                 }
                 for expr in exprs.value.iter() {
-                    log::trace!("process Exp_::Call, expr = {:?}", expr);
                     self.visit_expr(expr, project_context, visitor);
                     if visitor.finished() {
                         return;
@@ -1061,7 +1054,7 @@ impl Project {
             Exp_::Lambda(_, _) => {
                 // TODO have lambda expression in ast structure.
                 // But I don't find in msl spec.
-                log::error!("lambda expression in ast.");
+                // log::error!("lambda expression in ast.");
             }
 
             Exp_::Quant(_, binds, bodies, where_, result) => {
@@ -1172,7 +1165,6 @@ impl Project {
                 }
             },
             Exp_::Dot(e, field) => {
-                log::trace!("process Exp_::Dot, field = {}", field);
                 handle_dot(e, field, project_context, visitor, None);
             }
             Exp_::Index(e, index) => {

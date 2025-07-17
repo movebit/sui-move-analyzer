@@ -633,6 +633,7 @@ impl ProjectContext {
                         });
                     }
                     LeadingNameAccess_::AnonymousAddress(addr) => {
+                        eprintln!("LeadingNameAccess_::AnonymousAddress");
                         let x = self.visit_address(|x| -> Option<AddrAndModuleName> {
                             Some(
                                 x.address

@@ -562,10 +562,10 @@ impl std::fmt::Display for Access {
             }
 
             Access::ExprVar(var, item) => {
-                write!(f, "expr {}->{}", var.borrow().1.as_str(), item)
+                write!(f, "ExprVar {}->{}", var.borrow().1.as_str(), item)
             }
             Access::ExprAccessChain(chain, _, item) => {
-                write!(f, "expr {:?}->{}", chain, item)
+                write!(f, "ExprAccessChain {:?}->{}", chain, item)
             }
             Access::ExprAddressName(chain) => {
                 write!(f, "{:?}", chain)

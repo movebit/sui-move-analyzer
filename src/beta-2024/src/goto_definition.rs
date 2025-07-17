@@ -57,7 +57,10 @@ pub fn on_go_to_def_request(context: &Context, request: &Request) -> lsp_server:
         .sender
         .send(Message::Response(r))
         .unwrap();
-    eprintln!("goto definition Success");
+    eprintln!(
+        "\n\n==================\n goto definition Success, {:?}\n===================\n\n",
+        ret_response
+    );
     ret_response
 }
 
@@ -107,9 +110,11 @@ impl Handler {
     fn to_locations(&self) -> Vec<Location> {
         let mut ret = Vec::with_capacity(2);
         if let Some(x) = self.result.as_ref() {
+            eprintln!("self.result1");
             ret.push(x.mk_location());
         }
         if let Some(x) = self.result2.as_ref() {
+            eprintln!("self.result2");
             ret.push(x.mk_location());
         }
         ret
@@ -126,8 +131,14 @@ impl ItemOrAccessHandler for Handler {
         _project_context: &ProjectContext,
         item_or_access: &ItemOrAccess,
     ) {
-        log::warn!("handle_item_or_access<goto>, item_or_access = {}", item_or_access);
-        log::warn!(">> handle_item_or_access<goto>, self.result = {:?}", self.result);
+        eprintln!(
+            "\n\n =========================\nhandle_item_or_access<goto>, item_or_access = {}",
+            item_or_access
+        );
+        eprintln!(
+            ">> handle_item_or_access<goto>, self.result = {:?}",
+            self.result
+        );
         match item_or_access {
             ItemOrAccess::Item(item) => match item {
                 Item::Use(x) => {
@@ -206,7 +217,7 @@ impl ItemOrAccessHandler for Handler {
             },
             ItemOrAccess::Access(access) => match access {
                 Access::AccessFiled(AccessFiled { from, to, item, .. }) => {
-                    log::warn!("-- handle_item_or_access<goto>, AccessFiled");
+                    eprintln!("-- handle_item_or_access<goto>, AccessFiled");
                     if self.match_loc(&from.loc(), services) {
                         if let Some(t) = services.convert_loc_range(&to.loc()) {
                             self.result = Some(t);
@@ -219,8 +230,15 @@ impl ItemOrAccessHandler for Handler {
                     }
                 }
                 Access::ExprAccessChain(chain, _, item) if item.is_build_in() => {
-                    log::warn!("-- handle_item_or_access<goto>, ExprAccessChain");
-                    log::warn!("-- handle_item_or_access<goto>, chain.name = {}", chain.value);
+                    eprintln!("-- handle_item_or_access<goto>, ExprAccessChain,is_build_in");
+                    eprintln!(
+                        "-- handle_item_or_access<goto>, chain.name = {}",
+                        chain.value
+                    );
+                    eprintln!(
+                        "-- handle_item_or_access<goto> Single, chain.loc = {:?}",
+                        services.convert_loc_range(&chain.loc)
+                    );
                     if self.match_loc(&chain.loc, services) {
                         if let Some(t) = services.convert_loc_range(&chain.loc) {
                             self.result = Some(t);
@@ -228,46 +246,52 @@ impl ItemOrAccessHandler for Handler {
                         }
                     }
                 }
-                Access::ExprAccessChain(chain,  _, item) => {
-                    match chain.value {
-                        move_compiler::parser::ast::NameAccessChain_::Single(..) => {
-                            log::warn!("-- handle_item_or_access<goto> Single, ExprAccessChain");
-                            log::warn!("-- handle_item_or_access<goto> Single, chain.name = {}", chain.value);
-                            log::warn!("-- handle_item_or_access<goto> Single, chain.loc = {:?}", services.convert_loc_range(&chain.loc));
-                            if self.match_loc(&chain.loc, services) {
-                                if let Some(t) = services.convert_loc_range(&item.def_loc()) {
-                                    self.result = Some(t);
-                                    self.result_item_or_access = Some(item_or_access.clone());
-                                }
-                            }
-                        }
-                        _ => {
-                            log::warn!("access:{}", access);
-                            if let Some((access, def)) = access.access_module() {
-                                if self.match_loc(&access, services) {
-                                    if let Some(t) = services.convert_loc_range(&def) {
-                                        self.result = Some(t);
-                                        self.result_loc = Some(def);
-                                        self.result_item_or_access = Some(item_or_access.clone());
-                                        return;
-                                    }
-                                }
-                            }
-                            let locs = access.access_def_loc();
-                            if self.match_loc(&locs.0, services) {
-                                if let Some(t) = services.convert_loc_range(&locs.1) {
-                                    self.result = Some(t);
-                                    self.result_loc = Some(locs.1);
-                                    self.result_item_or_access = Some(item_or_access.clone());
-                                }
+                Access::ExprAccessChain(chain, _, item) => match chain.value {
+                    move_compiler::parser::ast::NameAccessChain_::Single(..) => {
+                        eprintln!("-- handle_item_or_access<goto> Single, ExprAccessChain");
+                        eprintln!(
+                            "-- handle_item_or_access<goto> Single, chain.name = {}",
+                            chain.value
+                        );
+                        eprintln!(
+                            "-- handle_item_or_access<goto> Single, chain.loc = {:?}",
+                            services.convert_loc_range(&chain.loc)
+                        );
+                        if self.match_loc(&chain.loc, services) {
+                            if let Some(t) = services.convert_loc_range(&item.def_loc()) {
+                                self.result = Some(t);
+                                self.result_item_or_access = Some(item_or_access.clone());
                             }
                         }
                     }
-                }
+                    _ => {
+                        if let Some((access, def)) = access.access_module() {
+                            if self.match_loc(&access, services) {
+                                if let Some(t) = services.convert_loc_range(&def) {
+                                    self.result = Some(t);
+                                    self.result_loc = Some(def);
+                                    self.result_item_or_access = Some(item_or_access.clone());
+                                    return;
+                                }
+                            }
+                        }
+                        let locs = access.access_def_loc();
+                        if self.match_loc(&locs.0, services) {
+                            if let Some(t) = services.convert_loc_range(&locs.1) {
+                                self.result = Some(t);
+                                self.result_loc = Some(locs.1);
+                                self.result_item_or_access = Some(item_or_access.clone());
+                            }
+                        }
+                    }
+                },
                 _ => {}
             },
         }
-        log::warn!("<< handle_item_or_access<goto>, self.result = {:?}", self.result);
+        eprintln!(
+            "<< handle_item_or_access<goto>, self.result = {:?} \n===============\n\n",
+            self.result
+        );
     }
 
     fn function_or_spec_body_should_visit(&self, range: &FileRange) -> bool {
@@ -297,7 +321,7 @@ impl GetPosition for Handler {
 
 /// Handles go-to-def request of the language server
 pub fn on_go_to_type_def_request(context: &Context, request: &Request) -> lsp_server::Response {
-    log::info!("on_go_to_type_def_request request = {:?}", request);
+    eprintln!("on_go_to_type_def_request request = {:?}", request);
     let parameters = serde_json::from_value::<GotoDefinitionParams>(request.params.clone())
         .expect("could not deserialize go-to-def request");
     let fpath = parameters
@@ -310,7 +334,7 @@ pub fn on_go_to_type_def_request(context: &Context, request: &Request) -> lsp_se
     let line = loc.line;
     let col = loc.character;
     let fpath = path_concat(std::env::current_dir().unwrap().as_path(), fpath.as_path());
-    log::info!(
+    eprintln!(
         "request is goto type definition,fpath:{:?}  line:{} col:{}",
         fpath.as_path(),
         line,

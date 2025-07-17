@@ -1,41 +1,39 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    project::ConvertLoc,
-    context::Context,
-    utils::discover_manifest_and_kind,
-};
-use move_compiler::{
-    cfgir::visitor::AbstractInterpreterVisitor,
-    command_line::compiler::move_check_for_errors,
-    diagnostics::codes::{self, WarningFilter},
-    editions::Flavor,
-    shared::{NumericalAddress, PackageConfig},
-    typing::visitor::TypingVisitor,
-    Compiler, PASS_PARSER,
-    diagnostics::Diagnostics,
-};
+use crate::{context::Context, project::ConvertLoc, utils::discover_manifest_and_kind};
 use move_compiler::sui_mode::linters::{
     coin_field::CoinFieldVisitor, collection_equality::CollectionEqualityVisitor,
     custom_state_change::CustomStateChangeVerifier, freeze_wrapped::FreezeWrappedVisitor,
     known_filters, self_transfer::SelfTransferVerifier, share_owned::ShareOwnedVerifier,
 };
+use move_compiler::{
+    cfgir::visitor::AbstractInterpreterVisitor,
+    command_line::compiler::move_check_for_errors,
+    diagnostics::Diagnostics,
+    diagnostics::{
+        codes::{self},
+        warning_filters::WarningFilter,
+    },
+    editions::Flavor,
+    shared::{NumericalAddress, PackageConfig},
+    typing::visitor::TypingVisitor,
+    Compiler, PASS_PARSER,
+};
 pub const LINT_WARNING_PREFIX: &str = "Lint ";
 
 use std::{
-    str::FromStr, str,
     collections::{BTreeMap, HashMap},
     path::{Path, PathBuf},
+    str,
+    str::FromStr,
 };
 use url::Url;
 
 use lsp_server::{Message, Notification, Request, Response};
-use lsp_types::{
-    notification::Notification as _,
-};
-use serde::Deserialize;
+use lsp_types::notification::Notification as _;
 use move_symbol_pool::Symbol;
+use serde::Deserialize;
 #[derive(Clone, Deserialize)]
 pub struct ReqParameters {
     pub fpath: String,
@@ -45,8 +43,10 @@ pub struct Resp {
     result_msg: String,
 }
 
-const SUI_FRAMEWORK_PATH: &str = "/data/lzw/rust_projects/sui/crates/sui-framework/packages/sui-framework";
-const MOVE_STDLIB_PATH: &str = "/data/lzw/rust_projects/sui/crates/sui-framework/packages/move-stdlib";
+const SUI_FRAMEWORK_PATH: &str =
+    "/data/lzw/rust_projects/sui/crates/sui-framework/packages/sui-framework";
+const MOVE_STDLIB_PATH: &str =
+    "/data/lzw/rust_projects/sui/crates/sui-framework/packages/move-stdlib";
 
 pub fn on_run_linter(context: &Context, request: &Request) {
     log::info!("on_run_linter request = {:?}", request);
@@ -72,10 +72,13 @@ pub fn on_run_linter(context: &Context, request: &Request) {
                     .unwrap_or(&d)
                     .as_ref()
                     .borrow();
-                target = b.clone().sources.into_iter()
-                            .map(|(path_buf, _)| path_buf.to_string_lossy().to_string())
-                            .collect::<Vec<_>>()
-                            .clone();
+                target = b
+                    .clone()
+                    .sources
+                    .into_iter()
+                    .map(|(path_buf, _)| path_buf.to_string_lossy().to_string())
+                    .collect::<Vec<_>>()
+                    .clone();
             };
 
             let mut working_dir = fpath.clone();
@@ -92,20 +95,21 @@ pub fn on_run_linter(context: &Context, request: &Request) {
 
             let mut result: HashMap<Url, Vec<lsp_types::Diagnostic>> = HashMap::new();
             let mut idx = 0;
-            for (s, _, (loc, detail_str), loc_str_vec, suggest_str_vec ) 
-                in diags.clone().into_codespan_format() {
+            for (s, _, (loc, detail_str), loc_str_vec, suggest_str_vec) in
+                diags.clone().into_codespan_format()
+            {
                 let diag_vec = diags.clone().into_vec();
                 let (severity, diag_ty_str) = diag_vec[idx].info().clone().render();
                 idx = idx + 1;
                 if !severity.contains("Lint") {
-                    continue;                    
+                    continue;
                 }
                 log::info!("severity = {:?}, diag_ty_str = {:?}", severity, diag_ty_str);
                 log::info!("loc = {:?}, detail_str = {:?}", loc, detail_str);
                 for suggest_str in suggest_str_vec.clone() {
                     log::info!("suggest_str = {:?}", suggest_str);
                 }
-                
+
                 if let Some(r) = context.projects.convert_loc_range(&loc) {
                     let url = url::Url::from_file_path(r.path.as_path()).unwrap();
                     let d = lsp_types::Diagnostic {
@@ -127,11 +131,7 @@ pub fn on_run_linter(context: &Context, request: &Request) {
                                 lsp_types::DiagnosticSeverity::HINT
                             }
                         }),
-                        message: format!(
-                            "{}\n{}",
-                            diag_ty_str,
-                            detail_str
-                        ),
+                        message: format!("{}\n{}", diag_ty_str, detail_str),
                         ..Default::default()
                     };
                     if let Some(a) = result.get_mut(&url) {
@@ -195,7 +195,7 @@ pub fn on_run_linter(context: &Context, request: &Request) {
                     }))
                     .unwrap();
             }
-        },
+        }
         None => {
             let result_msg = run_tests(&fpath);
             let r = Response::new_ok(
@@ -216,7 +216,6 @@ pub fn on_run_linter(context: &Context, request: &Request) {
             log::info!("result_msg = ----> \n{:?}", result_msg);
         }
     };
-    
 }
 
 fn default_addresses() -> BTreeMap<String, NumericalAddress> {
@@ -246,7 +245,11 @@ pub fn known_filters_for_linter() -> (Option<Symbol>, Vec<WarningFilter>) {
 }
 
 #[allow(dead_code)]
-fn run_sigle_file_linter(working_dir: &Path, path: &Path, deps: &mut Vec<std::string::String>) -> Option<String> {
+fn run_sigle_file_linter(
+    working_dir: &Path,
+    path: &Path,
+    deps: &mut Vec<std::string::String>,
+) -> Option<String> {
     let targets: Vec<String> = vec![path.to_str().unwrap().to_owned()];
     let lint_visitors = vec![
         ShareOwnedVerifier.visitor(),
@@ -264,8 +267,9 @@ fn run_sigle_file_linter(working_dir: &Path, path: &Path, deps: &mut Vec<std::st
         skip_fetch_latest_git_deps: true,
         ..Default::default()
     };
-    let resolution_graph =
-        build_config.resolution_graph_for_package(&working_dir, Default::default(), &mut Vec::new()).ok()?;
+    let resolution_graph = build_config
+        .resolution_graph_for_package(&working_dir, Default::default(), &mut Vec::new())
+        .ok()?;
     let named_address_mapping: Vec<_> = resolution_graph
         .extract_named_address_mapping()
         .map(|(name, addr)| format!("{}={}", name.as_str(), addr))
@@ -279,19 +283,16 @@ fn run_sigle_file_linter(working_dir: &Path, path: &Path, deps: &mut Vec<std::st
         deps.extend(tmp_deps);
     }
     let (filter_attr_name, filters) = known_filters_for_linter();
-    let (files, comments_and_compiler_res) = Compiler::from_files(
-        None,
-        targets,
-        deps.clone(),
-        addrs,
-    )
-    .add_visitors(lint_visitors)
-    .set_default_config(PackageConfig {
-        flavor: Flavor::Sui,
-        ..PackageConfig::default()
-    })
-    .add_custom_known_filters(filter_attr_name, filters)
-    .run::<PASS_PARSER>().ok()?;
+    let (files, comments_and_compiler_res) =
+        Compiler::from_files(None, targets, deps.clone(), addrs)
+            .add_visitors(lint_visitors)
+            .set_default_config(PackageConfig {
+                flavor: Flavor::Sui,
+                ..PackageConfig::default()
+            })
+            .add_custom_known_filters(filter_attr_name, filters)
+            .run::<PASS_PARSER>()
+            .ok()?;
 
     let diags = move_check_for_errors(comments_and_compiler_res);
 
@@ -347,9 +348,10 @@ fn run_project_linter(targets: Vec<std::string::String>, deps: &Vec<std::string:
  */
 fn run_project_linter(
     _cur_file: &Path,
-    working_dir: &Path, 
-    targets: Vec<std::string::String>, 
-    deps: &mut Vec<std::string::String>) -> Option<Diagnostics> {
+    working_dir: &Path,
+    targets: Vec<std::string::String>,
+    deps: &mut Vec<std::string::String>,
+) -> Option<Diagnostics> {
     let lint_visitors = vec![
         ShareOwnedVerifier.visitor(),
         SelfTransferVerifier.visitor(),
@@ -366,8 +368,9 @@ fn run_project_linter(
         skip_fetch_latest_git_deps: true,
         ..Default::default()
     };
-    let resolution_graph =
-        build_config.resolution_graph_for_package(&working_dir, Default::default(), &mut Vec::new()).ok()?;
+    let resolution_graph = build_config
+        .resolution_graph_for_package(&working_dir, Default::default(), &mut Vec::new())
+        .ok()?;
     let named_address_mapping: Vec<_> = resolution_graph
         .extract_named_address_mapping()
         .map(|(name, addr)| format!("{}={}", name.as_str(), addr))
@@ -382,19 +385,15 @@ fn run_project_linter(
     }
     let (filter_attr_name, filters) = known_filters_for_linter();
     // let (files, comments_and_compiler_res) = Compiler::from_files(
-    let (_, comments_and_compiler_res) = Compiler::from_files(
-        None, 
-        targets,
-        deps.clone(),
-        addrs,
-    )
-    .add_visitors(lint_visitors)
-    .set_default_config(PackageConfig {
-        flavor: Flavor::Sui,
-        ..PackageConfig::default()
-    })
-    .add_custom_known_filters(filter_attr_name, filters)
-    .run::<PASS_PARSER>().ok()?;
+    let (_, comments_and_compiler_res) = Compiler::from_files(None, targets, deps.clone(), addrs)
+        .add_visitors(lint_visitors)
+        .set_default_config(PackageConfig {
+            flavor: Flavor::Sui,
+            ..PackageConfig::default()
+        })
+        .add_custom_known_filters(filter_attr_name, filters)
+        .run::<PASS_PARSER>()
+        .ok()?;
 
     // let mut current_move_file = files.clone();
     // current_move_file.clear();
@@ -435,7 +434,8 @@ fn run_tests(path: &Path) -> Option<String> {
         ..PackageConfig::default()
     })
     .add_custom_known_filters(filter_attr_name, filters)
-    .run::<PASS_PARSER>().ok()?;
+    .run::<PASS_PARSER>()
+    .ok()?;
 
     let diags = move_check_for_errors(comments_and_compiler_res);
 
