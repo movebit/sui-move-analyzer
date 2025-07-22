@@ -22,16 +22,19 @@ use move_ir_types::location::Loc;
 use std::path::PathBuf;
 
 /// Handles inlay_hints request of the language server.
-pub fn on_inlay_hints(context: &Context, request: &Request, config: InlayHintsConfig) -> lsp_server::Response {
-    eprintln!("on_inlay_hints request = {:?}", request);
+pub fn on_inlay_hints(
+    context: &Context,
+    request: &Request,
+    config: InlayHintsConfig,
+) -> lsp_server::Response {
     let parameters = serde_json::from_value::<InlayHintParams>(request.params.clone())
         .expect("could not deserialize go-to-def request");
     let fpath = parameters.text_document.uri.to_file_path().unwrap();
-    let fpath = path_concat(
-        std::env::current_dir().unwrap().as_path(),
-        fpath.as_path(),
+    let fpath = path_concat(std::env::current_dir().unwrap().as_path(), fpath.as_path());
+    eprintln!(
+        "\n============== inlay_hints ============== \nfpath:{:?}",
+        fpath.as_path()
     );
-    eprintln!("inlay_hints,fpath:{:?}",fpath.as_path());
     let mut handler = Handler::new(fpath.clone(), parameters.range, config);
     let _ = match context.projects.get_project(&fpath) {
         Some(x) => x,
@@ -53,7 +56,7 @@ pub fn on_inlay_hints(context: &Context, request: &Request, config: InlayHintsCo
         .sender
         .send(Message::Response(r))
         .unwrap();
-    eprintln!("inlay_hints Success");
+    eprintln!("inlay_hints Success\n================\n");
     ret_response
 }
 
@@ -149,75 +152,81 @@ impl ItemOrAccessHandler for Handler {
         item: &ItemOrAccess,
     ) {
         match item {
-            ItemOrAccess::Item(item) => if let Item::Var {
+            ItemOrAccess::Item(item) => {
+                if let Item::Var {
                     var,
                     ty,
                     has_decl_ty: false,
                     ..
-                } = item {
-                if !self.config.declare_var {
-                    return;
-                }
-                if ty.is_err() {
-                    return;
-                }
-                let var_range = if let Some(from_range) = services.convert_loc_range(&var.loc())
+                } = item
                 {
-                    from_range
-                } else {
-                    return;
-                };
-                if !self.in_range_range(&var_range) {
-                    return;
+                    if !self.config.declare_var {
+                        return;
+                    }
+                    if ty.is_err() {
+                        return;
+                    }
+                    let var_range = if let Some(from_range) = services.convert_loc_range(&var.loc())
+                    {
+                        from_range
+                    } else {
+                        return;
+                    };
+                    if !self.in_range_range(&var_range) {
+                        return;
+                    }
+                    self.reuslts.push(mk_inlay_hits(
+                        Position {
+                            line: var_range.line_end,
+                            character: var_range.col_end,
+                        },
+                        ty_inlay_hints_label_parts(ty, services),
+                        InlayHintKind::TYPE,
+                    ));
                 }
-                self.reuslts.push(mk_inlay_hits(
-                    Position {
-                        line: var_range.line_end,
-                        character: var_range.col_end,
-                    },
-                    ty_inlay_hints_label_parts(ty, services),
-                    InlayHintKind::TYPE,
-                ));
-            },
+            }
 
-            ItemOrAccess::Access(acc) => if let Access::AccessFiled(AccessFiled {
+            ItemOrAccess::Access(acc) => {
+                if let Access::AccessFiled(AccessFiled {
                     from,
                     to: _to,
                     ty,
                     all_fields: _all_fields,
                     item: _item,
                     has_ref,
-                }) = acc {
-                if !self.config.field_type {
-                    return;
-                }
-                if ty.is_err() {
-                    return;
-                }
-
-                let ty = if let Some(is_mut) = has_ref {
-                    ResolvedType::new_ref(*is_mut, ty.clone())
-                } else {
-                    ty.clone()
-                };
-                let from_range =
-                    if let Some(from_range) = services.convert_loc_range(&from.loc()) {
-                        from_range
-                    } else {
+                }) = acc
+                {
+                    if !self.config.field_type {
                         return;
+                    }
+                    if ty.is_err() {
+                        return;
+                    }
+
+                    let ty = if let Some(is_mut) = has_ref {
+                        ResolvedType::new_ref(*is_mut, ty.clone())
+                    } else {
+                        ty.clone()
                     };
-                if !self.in_range_range(&from_range) {
-                    return;
+                    let from_range =
+                        if let Some(from_range) = services.convert_loc_range(&from.loc()) {
+                            from_range
+                        } else {
+                            return;
+                        };
+                    if !self.in_range_range(&from_range) {
+                        return;
+                    }
+                    self.reuslts.push(mk_inlay_hits(
+                        Position {
+                            line: from_range.line_end,
+                            character: from_range.col_end,
+                        },
+                        ty_inlay_hints_label_parts(&ty, services),
+                        InlayHintKind::TYPE,
+                    ));
                 }
-                self.reuslts.push(mk_inlay_hits(
-                    Position {
-                        line: from_range.line_end,
-                        character: from_range.col_end,
-                    },
-                    ty_inlay_hints_label_parts(&ty, services),
-                    InlayHintKind::TYPE,
-                ));
-            },
+            }
         }
     }
     fn visit_fun_or_spec_body(&self) -> bool {
@@ -275,7 +284,9 @@ fn ty_inlay_hints_label_parts(
 }
 
 fn mk_command(loc: Loc, services: &dyn HandleItemService) -> Option<Command> {
-    services.convert_loc_range(&loc).map(|r| MoveAnalyzerClientCommands::GotoDefinition(r.mk_location()).to_lsp_command())
+    services
+        .convert_loc_range(&loc)
+        .map(|r| MoveAnalyzerClientCommands::GotoDefinition(r.mk_location()).to_lsp_command())
 }
 
 fn ty_inlay_hints_label_parts_(

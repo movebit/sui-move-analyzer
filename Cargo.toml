@@ -39,7 +39,7 @@ stacker = "0.1.15"
 # different version of sui compliler
 beta-2024 = {path = "src/beta-2024"}
 alpha-2024 = {path = "src/alpha-2024"}
-move-package = { git = "https://github.com/MystenLabs/sui.git", rev = "6e1cf7a1a9971fedd8b7830e586029d6c2cf801a", package = "move-package" }
+move-package = { git = "https://github.com/movebit/sui_for_analyzer_2025.git", branch = "analyzer", package = "move-package" }
 
 [target.'cfg(not(target_os= "windows"))'.dependencies]
 pprof = { version = "0.11.0" , features = ["flamegraph" , "protobuf"]}

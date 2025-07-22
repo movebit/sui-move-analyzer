@@ -4,11 +4,11 @@ use crossbeam::channel::{bounded, select};
 use log::{Level, Metadata, Record};
 use lsp_server::{Connection, Message, Notification, Request};
 use lsp_types::{
-    notification::Notification as _, request::Request as _, CodeLensParams, CompletionOptions,
-    CompletionParams, DocumentSymbolParams, GotoDefinitionParams, HoverParams,
-    HoverProviderCapability, InlayHintParams, OneOf, ReferenceParams, SaveOptions,
-    TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions,
-    TypeDefinitionProviderCapability, WorkDoneProgressOptions,
+    CodeLensParams, CompletionOptions, CompletionParams, DocumentSymbolParams,
+    GotoDefinitionParams, HoverParams, HoverProviderCapability, InlayHintParams, OneOf,
+    ReferenceParams, SaveOptions, TextDocumentSyncCapability, TextDocumentSyncKind,
+    TextDocumentSyncOptions, TypeDefinitionProviderCapability, WorkDoneProgressOptions,
+    notification::Notification as _, request::Request as _,
 };
 
 use std::{
@@ -30,12 +30,12 @@ use move_package::source_package::manifest_parser::parse_move_manifest_from_file
 // use url::Url;
 
 use beta_2024::sui_move_analyzer_beta_2024::{
+    DiagnosticsBeta2024,
+    // on_response as on_response_beta_2024
     on_notification as on_notification_beta_2024,
     on_request as on_request_beta_2024,
     send_diag as send_diag_beta_2024,
     try_reload_projects as try_reload_projects_beta_2024,
-    DiagnosticsBeta2024,
-    // on_response as on_response_beta_2024
 };
 
 use alpha_2024::{
@@ -44,9 +44,9 @@ use alpha_2024::{
         MultiProject as MultiProject_alpha_2024,
     },
     sui_move_analyzer_alpha_2024::{
-        on_notification as on_notification_alpha_2024, on_request as on_request_alpha_2024,
-        on_response as on_response_alpha_2024, send_diag as send_diag_alpha_2024,
-        try_reload_projects as try_reload_projects_alpha_2024, DiagnosticsAlpha2024,
+        DiagnosticsAlpha2024, on_notification as on_notification_alpha_2024,
+        on_request as on_request_alpha_2024, on_response as on_response_alpha_2024,
+        send_diag as send_diag_alpha_2024, try_reload_projects as try_reload_projects_alpha_2024,
     },
     symbols as symbols_alpha_2024,
     vfs::VirtualFileSystem as VirtualFileSystem_alpha_2024,
@@ -78,7 +78,7 @@ const LOGGER: SimpleLogger = SimpleLogger;
 
 pub fn init_log() {
     log::set_logger(&LOGGER)
-        .map(|()| log::set_max_level(log::LevelFilter::Warn))
+        .map(|()| log::set_max_level(log::LevelFilter::Info))
         .unwrap()
 }
 
@@ -247,7 +247,6 @@ fn main() {
                     }
                     Ok(Message::Response(response)) => on_response_alpha_2024(&context_manager.context_alpha_2024, &response),
                     Ok(Message::Notification(notification)) => {
-                        eprintln!("listened Notification({:?})...", notification.method.as_str());
                         let version = get_compiler_version_from_notification(&notification);
                         match notification.method.as_str() {
                             lsp_types::notification::Exit::METHOD => break,

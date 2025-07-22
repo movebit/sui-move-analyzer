@@ -166,7 +166,7 @@ impl ProjectContext {
         module_name: ModuleName,
         is_test: bool,
     ) {
-        log::info!(
+        log::trace!(
             "set up module,addr:0x{:?} module_name:{:?}",
             addr.short_str_lossless(),
             module_name

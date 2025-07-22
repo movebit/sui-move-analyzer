@@ -15,17 +15,10 @@ use std::{
 };
 
 use crate::{
-    code_lens,
-    completion::on_completion_request,
-
-    context::Context,
-    goto_definition, hover, inlay_hints, inlay_hints::*,
-    move_generate_spec_file::on_generate_spec_file,
-    move_generate_spec_sel::on_generate_spec_sel,
-    project::ConvertLoc,
-    references, symbols,
+    code_lens, completion::on_completion_request, context::Context, goto_definition, hover,
+    inlay_hints, inlay_hints::*, linter, move_generate_spec_file::on_generate_spec_file,
+    move_generate_spec_sel::on_generate_spec_sel, project::ConvertLoc, references, symbols,
     utils::*,
-    linter,
 };
 use url::Url;
 
@@ -35,8 +28,11 @@ pub fn try_reload_projects(context: &mut Context) {
     context.projects.try_reload_projects(&context.connection);
 }
 
-pub fn on_request(context: &mut Context, request: &Request, inlay_hints_config: &mut InlayHintsConfig) {
-    log::info!("receive method:{}", request.method.as_str());
+pub fn on_request(
+    context: &mut Context,
+    request: &Request,
+    inlay_hints_config: &mut InlayHintsConfig,
+) {
     match request.method.as_str() {
         lsp_types::request::Completion::METHOD => on_completion_request(context, request),
         lsp_types::request::GotoDefinition::METHOD => {
@@ -85,17 +81,24 @@ pub fn on_response(_context: &Context, _response: &Response) {
 
 type DiagSender = Arc<Mutex<Sender<(PathBuf, DiagnosticsAlpha2024)>>>;
 
-pub fn on_notification(context: &mut Context, diag_sender: DiagSender, notification: &Notification) {
-    // let (diag_sender, _) 
+pub fn on_notification(
+    context: &mut Context,
+    diag_sender: DiagSender,
+    notification: &Notification,
+) {
+    // let (diag_sender, _)
     //     = bounded::<(PathBuf, move_compiler::diagnostics::Diagnostics)>(1);
     // let diag_sender = Arc::new(Mutex::new(diag_sender));
-
 
     fn update_defs(context: &mut Context, fpath: PathBuf, content: &str) {
         use crate::syntax::parse_file_string;
         let file_hash = FileHash::new(content);
-        let mut env = CompilationEnv::new(Flags::testing(), Default::default(), 
-            Default::default(), Default::default());
+        let mut env = CompilationEnv::new(
+            Flags::testing(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+        );
         let defs = parse_file_string(&mut env, file_hash, content);
         let defs = match defs {
             std::result::Result::Ok(x) => x,
@@ -207,7 +210,7 @@ pub fn on_notification(context: &mut Context, diag_sender: DiagSender, notificat
             };
         }
 
-        _ => {},
+        _ => {}
     }
 }
 

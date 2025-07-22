@@ -11,7 +11,6 @@ use lsp_types::*;
 
 /// Handles hover request of the language server.
 pub fn on_hover_request(context: &Context, request: &Request) -> lsp_server::Response {
-    log::info!("on_hover_request request = {:?}", request);
     let parameters = serde_json::from_value::<HoverParams>(request.params.clone())
         .expect("could not deserialize hover request");
     let fpath = parameters
@@ -20,16 +19,13 @@ pub fn on_hover_request(context: &Context, request: &Request) -> lsp_server::Res
         .uri
         .to_file_path()
         .unwrap();
-    
+
     let loc = parameters.text_document_position_params.position;
     let line = loc.line;
     let col = loc.character;
-    let fpath = path_concat(
-        std::env::current_dir().unwrap().as_path(),
-        fpath.as_path(),
-    );
+    let fpath = path_concat(std::env::current_dir().unwrap().as_path(), fpath.as_path());
     eprintln!(
-        "request is hover,fpath:{:?} line:{} col:{}",
+        "\n============ hover ==========\nfpath:{:?} line:{} col:{}",
         fpath.as_path(),
         line,
         col,
@@ -45,7 +41,7 @@ pub fn on_hover_request(context: &Context, request: &Request) -> lsp_server::Res
                 result: Some(serde_json::json!({"msg": "No available project"})),
                 error: None,
             };
-        },
+        }
     }
     .run_visitor_for_file(&mut handler, &fpath, false);
     let item = handler.result_item_or_access.clone();
@@ -61,6 +57,7 @@ pub fn on_hover_request(context: &Context, request: &Request) -> lsp_server::Res
         .sender
         .send(Message::Response(r))
         .unwrap();
+    eprintln!("hover Success\n================\n");
     ret_response
 }
 

@@ -38,7 +38,6 @@ pub fn on_request(
     request: &Request,
     inlay_hints_config: &mut InlayHintsConfig,
 ) {
-    eprintln!("receive method:{}", request.method.as_str());
     match request.method.as_str() {
         lsp_types::request::Completion::METHOD => on_completion_request(context, request),
         lsp_types::request::GotoDefinition::METHOD => {
@@ -71,7 +70,6 @@ pub fn on_request(
         "move/lsp/client/inlay_hints/config" => {
             let parameters = serde_json::from_value::<InlayHintsConfig>(request.params.clone())
                 .expect("could not deserialize inlay hints request");
-            eprintln!("call inlay_hints config {:?}", parameters);
             *inlay_hints_config = parameters;
         }
         "runLinter" => {
@@ -257,7 +255,7 @@ fn get_package_compile_diagnostics(
     ) {
         return Ok(diags);
     } else {
-        eprintln!("parse_file_string not has diag");
+        log::info!("parse_file_string not has diag");
     }
     return Ok(Default::default());
 

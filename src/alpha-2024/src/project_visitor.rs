@@ -110,7 +110,7 @@ impl Project {
 
     /// Entrance for `ItemOrAccessHandler` base on analyze.
     pub fn run_full_visitor(&self, visitor: &mut dyn ItemOrAccessHandler) {
-        log::info!("run visitor for {} ", visitor);
+        log::trace!("run visitor for {} ", visitor);
         self.project_context.clear_scopes_and_addresses();
 
         // visit should `rev`.
@@ -148,7 +148,7 @@ impl Project {
         filepath: &PathBuf,
         enter_import: bool,
     ) -> anyhow::Result<()> {
-        log::info!("run visitor part for {} ", visitor);
+        log::trace!("run visitor part for {} ", visitor);
         self.get_defs(filepath, |provider| {
             self.visit(
                 &self.project_context,
@@ -532,7 +532,6 @@ impl Project {
                 return;
             }
             let _guard = project_context.clone_scope_and_enter(addr, module_name, false);
-            log::info!("provider.with_function range = {:?}", range);
             self.visit_function(f, project_context, visitor);
         });
 
@@ -560,7 +559,6 @@ impl Project {
         expr: Option<&Exp>,
         has_decl_ty: bool,
     ) {
-        log::info!("visit_bind:{:?}", bind);
         match &bind.value {
             Bind_::Var(var) => {
                 let item = ItemOrAccess::Item(Item::Var {
@@ -1260,10 +1258,6 @@ impl Project {
                     return;
                 }
             }
-            log::info!(
-                "visit_function, function.body.value = {:?}",
-                function.body.value
-            );
             match function.body.value {
                 FunctionBody_::Native => {}
                 FunctionBody_::Defined(ref seq) => self.visit_block(seq, project_context, visitor),

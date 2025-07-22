@@ -27,7 +27,7 @@ pub fn on_go_to_def_request(context: &Context, request: &Request) -> lsp_server:
     let col = loc.character;
     let fpath = path_concat(std::env::current_dir().unwrap().as_path(), fpath.as_path());
     eprintln!(
-        "request is goto definition,fpath:{:?}  line:{} col:{}",
+        "\n=========== goto definition =============\nfpath:{:?} line:{} col:{}",
         fpath.as_path(),
         line,
         col,

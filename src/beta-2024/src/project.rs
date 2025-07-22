@@ -118,7 +118,7 @@ impl Project {
             return;
         }
         let (manifest, layout) = manifest.unwrap();
-        log::info!(
+        log::trace!(
             "update defs for {:?} manifest:{:?} layout:{:?}",
             file_path.as_path(),
             manifest.as_path(),
@@ -158,7 +158,7 @@ impl Project {
             return Ok(());
         }
         self.manifest_paths.push(manifest_path.clone());
-        eprintln!("load manifest file at {:?}", &manifest_path);
+        log::info!("load manifest file at {:?}", &manifest_path);
         if let Some(x) = multi.asts.get(&manifest_path) {
             self.modules.insert(manifest_path.clone(), x.clone());
         } else {
@@ -324,7 +324,7 @@ impl Project {
                 }
                 let file_content = fs::read_to_string(file.path())
                     .unwrap_or_else(|_| panic!("'{:?}' can't read_to_string", file.path()));
-                log::info!("load source file {:?}", file.path());
+                log::trace!("load source file {:?}", file.path());
                 let file_hash = FileHash::new(file_content.as_str());
 
                 // This is a move file.

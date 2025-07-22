@@ -1059,11 +1059,13 @@ pub fn on_use_request(
 /// Handles document symbol request of the language server
 #[allow(deprecated)]
 pub fn on_document_symbol_request(context: &Context, request: &Request, _symbols: &Symbols) {
-    eprintln!("on_document_symbol_request: {:?}", request);
     let parameters = serde_json::from_value::<DocumentSymbolParams>(request.params.clone())
         .expect("could not deserialize document symbol request");
     let fpath = parameters.text_document.uri.to_file_path().unwrap();
-    eprintln!("symbol_request file path = {:?}", fpath.as_path());
+    eprintln!(
+        "\n============== symbol_request ============== \nfile path = {:?}",
+        fpath.as_path()
+    );
 
     let path_project = match context.projects.get_project(&fpath) {
         Some(x) => x,
@@ -1092,11 +1094,10 @@ pub fn on_document_symbol_request(context: &Context, request: &Request, _symbols
     let mut result_defs: Vec<DocumentSymbol> = vec![];
     let vec_defs_defaule = Default::default();
     let vec_defs = b.sources.get(&fpath).unwrap_or(&vec_defs_defaule);
-    eprintln!("get Definition, {:?}", !vec_defs.is_empty());
     for def in vec_defs.iter() {
         match def {
             Definition::Module(def_module) => {
-                eprintln!("handle symbol, Module, {:?}", def_module.name);
+                log::trace!("handle symbol, Module, {:?}", def_module.name);
 
                 let range = match path_project.loc_to_range(&def_module.loc) {
                     Some(x) => x,
@@ -1203,7 +1204,7 @@ pub fn on_document_symbol_request(context: &Context, request: &Request, _symbols
                     tags: Some(vec![]),
                     deprecated: Some(false),
                 });
-                eprintln!("handle symbol, Module, {:?}, Success.", def_module.name);
+                log::trace!("handle symbol, Module, {:?}, Success.", def_module.name);
             } // match def => Definition::Module
             _ => {}
         } // match def
@@ -1216,9 +1217,9 @@ pub fn on_document_symbol_request(context: &Context, request: &Request, _symbols
         .sender
         .send(lsp_server::Message::Response(response))
     {
-        eprintln!("could not send use response: {:?}", err);
+        log::error!("could not send use response: {:?}", err);
     }
-    eprintln!("on_document_symbol_request Success");
+    eprintln!("on_document_symbol_request Success\n================\n");
 }
 
 /// Helper function to handle struct fields for VSCode outline

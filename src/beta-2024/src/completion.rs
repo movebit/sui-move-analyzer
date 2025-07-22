@@ -115,7 +115,6 @@ fun init(ctx: &mut sui::tx_context::TxContext) {
 ///
 /// The completions returned depend upon where the user's cursor is positioned.
 pub fn on_completion_request(context: &Context, request: &Request) {
-    eprintln!("on_completion_request request = {:?}", request);
     let parameters = serde_json::from_value::<CompletionParams>(request.params.clone())
         .expect("could not deserialize references request");
     let fpath = parameters
@@ -124,10 +123,16 @@ pub fn on_completion_request(context: &Context, request: &Request) {
         .uri
         .to_file_path()
         .unwrap();
-    eprintln!("completion_request file path = {:?}", fpath.as_path());
+
     let loc = parameters.text_document_position.position;
     let line = loc.line;
     let col = loc.character;
+    eprintln!(
+        "\n========== completion_request ===========\nfile path = {:?}, line, col = {}, {}\n",
+        fpath.as_path(),
+        line,
+        col
+    );
     let fpath = path_concat(std::env::current_dir().unwrap().as_path(), fpath.as_path());
 
     let mut handler = Handler::new(fpath.clone(), line, col);
@@ -135,8 +140,8 @@ pub fn on_completion_request(context: &Context, request: &Request) {
         Some(x) => x,
         None => {
             log::error!("completion_request Could not find project");
-            return
-        },
+            return;
+        }
     }
     .run_visitor_for_file(&mut handler, &fpath, false);
     let mut result = handler.result.unwrap_or_default();
@@ -150,7 +155,7 @@ pub fn on_completion_request(context: &Context, request: &Request) {
         .sender
         .send(Message::Response(r))
         .unwrap();
-    eprintln!("completion_request Success.");
+    eprintln!("completion_request Success.\n=================\n");
 }
 
 pub(crate) struct Handler {
@@ -286,8 +291,8 @@ impl ItemOrAccessHandler for Handler {
                                         LeadingNameAccess_::AnonymousAddress(addr) => {
                                             addr.into_inner()
                                         }
-                                        LeadingNameAccess_::Name(name) | 
-                                        LeadingNameAccess_::GlobalAddress(name) => {
+                                        LeadingNameAccess_::Name(name)
+                                        | LeadingNameAccess_::GlobalAddress(name) => {
                                             services.name_2_addr(name.value)
                                         }
                                     };
@@ -330,7 +335,7 @@ impl ItemOrAccessHandler for Handler {
                                         LeadingNameAccess_::AnonymousAddress(addr) => {
                                             addr.into_inner()
                                         }
-                                        LeadingNameAccess_::Name(name) 
+                                        LeadingNameAccess_::Name(name)
                                         | LeadingNameAccess_::GlobalAddress(name) => {
                                             services.name_2_addr(name.value)
                                         }
@@ -401,15 +406,17 @@ impl ItemOrAccessHandler for Handler {
                                     &services.get_all_addrs(project_context),
                                     project_context,
                                 );
-                            } else  {
+                            } else {
                                 for entry in name_path.entries.iter() {
                                     if self.match_loc(&entry.name.loc, services) {
                                         let addr = match &space.value {
-                                            LeadingNameAccess_::Name(name) 
+                                            LeadingNameAccess_::Name(name)
                                             | LeadingNameAccess_::GlobalAddress(name) => {
                                                 services.name_2_addr(name.value)
                                             }
-                                            LeadingNameAccess_::AnonymousAddress(addr) => addr.into_inner(),
+                                            LeadingNameAccess_::AnonymousAddress(addr) => {
+                                                addr.into_inner()
+                                            }
                                         };
                                         let items = project_context.collect_modules(&addr);
                                         if !items.is_empty() {
@@ -419,10 +426,15 @@ impl ItemOrAccessHandler for Handler {
                                             // this is still can be unfinished NameAccessChain_::Three.
                                             push_module_names(self, &items);
                                         } else {
-                                            let items = project_context
-                                                .collect_use_module_items(space, |x| {
-                                                    matches!(x, Item::Struct(_) | Item::StructNameRef(_))
-                                                });
+                                            let items = project_context.collect_use_module_items(
+                                                space,
+                                                |x| {
+                                                    matches!(
+                                                        x,
+                                                        Item::Struct(_) | Item::StructNameRef(_)
+                                                    )
+                                                },
+                                            );
                                             push_items(self, &items);
                                             let addr = match space.value {
                                                 LeadingNameAccess_::AnonymousAddress(addr) => {
@@ -462,15 +474,15 @@ impl ItemOrAccessHandler for Handler {
                                             matches!(
                                                 x,
                                                 Item::Var { .. }
-                                                | Item::Parameter(_, _)
-                                                | Item::Use(_)
-                                                | Item::SpecSchema(_, _)
-                                                | Item::Fun(_)
-                                                | Item::Struct(_)
-                                                | Item::Const(_)
-                                                | Item::MoveBuildInFun(_)
-                                                | Item::SpecBuildInFun(_)
-                                                | Item::SpecConst(_)
+                                                    | Item::Parameter(_, _)
+                                                    | Item::Use(_)
+                                                    | Item::SpecSchema(_, _)
+                                                    | Item::Fun(_)
+                                                    | Item::Struct(_)
+                                                    | Item::Const(_)
+                                                    | Item::MoveBuildInFun(_)
+                                                    | Item::SpecBuildInFun(_)
+                                                    | Item::SpecConst(_)
                                             )
                                         }),
                                     );
@@ -491,7 +503,7 @@ impl ItemOrAccessHandler for Handler {
                                     for entry in name_path.entries.iter() {
                                         if self.match_loc(&entry.name.loc, services) {
                                             let addr = match &leading_name_access.value {
-                                                LeadingNameAccess_::Name(name) 
+                                                LeadingNameAccess_::Name(name)
                                                 | LeadingNameAccess_::GlobalAddress(name) => {
                                                     services.name_2_addr(name.value)
                                                 }
@@ -508,14 +520,21 @@ impl ItemOrAccessHandler for Handler {
                                                 push_module_names(self, &items);
                                             } else {
                                                 let items = project_context
-                                                    .collect_use_module_items(&leading_name_access, |x| {
-                                                        matches!(x, Item::Fun(_) | Item::SpecSchema(_, _))
-                                                    });
+                                                    .collect_use_module_items(
+                                                        &leading_name_access,
+                                                        |x| {
+                                                            matches!(
+                                                                x,
+                                                                Item::Fun(_)
+                                                                    | Item::SpecSchema(_, _)
+                                                            )
+                                                        },
+                                                    );
                                                 push_items(self, &items);
                                             }
                                         }
                                     }
-                                } 
+                                }
                             }
                         }
                     }
@@ -545,8 +564,11 @@ impl ItemOrAccessHandler for Handler {
                                 for entry in name_path.entries.iter() {
                                     if self.match_loc(&entry.name.loc, services) {
                                         let addr = match &addr.value {
-                                            LeadingNameAccess_::AnonymousAddress(addr) => addr.into_inner(),
-                                            LeadingNameAccess_::Name(name) | LeadingNameAccess_::GlobalAddress(name) => {
+                                            LeadingNameAccess_::AnonymousAddress(addr) => {
+                                                addr.into_inner()
+                                            }
+                                            LeadingNameAccess_::Name(name)
+                                            | LeadingNameAccess_::GlobalAddress(name) => {
                                                 services.name_2_addr(name.value)
                                             }
                                         };
@@ -651,7 +673,7 @@ fn pragma_property_completion_items() -> Vec<CompletionItem> {
             label: String::from("aborts_if_is_partial"),
             kind: Some(CompletionItemKind::TEXT),
             ..Default::default()
-        }
+        },
     ];
     ret
 }

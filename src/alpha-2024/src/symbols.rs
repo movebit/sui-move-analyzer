@@ -1185,7 +1185,7 @@ pub fn on_document_symbol_request(context: &Context, request: &Request, _symbols
                     tags: Some(vec![]),
                     deprecated: Some(false),
                 });
-                eprintln!("handle symbol, Module, {:?}, Success.", def_module.name);
+                log::info!("handle symbol, Module, {:?}, Success.", def_module.name);
             } // match def => Definition::Module
             _ => {}
         } // match def
