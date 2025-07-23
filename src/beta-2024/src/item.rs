@@ -118,6 +118,30 @@ pub enum Item {
     Dummy,
 }
 
+impl std::fmt::Debug for Item {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            Item::Parameter(_, _) => "Parameter(Var, ResolvedType)",
+            Item::Const(_) => "Const(ItemConst)",
+            Item::Var { .. } => "Var { var, ty, lambda, has_decl_ty }",
+            Item::Field(_, _) => "Field(Field, ResolvedType)",
+            Item::Struct(_) => "Struct(ItemStruct)",
+            Item::StructNameRef(_) => "StructNameRef(ItemStructNameRef)",
+            Item::Fun(_) => "Fun(ItemFun)",
+            Item::MoveBuildInFun(_) => "MoveBuildInFun(MoveBuildInFun)",
+            Item::SpecBuildInFun(_) => "SpecBuildInFun(SpecBuildInFun)",
+            Item::SpecConst(_) => "SpecConst(ItemConst)",
+            Item::BuildInType(_) => "BuildInType(BuildInType)",
+            Item::TParam(_, _) => "TParam(Name, Vec<Ability>)",
+            Item::SpecSchema(_, _) => "SpecSchema(Name, HashMap<Symbol, (Name, ResolvedType)>)",
+            Item::ModuleName(_) => "ModuleName(ItemModuleName)",
+            Item::Use(_) => "Use(Vec<ItemUse>)",
+            Item::Dummy => "Dummy",
+        };
+        write!(f, "{}", s)
+    }
+}
+
 #[derive(Clone)]
 pub struct LambdaExp {
     pub(crate) bind_list: LambdaBindings,
@@ -419,15 +443,11 @@ impl Default for MacroCall {
 /// Get the last name of a access chain.
 pub(crate) fn get_name_chain_last_name(x: &NameAccessChain) -> &Name {
     match &x.value {
-        move_compiler::parser::ast::NameAccessChain_::Single(path_entry) => {
-            &path_entry.name
-        }
+        move_compiler::parser::ast::NameAccessChain_::Single(path_entry) => &path_entry.name,
         move_compiler::parser::ast::NameAccessChain_::Path(name_path) => {
             &name_path.entries.last().unwrap().name
         }
-        
     }
-    
 }
 
 impl std::fmt::Display for Item {
@@ -609,6 +629,7 @@ impl Access {
     pub(crate) fn access_def_loc(&self) -> (Loc /* access loc */, Loc /* def loc */) {
         match self {
             Access::ApplyType(name, _, x) => {
+                log::warn!("Access::ApplyType");
                 (get_name_chain_last_name(name).loc, x.as_ref().def_loc())
             }
             Access::ExprVar(var, x) => (var.loc(), x.def_loc()),
@@ -638,7 +659,9 @@ impl Access {
         match self {
             Self::ExprAccessChain(chain, Option::Some(module), _) => match &chain.value {
                 NameAccessChain_::Single(_) => None,
-                NameAccessChain_::Path(name_path) => Some((name_path.root.name.loc, module.name.loc())),
+                NameAccessChain_::Path(name_path) => {
+                    Some((name_path.root.name.loc, module.name.loc()))
+                }
             },
 
             Self::ApplyType(chain, Option::Some(module), _) => match &chain.value {
