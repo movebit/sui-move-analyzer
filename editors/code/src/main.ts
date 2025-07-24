@@ -26,7 +26,7 @@ import * as vscode from 'vscode';
  * so that you can wait for the activation to complete by await
  */
 
-const backend_lastest_version = "1.1.8";
+const backend_lastest_version = "1.3.0";
 
 export async function activate(
   extensionContext: Readonly<vscode.ExtensionContext>,
