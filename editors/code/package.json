@@ -5,7 +5,7 @@
 	"publisher": "MoveBit",
 	"icon": "images/move.png",
 	"license": "Apache-2.0",
-	"version": "1.1.8",
+	"version": "1.3.0",
 	"preview": true,
 	"homepage": "https://github.com/move-language/move",
 	"repository": {
@@ -251,12 +251,12 @@
 		"pretest": "npm run compile && npm run lint && npm run copy-tests-files",
 		"test": "node ./out/tests/runTests.js",
 		"dev": "npm run pretest && cross-env mode=dev node ./out/tests/runTests.js",
-		"vscode:prepublish": "npm run pretest",
+		"vscode:prepublish": "",
 		"package": "npm run pretest && vsce package -o sui-move-analyzer.vsix",
 		"publish": "npm run pretest && npm run test && vsce publish"
 	},
 	"extensionDependencies": [
-		"movebit.move-msl-syx"
+		"damirka.move-syntax"
 	],
 	"dependencies": {
 		"command-exists": "^1.2.9",
