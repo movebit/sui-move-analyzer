@@ -230,43 +230,14 @@ pub fn on_notification(
 fn get_package_compile_diagnostics(
     pkg_path: &Path,
 ) -> Result<move_compiler::diagnostics::Diagnostics> {
-    // let file_content = std::fs::read_to_string(pkg_path)
-    //     .unwrap_or_else(|_| panic!("'{:?}' can't read_to_string", pkg_path));
-    // let file_hash = FileHash::new(file_content.as_str());
-    // let mut env = CompilationEnv::new(
-    //     Flags::testing(),
-    //     Default::default(),
-    //     Default::default(),
-    //     None,
-    //     Default::default(),
-    //     Some(PackageConfig {
-    //         is_dependency: false,
-    //         warning_filter: WarningFiltersBuilder::new_for_source(),
-    //         flavor: Flavor::default(),
-    //         edition: Edition::E2024_BETA,
-    //     }),
-    //     None,
-    // );
-
-    // if let Err(diags) = move_compiler::parser::syntax::parse_file_string(
-    //     &mut env,
-    //     file_hash,
-    //     file_content.as_str(),
-    //     None,
-    // ) {
-    //     return Ok(diags);
-    // } else {
-    //     log::info!("parse_file_string not has diag");
-    // }
-    // return Ok(Default::default());
-
     use anyhow::*;
-    use move_compiler::{diagnostics::Diagnostics, PASS_TYPING};
+    use move_compiler::{diagnostics::Diagnostics, PASS_CFGIR, PASS_PARSER, PASS_TYPING};
     use move_package::compilation::build_plan::BuildPlan;
     use tempfile::tempdir;
     let build_config = move_package::BuildConfig {
         test_mode: true,
         install_dir: Some(tempdir().unwrap().path().to_path_buf()),
+        default_flavor: Some(Flavor::Sui),
         skip_fetch_latest_git_deps: true,
         ..Default::default()
     };
@@ -275,40 +246,63 @@ fn get_package_compile_diagnostics(
     let resolution_graph =
         build_config.resolution_graph_for_package(pkg_path, None, &mut Vec::new())?;
     let build_plan = BuildPlan::create(&resolution_graph)?;
+    let dependencies = build_plan.compute_dependencies();
     let mut diagnostics = None;
-    build_plan.compile_with_driver(&mut std::io::sink(), |compiler| {
-        let (files, compilation_result) = compiler.run::<PASS_TYPING>()?;
-        match compilation_result {
-            std::result::Result::Ok(_) => {
-                eprintln!("get_package_compile_diagnostics compilate success");
-            }
-            std::result::Result::Err(diags) => {
-                eprintln!("get_package_compile_diagnostics compilate failed");
-                diagnostics = Some(diags);
+    build_plan.compile_with_driver_and_deps(dependencies, &mut std::io::sink(), |compiler| {
+        let (files, compilation_result) =
+            compiler.set_files_to_compile(None).run::<PASS_PARSER>()?;
+
+        let compiler = match compilation_result {
+            std::result::Result::Ok(v) => v,
+            Err((_pass, diags)) => {
+                let failure = true;
+                diagnostics = Some((diags, failure));
+                eprintln!("parsed AST compilation failed");
+                return Ok((files, vec![]));
             }
         };
+        eprintln!("compiled to parsed AST");
+
+        // extract typed AST
+        let (compiler, parsed_program) = compiler.into_ast();
+        let compilation_result = compiler.at_parser(parsed_program).run::<PASS_TYPING>();
+        let compiler = match compilation_result {
+            std::result::Result::Ok(v) => v,
+            Err((_pass, diags)) => {
+                let failure = true;
+                diagnostics = Some((diags, failure));
+                eprintln!("typed AST compilation failed");
+                eprintln!("diagnostics: {:#?}", diagnostics);
+                return Ok((files, vec![]));
+            }
+        };
+        eprintln!("compiled to typed AST");
+
+        let (compiler, typed_program) = compiler.into_ast();
+        eprintln!("compiling to CFGIR");
+        let compilation_result = compiler.at_typing(typed_program).run::<PASS_CFGIR>();
+        let compiler = match compilation_result {
+            std::result::Result::Ok(v) => v,
+            Err((_pass, diags)) => {
+                let failure = false;
+                diagnostics = Some((diags, failure));
+                eprintln!("compilation to CFGIR failed");
+                return Ok((files, vec![]));
+            }
+        };
+        let failure = false;
+        diagnostics = Some((compiler.compilation_env().take_final_diags(), failure));
+        eprintln!("compiled to CFGIR");
         Ok((files, Default::default()))
     })?;
 
     let mut filterd_diagnostics = Diagnostics::new();
-    if let Some(x) = diagnostics.clone() {
-        for diag in x.1.into_vec() {
-            let diag_info = diag.info();
-            if !diag_info
-                .message()
-                .contains("feature is not supported in specified edition")
-                && !diag_info.message().contains("unbound type")
-            {
-                filterd_diagnostics.add(diag);
-            }
+    if let Some((diags, _is_failed)) = diagnostics.clone() {
+        for diag in diags.into_vec() {
+            filterd_diagnostics.add(diag);
         }
     }
-    // Ok(filterd_diagnostics)
-
-    match diagnostics {
-        Some(x) => Ok(x.1),
-        None => Ok(Default::default()),
-    }
+    Ok(filterd_diagnostics)
 }
 
 fn make_diag(context: &Context, diag_sender: DiagSender, fpath: PathBuf) {
