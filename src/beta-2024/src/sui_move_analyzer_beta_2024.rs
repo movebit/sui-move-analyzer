@@ -13,6 +13,7 @@ use move_compiler::{
     editions::{Edition, Flavor},
     shared::*,
 };
+
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -229,82 +230,85 @@ pub fn on_notification(
 fn get_package_compile_diagnostics(
     pkg_path: &Path,
 ) -> Result<move_compiler::diagnostics::Diagnostics> {
-    let file_content = std::fs::read_to_string(pkg_path)
-        .unwrap_or_else(|_| panic!("'{:?}' can't read_to_string", pkg_path));
-    let file_hash = FileHash::new(file_content.as_str());
-    let mut env = CompilationEnv::new(
-        Flags::testing(),
-        Default::default(),
-        Default::default(),
-        None,
-        Default::default(),
-        Some(PackageConfig {
-            is_dependency: false,
-            warning_filter: WarningFiltersBuilder::new_for_source(),
-            flavor: Flavor::default(),
-            edition: Edition::E2024_BETA,
-        }),
-        None,
-    );
+    // let file_content = std::fs::read_to_string(pkg_path)
+    //     .unwrap_or_else(|_| panic!("'{:?}' can't read_to_string", pkg_path));
+    // let file_hash = FileHash::new(file_content.as_str());
+    // let mut env = CompilationEnv::new(
+    //     Flags::testing(),
+    //     Default::default(),
+    //     Default::default(),
+    //     None,
+    //     Default::default(),
+    //     Some(PackageConfig {
+    //         is_dependency: false,
+    //         warning_filter: WarningFiltersBuilder::new_for_source(),
+    //         flavor: Flavor::default(),
+    //         edition: Edition::E2024_BETA,
+    //     }),
+    //     None,
+    // );
 
-    if let Err(diags) = move_compiler::parser::syntax::parse_file_string(
-        &mut env,
-        file_hash,
-        file_content.as_str(),
-        None,
-    ) {
-        return Ok(diags);
-    } else {
-        log::info!("parse_file_string not has diag");
-    }
-    return Ok(Default::default());
-
-    // use anyhow::*;
-    // use move_package::compilation::build_plan::BuildPlan;
-    // use tempfile::tempdir;
-    // let build_config = move_package::BuildConfig {
-    //     test_mode: true,
-    //     install_dir: Some(tempdir().unwrap().path().to_path_buf()),
-    //     skip_fetch_latest_git_deps: true,
-    //     ..Default::default()
-    // };
-    // // resolution graph diagnostics are only needed for CLI commands so ignore them by passing a
-    // // vector as the writer
-    // let resolution_graph = build_config.resolution_graph_for_package(pkg_path, &mut Vec::new())?;
-    // let build_plan = BuildPlan::create(resolution_graph)?;
-    // let mut diagnostics = None;
-    // build_plan.compile_with_driver(&mut std::io::sink(), |compiler| {
-    //     let (_, compilation_result) = compiler.run::<PASS_NAMING>()?;
-    //     match compilation_result {
-    //         std::result::Result::Ok(_) => {
-    //             eprintln!("get_package_compile_diagnostics compilate success");
-    //         }
-    //         std::result::Result::Err(diags) => {
-    //             eprintln!("get_package_compile_diagnostics compilate failed");
-    //             diagnostics = Some(diags);
-    //         }
-    //     };
-    //     Ok(Default::default())
-    // })?;
-
-    // let mut filterd_diagnostics = Diagnostics::new();
-    // if let Some(x) = diagnostics.clone() {
-    //     for diag in x.1.into_vec() {
-    //         eprintln!("diag primary_msg: {}", diag.primary_msg());
-    //         let diag_info = diag.info();
-    //         eprintln!("     diag info msg: {}", diag_info.message());
-    //         if !diag_info.message().contains("feature is not supported in specified edition")
-    //             && !diag_info.message().contains("unbound type") {
-    //             filterd_diagnostics.add(diag);
-    //         }
-    //     }
+    // if let Err(diags) = move_compiler::parser::syntax::parse_file_string(
+    //     &mut env,
+    //     file_hash,
+    //     file_content.as_str(),
+    //     None,
+    // ) {
+    //     return Ok(diags);
+    // } else {
+    //     log::info!("parse_file_string not has diag");
     // }
+    // return Ok(Default::default());
+
+    use anyhow::*;
+    use move_compiler::{diagnostics::Diagnostics, PASS_TYPING};
+    use move_package::compilation::build_plan::BuildPlan;
+    use tempfile::tempdir;
+    let build_config = move_package::BuildConfig {
+        test_mode: true,
+        install_dir: Some(tempdir().unwrap().path().to_path_buf()),
+        skip_fetch_latest_git_deps: true,
+        ..Default::default()
+    };
+    // resolution graph diagnostics are only needed for CLI commands so ignore them by passing a
+    // vector as the writer
+    let resolution_graph =
+        build_config.resolution_graph_for_package(pkg_path, None, &mut Vec::new())?;
+    let build_plan = BuildPlan::create(&resolution_graph)?;
+    let mut diagnostics = None;
+    build_plan.compile_with_driver(&mut std::io::sink(), |compiler| {
+        let (files, compilation_result) = compiler.run::<PASS_TYPING>()?;
+        match compilation_result {
+            std::result::Result::Ok(_) => {
+                eprintln!("get_package_compile_diagnostics compilate success");
+            }
+            std::result::Result::Err(diags) => {
+                eprintln!("get_package_compile_diagnostics compilate failed");
+                diagnostics = Some(diags);
+            }
+        };
+        Ok((files, Default::default()))
+    })?;
+
+    let mut filterd_diagnostics = Diagnostics::new();
+    if let Some(x) = diagnostics.clone() {
+        for diag in x.1.into_vec() {
+            let diag_info = diag.info();
+            if !diag_info
+                .message()
+                .contains("feature is not supported in specified edition")
+                && !diag_info.message().contains("unbound type")
+            {
+                filterd_diagnostics.add(diag);
+            }
+        }
+    }
     // Ok(filterd_diagnostics)
 
-    // match diagnostics {
-    //     Some(x) => Ok(x.1),
-    //     None => Ok(Default::default()),
-    // }
+    match diagnostics {
+        Some(x) => Ok(x.1),
+        None => Ok(Default::default()),
+    }
 }
 
 fn make_diag(context: &Context, diag_sender: DiagSender, fpath: PathBuf) {
