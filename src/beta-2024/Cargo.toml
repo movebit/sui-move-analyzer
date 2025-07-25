@@ -44,8 +44,6 @@ move-core-types = { git = "https://github.com/movebit/sui_for_analyzer_2025.git"
 move-model = { git = "https://github.com/movebit/sui_for_analyzer_2025.git", branch = "analyzer", package = "move-model" }
 move-proc-macros= { git = "https://github.com/movebit/sui_for_analyzer_2025.git", branch = "analyzer", package = "move-proc-macros" }
 
-
-
 walkdir = "2"
 log = "0.4.14"
 stderrlog = "0.5.4"

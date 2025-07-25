@@ -233,12 +233,15 @@ fn get_package_compile_diagnostics(
     use anyhow::*;
     use move_compiler::{diagnostics::Diagnostics, PASS_CFGIR, PASS_PARSER, PASS_TYPING};
     use move_package::compilation::build_plan::BuildPlan;
+    // use sui_move_build::implicit_deps;
+    // use sui_package_management::system_package_versions::latest_system_packages;
     use tempfile::tempdir;
     let build_config = move_package::BuildConfig {
         test_mode: true,
         install_dir: Some(tempdir().unwrap().path().to_path_buf()),
         default_flavor: Some(Flavor::Sui),
         skip_fetch_latest_git_deps: true,
+        // implicit_dependencies: implicit_deps(latest_system_packages()),
         ..Default::default()
     };
     // resolution graph diagnostics are only needed for CLI commands so ignore them by passing a
