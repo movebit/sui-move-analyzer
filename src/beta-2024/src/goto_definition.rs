@@ -282,6 +282,16 @@ impl ItemOrAccessHandler for Handler {
                         }
                     }
                 },
+                Access::ApplyType(_chain, _, _ty) => {
+                    let locs = access.access_def_loc();
+                    if self.match_loc(&locs.0, services) {
+                        if let Some(t) = services.convert_loc_range(&locs.1) {
+                            self.result = Some(t);
+                            self.result_loc = Some(locs.1);
+                            self.result_item_or_access = Some(item_or_access.clone());
+                        }
+                    }
+                }
                 _ => {}
             },
         }

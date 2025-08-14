@@ -231,11 +231,11 @@ impl std::fmt::Display for ResolvedType {
         match self {
             ResolvedType::UnKnown => write!(f, "unknown"),
             ResolvedType::Struct(ItemStructNameRef { name, .. }, _) => {
-                write!(f, "{}", name.value().as_str())
+                write!(f, "Struct:{}", name.value().as_str())
             }
             ResolvedType::BuildInType(x) => write!(f, "{}", x.to_static_str()),
             ResolvedType::TParam(name, _) => {
-                write!(f, "{}", name.value.as_str())
+                write!(f, "TParam:{}", name.value.as_str())
             }
             ResolvedType::Ref(is_mut, ty) => {
                 write!(f, "&{}{}", if *is_mut { "mut " } else { "" }, ty.as_ref())
@@ -250,7 +250,7 @@ impl std::fmt::Display for ResolvedType {
                 write!(f, ")")
             }
             ResolvedType::Fun(x) => {
-                write!(f, "{}", x)
+                write!(f, "Fun {}", x)
             }
             ResolvedType::Vec(ty) => {
                 write!(f, "vector<<{}>>", ty.as_ref())
