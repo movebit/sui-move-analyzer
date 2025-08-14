@@ -38,7 +38,7 @@ move-package = { git = "https://github.com/movebit/sui", rev = "6b2e1bcd6d569b2d
 move-symbol-pool = { git = "https://github.com/movebit/sui", rev = "6b2e1bcd6d569b2d689fab3379d093b0cc451213", package = "move-symbol-pool" }
 move-core-types = { git = "https://github.com/movebit/sui", rev = "6b2e1bcd6d569b2d689fab3379d093b0cc451213", package = "move-core-types", features = ["address32"] }
 move-model = { git = "https://github.com/movebit/sui", rev = "6b2e1bcd6d569b2d689fab3379d093b0cc451213", package = "move-model" }
-sui-move-build= { git = "https://github.com/movebit/sui", rev = "6b2e1bcd6d569b2d689fab3379d093b0cc451213", package = "sui-move-build" }
+# sui-move-build= { git = "https://github.com/movebit/sui", rev = "6b2e1bcd6d569b2d689fab3379d093b0cc451213", package = "sui-move-build" }
 
 walkdir = "2"
 log = "0.4.14"

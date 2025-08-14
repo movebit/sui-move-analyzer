@@ -69,7 +69,7 @@ pub fn on_request(
             *inlay_hints_config = parameters;
         }
         "runLinter" => {
-            linter::on_run_linter(context, request);
+            // linter::on_run_linter(context, request);
         }
         _ => eprintln!("handle request '{}' from client", request.method),
     }
