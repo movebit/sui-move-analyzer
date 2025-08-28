@@ -49,7 +49,7 @@ jobs:
       - name: Prepare server folder
         run: |
           mkdir -p editors/code/server
-          BIN_NAME=aptos-move-analyzer
+          BIN_NAME=sui-move-analyzer
           if [[ "${{ matrix.code_target }}" == "win32-x64" ]]; then
             BIN_NAME+=.exe
           fi
@@ -63,10 +63,10 @@ jobs:
       - name: Package VSIX
         run: |
           cd editors/code
-          npx vsce package --target ${{ matrix.code_target }} -o ../../../dist/aptos-move-analyzer-${{ matrix.code_target }}.vsix
+          npx vsce package --target ${{ matrix.code_target }} -o ../../../dist/sui-move-analyzer-${{ matrix.code_target }}.vsix
 
       - name: Upload VSIX
         uses: actions/upload-artifact@v4
         with:
-          name: aptos-move-analyzer-vsix-${{ matrix.code_target }}
-          path: ../../../dist/aptos-move-analyzer-${{ matrix.code_target }}.vsix
+          name: sui-move-analyzer-vsix-${{ matrix.code_target }}
+          path: ../../../dist/sui-move-analyzer-${{ matrix.code_target }}.vsix
