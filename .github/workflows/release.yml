@@ -1,0 +1,72 @@
+name: release
+
+on:
+  workflow_dispatch:
+
+env:
+  FETCH_DEPTH: 0
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  dist:
+    name: Build & Package VSIX
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            rust_target: x86_64-pc-windows-msvc
+            code_target: win32-x64
+          - os: ubuntu-latest
+            rust_target: x86_64-unknown-linux-gnu
+            code_target: linux-x64
+          - os: macos-13
+            rust_target: x86_64-apple-darwin
+            code_target: darwin-x64
+          - os: macos-14
+            rust_target: aarch64-apple-darwin
+            code_target: darwin-arm64
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: ${{ env.FETCH_DEPTH }}
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+
+      - name: Add Rust target
+        run: rustup target add ${{ matrix.rust_target }}
+
+      - name: Build Rust server
+        run: cargo build --release --target ${{ matrix.rust_target }}
+
+      - name: Prepare server folder
+        run: |
+          mkdir -p editors/code/server
+          BIN_NAME=aptos-move-analyzer
+          if [[ "${{ matrix.code_target }}" == "win32-x64" ]]; then
+            BIN_NAME+=.exe
+          fi
+          cp target/${{ matrix.rust_target }}/release/$BIN_NAME editors/code/server/
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Package VSIX
+        run: |
+          cd editors/code
+          npx vsce package --target ${{ matrix.code_target }} -o ../../../dist/aptos-move-analyzer-${{ matrix.code_target }}.vsix
+
+      - name: Upload VSIX
+        uses: actions/upload-artifact@v4
+        with:
+          name: aptos-move-analyzer-vsix-${{ matrix.code_target }}
+          path: ../../../dist/aptos-move-analyzer-${{ matrix.code_target }}.vsix
