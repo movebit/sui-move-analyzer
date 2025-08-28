@@ -5,7 +5,7 @@
 import * as os from 'os';
 import * as vscode from 'vscode';
 import * as Path from 'path';
-
+import * as fs from "fs";
 class InlayHintsConfig {
     field_type: boolean;
 
@@ -32,9 +32,12 @@ class InlayHintsConfig {
 
 class Configuration {
     private readonly configuration: vscode.WorkspaceConfiguration;
+    private readonly defaultServerPath: vscode.Uri;
 
-    constructor() {
+    constructor(extUrl: vscode.Uri) {
         this.configuration = vscode.workspace.getConfiguration('sui-move-analyzer');
+        const ext = process.platform === "win32" ? ".exe" : "";
+        this.defaultServerPath = vscode.Uri.joinPath(extUrl, "server", `sui-move-analyzer${ext}`);
     }
 
     /** A string representation of the configured values, for logging purposes. */
@@ -50,13 +53,22 @@ class Configuration {
             // The default value of the `server.path` setting is 'sui-move-analyzer'.
             // A user may have over-written this default with an empty string value, ''.
             // An empty string cannot be an executable name, so instead use the default.
-            return defaultName;
+            if (fs.existsSync(this.defaultServerPath.fsPath)) {
+                return this.defaultServerPath.fsPath;
+            } else {
+                defaultName
+            }
+            
         }
 
         if (serverPath === defaultName) {
             // If the program set by the user is through PATH,
             // it will return directly if specified
-            return defaultName;
+            if (fs.existsSync(this.defaultServerPath.fsPath)) {
+                return this.defaultServerPath.fsPath;
+            } else {
+                defaultName
+            }
         }
 
         if (serverPath.startsWith('~/')) {

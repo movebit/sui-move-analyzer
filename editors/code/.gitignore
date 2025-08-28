@@ -9,3 +9,5 @@ out
 *.vsix
 # Yarn cache directory
 yarn.lock
+
+server

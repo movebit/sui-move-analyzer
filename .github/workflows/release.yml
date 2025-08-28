@@ -8,16 +8,14 @@ env:
   CARGO_INCREMENTAL: 0
 
 jobs:
-  dist:
+  build:
     name: Build & Package VSIX
     strategy:
       matrix:
         include:
-          - os: windows-latest
-            rust_target: x86_64-pc-windows-msvc
-            code_target: win32-x64
           - os: ubuntu-latest
             rust_target: x86_64-unknown-linux-gnu
+            container: quay.io/pypa/manylinux_2_28_x86_64
             code_target: linux-x64
           - os: macos-13
             rust_target: x86_64-apple-darwin
@@ -25,7 +23,12 @@ jobs:
           - os: macos-14
             rust_target: aarch64-apple-darwin
             code_target: darwin-arm64
+          - os: windows-latest
+            rust_target: x86_64-pc-windows-msvc
+            code_target: win32-x64
+
     runs-on: ${{ matrix.os }}
+    container: ${{ matrix.container }}
 
     steps:
       - name: Checkout repository
@@ -33,40 +36,102 @@ jobs:
         with:
           fetch-depth: ${{ env.FETCH_DEPTH }}
 
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
+      - name: Install rustup
+        if: ${{ matrix.container }}
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
-      - name: Add Rust target
-        run: rustup target add ${{ matrix.rust_target }}
+      - name: Install Rust toolchain
+        run: |
+          rustup update --no-self-update stable
+          rustup component add rust-src
+          rustup target add ${{ matrix.rust_target }}
 
       - name: Build Rust server
         run: cargo build --release --target ${{ matrix.rust_target }}
 
-      - name: Prepare server folder
+      - name: Prepare server folder (Linux & MacOS)
+        shell: bash
         run: |
-          mkdir -p editors/code/server
-          BIN_NAME=sui-move-analyzer
-          if [[ "${{ matrix.code_target }}" == "win32-x64" ]]; then
-            BIN_NAME+=.exe
+          if [[ "${{ runner.os }}" != "Windows" ]]; then
+            mkdir -p editors/code/server
+            BIN_NAME=sui-move-analyzer
+            cp target/${{ matrix.rust_target }}/release/$BIN_NAME editors/code/server/
+            mkdir -p dist
           fi
-          cp target/${{ matrix.rust_target }}/release/$BIN_NAME editors/code/server/
+
+      - name: Prepare server folder (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $binName = "sui-move-analyzer.exe"
+          New-Item -ItemType Directory -Force -Path editors\code\server
+          Copy-Item -Path "target\${{ matrix.rust_target }}\release\$binName" -Destination editors\code\server\
+          New-Item -ItemType Directory -Force -Path dist
 
       - name: Install Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
 
+      - name: npm run
+        working-directory: ./editors/code
+        run: |
+          npm ci
+          npx tsc -p .
+
       - name: Package VSIX
         run: |
           cd editors/code
-          npx vsce package --target ${{ matrix.code_target }} -o ../../../dist/sui-move-analyzer-${{ matrix.code_target }}.vsix
+          npx vsce package --target ${{ matrix.code_target }} -o ../../dist/sui-move-analyzer-${{ matrix.code_target }}.vsix
 
       - name: Upload VSIX
         uses: actions/upload-artifact@v4
         with:
           name: sui-move-analyzer-vsix-${{ matrix.code_target }}
-          path: ../../../dist/sui-move-analyzer-${{ matrix.code_target }}.vsix
+          path: dist/sui-move-analyzer-${{ matrix.code_target }}.vsix
+
+  publish:
+    name: Publish VSIX to OpenVSX
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: mkdir -p dist
+
+      - name: Download Linux VSIX
+        uses: actions/download-artifact@v4
+        with:
+          name: sui-move-analyzer-vsix-linux-x64
+          path: dist
+
+      - name: Download macOS x64 VSIX
+        uses: actions/download-artifact@v4
+        with:
+          name: sui-move-analyzer-vsix-darwin-x64
+          path: dist
+
+      - name: Download macOS arm64 VSIX
+        uses: actions/download-artifact@v4
+        with:
+          name: sui-move-analyzer-vsix-darwin-arm64
+          path: dist
+
+      - name: Download Windows VSIX
+        uses: actions/download-artifact@v4
+        with:
+          name: sui-move-analyzer-vsix-win32-x64
+          path: dist
+
+      - name: Publish to OpenVSX
+        run: |
+          npx ovsx publish --pat ${{ secrets.OPENVSX_TOKEN }} --packagePath dist/sui-move-analyzer*.vsix
+
+      - name: Publish to Vscode Marketplace
+        run: |
+          npx vsce publish --pat ${{ secrets.VSCODE_MARKET_TOKEN }} --packagePath dist/sui-move-analyzer-*.vsix 
