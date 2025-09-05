@@ -12,6 +12,9 @@ import { IndentAction } from 'vscode';
 /** Information passed along to each VS Code command defined by this extension. */
 export class Context {
     private client: lc.LanguageClient | undefined;
+    private didChangeTimer: NodeJS.Timeout | null = null;
+    private lastChangeTime: number = 0;
+    private didchange: boolean = false;
 
     private constructor(
         private readonly extensionContext: Readonly<vscode.ExtensionContext>,
@@ -49,7 +52,7 @@ export class Context {
     ): void {
         const disposable = vscode.commands.registerCommand(
             `sui-move-analyzer.${name}`,
-            async (...args: Array<any>) : Promise<any> => {
+            async (...args: Array<any>): Promise<any> => {
                 const ret = await command(this, ...args);
                 return ret;
             },
@@ -103,6 +106,7 @@ export class Context {
      * we need to mark the function as asynchronous
      **/
     async startClient(): Promise<void> {
+        this.didchange;
         const executable: lc.Executable = {
             command: this.configuration.serverPath,
             options: { shell: true },
@@ -124,6 +128,28 @@ export class Context {
         const clientOptions: lc.LanguageClientOptions = {
             documentSelector: [{ scheme: 'file', language: 'move' }],
             traceOutputChannel,
+            middleware: {
+                didChange: (data, next) => {
+                    const currentTime = Date.now();
+                    if (currentTime - this.lastChangeTime < 800) {
+                        this.lastChangeTime = currentTime;
+                        if (this.didChangeTimer) {
+                            clearTimeout(this.didChangeTimer);  // clear the previous timer
+                            this.didChangeTimer = null;
+                        }
+                        this.didChangeTimer = setTimeout(() => {
+                            next(data);
+                            this.didchange = true;
+                            this.didChangeTimer = null;
+                        }, 500);
+                        return Promise.resolve();
+                    }
+
+                    this.lastChangeTime = currentTime;
+                    // return next(data);
+                    return Promise.resolve();
+                }
+            }
         };
 
         const client = new lc.LanguageClient(
@@ -132,6 +158,8 @@ export class Context {
             serverOptions,
             clientOptions,
         );
+
+
         log.info('Starting client...');
         const disposable = client.start();
         this.extensionContext.subscriptions.push(disposable);

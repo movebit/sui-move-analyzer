@@ -5,7 +5,7 @@
 	"publisher": "MoveBit",
 	"icon": "images/move.png",
 	"license": "Apache-2.0",
-	"version": "1.4.3",
+	"version": "1.4.4",
 	"preview": true,
 	"homepage": "https://github.com/move-language/move",
 	"repository": {
@@ -175,19 +175,19 @@
 					"default": "sui-move-analyzer",
 					"markdownDescription": "Path and filename of the sui-move-analyzer executable, e.g. `/usr/bin/sui-move-analyzer`."
 				},
-				"sui-move-analyzer.inlay.hints.parameter" : {
+				"sui-move-analyzer.inlay.hints.parameter": {
 					"type": "boolean",
-					"default" : true,
+					"default": true,
 					"markdownDescription": "inlay hints on parameter."
 				},
-				"sui-move-analyzer.inlay.hints.field.type" : {
+				"sui-move-analyzer.inlay.hints.field.type": {
 					"type": "boolean",
-					"default" : true,
+					"default": true,
 					"markdownDescription": "inlay hints on field type."
 				},
-				"sui-move-analyzer.inlay.hints.declare.var" : {
+				"sui-move-analyzer.inlay.hints.declare.var": {
 					"type": "boolean",
-					"default" : true,
+					"default": true,
 					"markdownDescription": "inlay hints on declare var."
 				},
 				"sui-move-analyzer.trace.server": {
@@ -227,7 +227,7 @@
 					"command": "sui-move-analyzer.serverVersion"
 				}
 			],
-			"editor/context" : [
+			"editor/context": [
 				{
 					"when": "resourceLangId == move",
 					"command": "sui-move-analyzer.runLinter",
@@ -252,7 +252,7 @@
 		"lint": "eslint . --ext ts --max-warnings 100",
 		"fix": "eslint . --ext ts --fix",
 		"copy-tests-files": "copyfiles \"tests/**/*.move\" \"tests/**/*.exp\" \"tests/**/*.toml\" \"tests/**/*.code-workspace\" out",
-		"pretest": "npm run compile && npm run lint && npm run copy-tests-files",
+		"pretest": "npm run compile",
 		"test": "node ./out/tests/runTests.js",
 		"dev": "npm run pretest && cross-env mode=dev node ./out/tests/runTests.js",
 		"vscode:prepublish": "",

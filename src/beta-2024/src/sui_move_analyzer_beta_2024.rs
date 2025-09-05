@@ -34,6 +34,12 @@ use vfs::{
 use url::Url;
 pub type DiagnosticsBeta2024 = move_compiler::diagnostics::Diagnostics;
 
+use once_cell::sync::Lazy;
+use threadpool::ThreadPool;
+
+// only for diag
+static DIAG_THREAD_POOL: Lazy<ThreadPool> = Lazy::new(|| ThreadPool::new(2));
+
 pub fn try_reload_projects(context: &mut Context) {
     context.projects.try_reload_projects(&context.connection);
 }
@@ -336,7 +342,7 @@ fn get_package_compile_diagnostics(
     let resolution_graph =
         build_config.resolution_graph_for_package(pkg_path, None, &mut Vec::new())?;
 
-    let root_pkg_name = resolution_graph.graph.root_package_name;
+    // let root_pkg_name = resolution_graph.graph.root_package_name;
 
     let overlay_fs_root = VfsPath::new(OverlayFS::new(&[
         VfsPath::new(MemoryFS::new()),
@@ -344,10 +350,10 @@ fn get_package_compile_diagnostics(
         VfsPath::new(PhysicalFS::new("/")),
     ]));
 
-    let manifest_file = overlay_fs_root
-        .join(pkg_path.to_string_lossy())
-        .and_then(|p| p.join("Move.toml"))
-        .and_then(|p| p.open_file());
+    // let manifest_file = overlay_fs_root
+    //     .join(pkg_path.to_string_lossy())
+    //     .and_then(|p| p.join("Move.toml"))
+    //     .and_then(|p| p.open_file());
 
     // Hash dependencies so we can check if something has changed.
     // let (mapped_files, deps_hash) =
@@ -433,23 +439,46 @@ fn make_diag(context: &Context, ide_files_root: VfsPath, diag_sender: DiagSender
         }
         None => return,
     };
-    std::thread::spawn(move || {
-        log::trace!("in new thread, about get_package_compile_diagnostics(beta)");
+
+    // 克隆必要的数据，放入线程池任务
+    let ide_files_root = ide_files_root.clone();
+    let diag_sender = diag_sender.clone();
+    let fpath = fpath.clone();
+
+    DIAG_THREAD_POOL.execute(move || {
+        log::trace!("in threadpool worker, about get_package_compile_diagnostics(beta)");
         let x = match get_package_compile_diagnostics(ide_files_root.clone(), &fpath) {
             Ok(x) => {
-                log::info!("in new thread, get(beta) diags success");
+                log::info!("in worker, get(beta) diags success");
                 x
             }
             Err(err) => {
-                log::error!("get_package_compile_diagnostics failed,err:{:?}", err);
+                log::error!("get_package_compile_diagnostics failed, err:{:?}", err);
                 return;
             }
         };
-        log::info!("in new thread, send(beta) diags {:?}", x);
+        // log::info!("in worker, send(beta) diags {:?}");
         if let Err(e) = diag_sender.lock().unwrap().send((mani, x)) {
             log::info!("failed to send diag: {:?}", e);
         }
     });
+    // std::thread::spawn(move || {
+    //     log::trace!("in new thread, about get_package_compile_diagnostics(beta)");
+    //     let x = match get_package_compile_diagnostics(ide_files_root.clone(), &fpath) {
+    //         Ok(x) => {
+    //             log::info!("in new thread, get(beta) diags success");
+    //             x
+    //         }
+    //         Err(err) => {
+    //             log::error!("get_package_compile_diagnostics failed,err:{:?}", err);
+    //             return;
+    //         }
+    //     };
+    //     log::info!("in new thread, send(beta) diags {:?}", x);
+    //     if let Err(e) = diag_sender.lock().unwrap().send((mani, x)) {
+    //         log::info!("failed to send diag: {:?}", e);
+    //     }
+    // });
 }
 
 fn send_not_project_file_error(context: &mut Context, fpath: PathBuf, is_open: bool) {
@@ -639,7 +668,7 @@ fn compute_mapped_files(resolved_graph: &ResolvedGraph, overlay_fs: VfsPath)
     // let mut hasher = Sha256::new();
     for rpkg in resolved_graph.package_table.values() {
         for f in rpkg.get_sources(&resolved_graph.build_options).unwrap() {
-            let is_dep = rpkg.package_path != resolved_graph.graph.root_path;
+            // let is_dep = rpkg.package_path != resolved_graph.graph.root_path;
             // dunce does a better job of canonicalization on Windows
             let fname = dunce::canonicalize(f.as_str())
                 .map(|p| p.to_string_lossy().to_string())
@@ -651,7 +680,7 @@ fn compute_mapped_files(resolved_graph: &ResolvedGraph, overlay_fs: VfsPath)
             let vfs_file_path = overlay_fs.join(fname.as_str()).unwrap();
             let mut vfs_file = vfs_file_path.open_file().unwrap();
             let _ = vfs_file.read_to_string(&mut contents);
-            let fhash = FileHash::new(&contents);
+            // let fhash = FileHash::new(&contents);
             // if is_dep {
             //     hasher.update(fhash.0);
             // }

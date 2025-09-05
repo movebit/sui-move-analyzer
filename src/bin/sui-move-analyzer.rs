@@ -15,10 +15,7 @@ use std::{
     str::FromStr,
     sync::{Arc, Mutex},
 };
-use vfs::{
-    VfsPath,
-    impls::{memory::MemoryFS, overlay::OverlayFS, physical::PhysicalFS},
-};
+use vfs::{VfsPath, impls::memory::MemoryFS};
 
 use beta_2024::{
     context::{
