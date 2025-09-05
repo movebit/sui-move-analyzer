@@ -31,9 +31,9 @@ macro_rules! impl_convert_loc {
     };
 }
 
+pub mod code_lens;
 pub mod completion;
 pub mod context;
-pub mod code_lens;
 pub mod diagnostics;
 pub mod goto_definition;
 pub mod hover;
@@ -48,11 +48,11 @@ pub mod symbols;
 pub mod syntax;
 pub mod types;
 pub mod utils;
-pub mod vfs;
+// pub mod vfs;
+pub mod ast_debug;
 pub mod linter;
 pub mod move_generate_spec;
 pub mod move_generate_spec_chen;
 pub mod move_generate_spec_file;
 pub mod move_generate_spec_sel;
-pub mod ast_debug;
 pub mod sui_move_analyzer_alpha_2024;

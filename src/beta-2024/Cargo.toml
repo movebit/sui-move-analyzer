@@ -34,6 +34,7 @@ tempfile = "3.2.0"
 url = "2.2.2"
 clap = { version = "3.1.8", features = ["derive"] }
 crossbeam = "0.8"
+vfs = "0.10.0"
 
 move-command-line-common = { git = "https://github.com/movebit/sui_for_analyzer_2025.git", branch = "analyzer", package = "move-command-line-common" }
 move-ir-types = { git = "https://github.com/movebit/sui_for_analyzer_2025.git", branch = "analyzer", package = "move-ir-types" }

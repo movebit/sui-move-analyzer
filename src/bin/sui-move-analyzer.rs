@@ -10,11 +10,14 @@ use lsp_types::{
     TextDocumentSyncOptions, TypeDefinitionProviderCapability, WorkDoneProgressOptions,
     notification::Notification as _, request::Request as _,
 };
-
 use std::{
     path::{Path, PathBuf},
     str::FromStr,
     sync::{Arc, Mutex},
+};
+use vfs::{
+    VfsPath,
+    impls::{memory::MemoryFS, overlay::OverlayFS, physical::PhysicalFS},
 };
 
 use beta_2024::{
@@ -23,7 +26,7 @@ use beta_2024::{
         MultiProject as MultiProject_beta_2024,
     },
     symbols as symbols_beta_2024,
-    vfs::VirtualFileSystem as VirtualFileSystem_beta_2024,
+    // vfs::VirtualFileSystem as VirtualFileSystem_beta_2024,
 };
 
 use move_package::source_package::manifest_parser::parse_move_manifest_from_file;
@@ -49,7 +52,7 @@ use alpha_2024::{
         send_diag as send_diag_alpha_2024, try_reload_projects as try_reload_projects_alpha_2024,
     },
     symbols as symbols_alpha_2024,
-    vfs::VirtualFileSystem as VirtualFileSystem_alpha_2024,
+    // vfs::VirtualFileSystem as VirtualFileSystem_alpha_2024,
 };
 
 pub(crate) struct ContextManager<'a> {
@@ -87,7 +90,7 @@ fn init_context_manager(connection: &lsp_server::Connection) -> ContextManager {
     let context_alpha_2024 = Context_alpha_2024 {
         projects: MultiProject_alpha_2024::new(),
         connection: &connection,
-        files: VirtualFileSystem_alpha_2024::default(),
+        // files: VirtualFileSystem_alpha_2024::default(),
         symbols: symbols_alpha24.clone(),
         ref_caches: Default::default(),
         diag_version: FileDiags_alpha_2024::new(),
@@ -97,7 +100,7 @@ fn init_context_manager(connection: &lsp_server::Connection) -> ContextManager {
     let context_beta_2024 = Context_beta_2024 {
         projects: MultiProject_beta_2024::new(),
         connection: &connection,
-        files: VirtualFileSystem_beta_2024::default(),
+        // files: VirtualFileSystem_beta_2024::default(),
         symbols: symbols_beta24.clone(),
         ref_caches: Default::default(),
         diag_version: FileDiags_beta_2024::new(),
@@ -211,7 +214,7 @@ fn main() {
 
     let mut inlay_hints_config_beta_2024 = beta_2024::inlay_hints::InlayHintsConfig::default();
     let mut inlay_hints_config_alpha_2024 = alpha_2024::inlay_hints::InlayHintsConfig::default();
-
+    let ide_files_root: VfsPath = MemoryFS::new().into();
     loop {
         select! {
             recv(diag_receiver_beta_2024) -> message => {
@@ -259,7 +262,7 @@ fn main() {
                                 if version == "alpha_2024" {
                                     on_notification_alpha_2024(&mut context_manager.context_alpha_2024, diag_sender_alpha2024.clone(), &notification);
                                 } else if version == "beta_2024" {
-                                    on_notification_beta_2024(&mut context_manager.context_beta_2024, diag_sender_beta2024.clone(), &notification);
+                                    on_notification_beta_2024(&mut context_manager.context_beta_2024,ide_files_root.clone(), diag_sender_beta2024.clone(), &notification);
                                 } else {
                                     eprintln!("On_Notification Error: could not parse compiler version from Move.toml. Error version {:?}", version);
                                 }

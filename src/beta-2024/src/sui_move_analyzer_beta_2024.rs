@@ -3,6 +3,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::utils::path_concat;
+use crate::{
+    code_lens, completion::on_completion_request, context::Context, goto_definition, hover,
+    inlay_hints, inlay_hints::*, linter, move_generate_spec_file::on_generate_spec_file,
+    move_generate_spec_sel::on_generate_spec_sel, project::ConvertLoc, references, symbols,
+    utils::*,
+};
 use anyhow::Result;
 use crossbeam::channel::Sender;
 use lsp_server::{Notification, Request, Response};
@@ -13,18 +19,16 @@ use move_compiler::{
     editions::{Edition, Flavor},
     shared::*,
 };
-
+use move_package::resolution::resolution_graph::ResolvedGraph;
 use std::{
     collections::HashMap,
+    io::Write,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
-
-use crate::{
-    code_lens, completion::on_completion_request, context::Context, goto_definition, hover,
-    inlay_hints, inlay_hints::*, linter, move_generate_spec_file::on_generate_spec_file,
-    move_generate_spec_sel::on_generate_spec_sel, project::ConvertLoc, references, symbols,
-    utils::*,
+use vfs::{
+    impls::{memory::MemoryFS, overlay::OverlayFS, physical::PhysicalFS},
+    VfsPath,
 };
 // use move_symbol_pool::Symbol;
 use url::Url;
@@ -88,6 +92,7 @@ type DiagSender = Arc<Mutex<Sender<(PathBuf, DiagnosticsBeta2024)>>>;
 
 pub fn on_notification(
     context: &mut Context,
+    ide_files_root: VfsPath,
     diag_sender: DiagSender,
     notification: &Notification,
 ) {
@@ -136,6 +141,42 @@ pub fn on_notification(
             .update(fpath, content);
     }
 
+    fn vfs_file_create(
+        ide_files: &VfsPath,
+        file_path: PathBuf,
+        first_access: bool,
+    ) -> Option<Box<dyn Write + Send>> {
+        let Some(vfs_path) = ide_files.join(file_path.to_string_lossy()).ok() else {
+            eprintln!(
+                "Could not construct file path for file creation at {:?}",
+                file_path
+            );
+            return None;
+        };
+        if first_access {
+            // create all directories on first access, otherwise file creation will fail
+            let _ = vfs_path.parent().create_dir_all();
+        }
+        let Some(vfs_file) = vfs_path.create_file().ok() else {
+            eprintln!("Could not create file at {:?}", vfs_path);
+            return None;
+        };
+        Some(vfs_file)
+    }
+
+    fn vfs_file_remove(ide_files: &VfsPath, file_path: PathBuf) {
+        let Some(vfs_path) = ide_files.join(file_path.to_string_lossy()).ok() else {
+            eprintln!(
+                "Could not construct file path for file removal at {:?}",
+                file_path
+            );
+            return;
+        };
+        if vfs_path.remove_file().is_err() {
+            eprintln!("Could not remove file at {:?}", vfs_path);
+        };
+    }
+
     match notification.method.as_str() {
         lsp_types::notification::DidSaveTextDocument::METHOD => {
             use lsp_types::DidSaveTextDocumentParams;
@@ -154,7 +195,25 @@ pub fn on_notification(
             };
             log::trace!("update_defs(beta) >>");
             update_defs(context, fpath.clone(), content.as_str());
-            make_diag(context, diag_sender, fpath);
+
+            let Some(mut vfs_file) = vfs_file_create(
+                &ide_files_root,
+                fpath.clone(),
+                /* first_access */ false,
+            ) else {
+                return;
+            };
+            let Some(content) = parameters.text else {
+                eprintln!("Could not read saved file change");
+                return;
+            };
+            if vfs_file.write_all(content.as_bytes()).is_err() {
+                // try to remove file from the file system and schedule symbolicator to pick up
+                // changes from the file system
+                vfs_file_remove(&ide_files_root, fpath.clone());
+            }
+
+            make_diag(context, ide_files_root.clone(), diag_sender, fpath);
         }
         lsp_types::notification::DidChangeTextDocument::METHOD => {
             use lsp_types::DidChangeTextDocumentParams;
@@ -165,9 +224,24 @@ pub fn on_notification(
             let fpath = path_concat(&std::env::current_dir().unwrap(), &fpath);
             update_defs(
                 context,
-                fpath,
+                fpath.clone(),
                 parameters.content_changes.last().unwrap().text.as_str(),
             );
+
+            let Some(mut vfs_file) = vfs_file_create(
+                &ide_files_root,
+                fpath.clone(),
+                /* first_access */ false,
+            ) else {
+                return;
+            };
+            let Some(changes) = parameters.content_changes.last() else {
+                eprintln!("Could not read last opened file change");
+                return;
+            };
+            if vfs_file.write_all(changes.text.as_bytes()).is_ok() {}
+
+            make_diag(context, ide_files_root.clone(), diag_sender, fpath);
         }
 
         lsp_types::notification::DidOpenTextDocument::METHOD => {
@@ -204,7 +278,18 @@ pub fn on_notification(
                 }
             };
             context.projects.insert_project(p);
-            make_diag(context, diag_sender, fpath);
+
+            let Some(mut vfs_file) =
+                vfs_file_create(&ide_files_root, fpath.clone(), /* first_access */ true)
+            else {
+                return;
+            };
+            if vfs_file
+                .write_all(parameters.text_document.text.as_bytes())
+                .is_ok()
+            {}
+
+            make_diag(context, ide_files_root.clone(), diag_sender, fpath);
         }
         lsp_types::notification::DidCloseTextDocument::METHOD => {
             use lsp_types::DidCloseTextDocumentParams;
@@ -212,6 +297,7 @@ pub fn on_notification(
                 serde_json::from_value::<DidCloseTextDocumentParams>(notification.params.clone())
                     .expect("could not deserialize DidCloseTextDocumentParams request");
             let fpath = parameters.text_document.uri.to_file_path().unwrap();
+            vfs_file_remove(&ide_files_root, fpath.clone());
             let fpath = path_concat(&std::env::current_dir().unwrap(), &fpath);
             let (_, _) = match crate::utils::discover_manifest_and_kind(&fpath) {
                 Some(x) => x,
@@ -228,6 +314,7 @@ pub fn on_notification(
 }
 
 fn get_package_compile_diagnostics(
+    ide_files_root: VfsPath,
     pkg_path: &Path,
 ) -> Result<move_compiler::diagnostics::Diagnostics> {
     use anyhow::*;
@@ -248,10 +335,30 @@ fn get_package_compile_diagnostics(
     // vector as the writer
     let resolution_graph =
         build_config.resolution_graph_for_package(pkg_path, None, &mut Vec::new())?;
-    let build_plan = BuildPlan::create(&resolution_graph)?;
+
+    let root_pkg_name = resolution_graph.graph.root_package_name;
+
+    let overlay_fs_root = VfsPath::new(OverlayFS::new(&[
+        VfsPath::new(MemoryFS::new()),
+        ide_files_root.clone(),
+        VfsPath::new(PhysicalFS::new("/")),
+    ]));
+
+    let manifest_file = overlay_fs_root
+        .join(pkg_path.to_string_lossy())
+        .and_then(|p| p.join("Move.toml"))
+        .and_then(|p| p.open_file());
+
+    // Hash dependencies so we can check if something has changed.
+    // let (mapped_files, deps_hash) =
+    compute_mapped_files(&resolution_graph, overlay_fs_root.clone());
+
+    let build_plan =
+        BuildPlan::create(&resolution_graph)?.set_compiler_vfs_root(overlay_fs_root.clone());
     let dependencies = build_plan.compute_dependencies();
     let mut diagnostics = None;
     build_plan.compile_with_driver_and_deps(dependencies, &mut std::io::sink(), |compiler| {
+        let compiler = compiler.set_ide_mode();
         let (files, compilation_result) =
             compiler.set_files_to_compile(None).run::<PASS_PARSER>()?;
 
@@ -308,8 +415,8 @@ fn get_package_compile_diagnostics(
     Ok(filterd_diagnostics)
 }
 
-fn make_diag(context: &Context, diag_sender: DiagSender, fpath: PathBuf) {
-    log::trace!("make_diag(beta) >>");
+fn make_diag(context: &Context, ide_files_root: VfsPath, diag_sender: DiagSender, fpath: PathBuf) {
+    log::info!("make_diag(beta) >>");
     let (mani, _) = match crate::utils::discover_manifest_and_kind(fpath.as_path()) {
         Some(x) => x,
         None => {
@@ -320,7 +427,7 @@ fn make_diag(context: &Context, diag_sender: DiagSender, fpath: PathBuf) {
     match context.projects.get_project(&fpath) {
         Some(x) => {
             if !x.load_ok() {
-                log::trace!("load_ok(beta) false");
+                log::info!("load_ok(beta) false");
                 return;
             }
         }
@@ -328,9 +435,9 @@ fn make_diag(context: &Context, diag_sender: DiagSender, fpath: PathBuf) {
     };
     std::thread::spawn(move || {
         log::trace!("in new thread, about get_package_compile_diagnostics(beta)");
-        let x = match get_package_compile_diagnostics(&fpath) {
+        let x = match get_package_compile_diagnostics(ide_files_root.clone(), &fpath) {
             Ok(x) => {
-                log::trace!("in new thread, get(beta) diags success");
+                log::info!("in new thread, get(beta) diags success");
                 x
             }
             Err(err) => {
@@ -338,8 +445,10 @@ fn make_diag(context: &Context, diag_sender: DiagSender, fpath: PathBuf) {
                 return;
             }
         };
-        log::trace!("in new thread, send(beta) diags");
-        diag_sender.lock().unwrap().send((mani, x)).unwrap();
+        log::info!("in new thread, send(beta) diags {:?}", x);
+        if let Err(e) = diag_sender.lock().unwrap().send((mani, x)) {
+            log::info!("failed to send diag: {:?}", e);
+        }
     });
 }
 
@@ -521,4 +630,38 @@ pub fn test_update_defs(context: &mut Context, fpath: PathBuf, content: &str) {
         .as_ref()
         .borrow_mut()
         .update(fpath, content);
+}
+
+fn compute_mapped_files(resolved_graph: &ResolvedGraph, overlay_fs: VfsPath)
+/* -> (MappedFiles, String) */
+{
+    // let mut mapped_files: MappedFiles = MappedFiles::empty();
+    // let mut hasher = Sha256::new();
+    for rpkg in resolved_graph.package_table.values() {
+        for f in rpkg.get_sources(&resolved_graph.build_options).unwrap() {
+            let is_dep = rpkg.package_path != resolved_graph.graph.root_path;
+            // dunce does a better job of canonicalization on Windows
+            let fname = dunce::canonicalize(f.as_str())
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_else(|_| f.to_string());
+            let mut contents = String::new();
+            // there is a fair number of unwraps here but if we can't read the files
+            // that by all accounts should be in the file system, then there is not much
+            // we can do so it's better to fail so that we can investigate
+            let vfs_file_path = overlay_fs.join(fname.as_str()).unwrap();
+            let mut vfs_file = vfs_file_path.open_file().unwrap();
+            let _ = vfs_file.read_to_string(&mut contents);
+            let fhash = FileHash::new(&contents);
+            // if is_dep {
+            //     hasher.update(fhash.0);
+            // }
+            // write to top layer of the overlay file system so that the content
+            // is immutable for the duration of compilation and symbolication
+            let _ = vfs_file_path.parent().create_dir_all();
+            let mut vfs_file = vfs_file_path.create_file().unwrap();
+            let _ = vfs_file.write_all(contents.as_bytes());
+            // mapped_files.add(fhash, fname.into(), Arc::from(contents.into_boxed_str()));
+        }
+    }
+    // (mapped_files, format!("{:X}", hasher.finalize()))
 }
