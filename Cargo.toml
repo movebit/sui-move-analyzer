@@ -32,6 +32,8 @@ tempfile = "3.16.0"
 url = "2.2.2"
 clap = { version = "3.1.8", features = ["derive"] }
 crossbeam = "0.8"
+vfs = "0.10.0"
+
 # move-command-line-common = { git = "https://github.com/MystenLabs/sui.git", tag = "devnet-v1.49.0", package = "move-command-line-common" }
 # move-ir-types = { git = "https://github.com/MystenLabs/sui.git", tag = "devnet-v1.49.0", package = "move-ir-types" }
 # move-compiler = { git = "https://github.com/MystenLabs/sui.git", tag = "devnet-v1.49.0", package = "move-compiler" }
@@ -66,7 +68,7 @@ stderrlog = "0.5.4"
 enum-iterator = "1.2.0"
 stacker = "0.1.15"
 
-[target.'cfg(target_arch = "wasm32")'.dependencies]
+[target.'cfg(all(target_arch = "wasm32", not(target_os = "wasi")))'.dependencies]
 web-sys = { version = "0.3", features = ["Window", "Location", "MessageEvent", "MessagePort"] }
 js-sys = "0.3"
 wasm-bindgen = "0.2"
