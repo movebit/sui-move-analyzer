@@ -40,6 +40,7 @@ pub mod hover;
 pub mod inlay_hints;
 pub mod item;
 pub mod linter;
+pub mod message_for_js;
 pub mod move_generate_spec;
 pub mod move_generate_spec_chen;
 pub mod move_generate_spec_file;
@@ -53,20 +54,12 @@ pub mod sui_move_analyzer_beta_2024;
 pub mod symbols;
 pub mod types;
 pub mod utils;
-pub mod vfs;
-
-// pub mod sui_move_analyzer_beta_2024;
-// pub mod sui_move_analyzer_alpha_2024;
 
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    fmt::format,
-    path::{Path, PathBuf},
-    str::FromStr,
-};
+use std::{path::PathBuf, str::FromStr};
 
 use move_command_line_common::files::FileHash;
 use move_compiler::{
@@ -75,37 +68,21 @@ use move_compiler::{
     shared::{CompilationEnv, PackageConfig},
     Flags,
 };
-// use anyhow::Result;
-// use crossbeam::channel::bounded;
-// use lsp_types::Diagnostic;
-// use move_compiler::linters::LintLevel;
-// use move_package::source_package::parsed_manifest::{Dependencies, Dependency, DependencyKind, GitInfo, InternalDependency};
-// use symbols::Symbols;
-// use utils::get_path_from_url;
-// use ::vfs::{MemoryFS, VfsPath};
-use context::Context;
-use js_sys::Function;
-use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
-use serde_wasm_bindgen;
-use wasm_bindgen::prelude::*;
-use wasm_bindgen::JsCast;
-use wasm_bindgen_futures::spawn_local;
-use web_sys::{MessageEvent, MessagePort};
+
+use serde::Deserialize;
+use serde_json::Value;
 
 use crate::{
-    context::{FileDiags, MultiProject},
+    context::{Context, FileDiags, MultiProject},
+    sui_move_analyzer_beta_2024::try_reload_projects,
     utils::discover_manifest_and_kind,
 };
 
 use crate::goto_definition::{on_go_to_def_request, on_go_to_type_def_request};
-use once_cell::sync::Lazy;
+use crate::sui_move_analyzer_beta_2024::make_diag;
 use once_cell::unsync::OnceCell;
-use std::borrow::Borrow;
-use std::borrow::BorrowMut;
 use std::cell::RefCell;
-use std::env;
-use std::sync::Mutex;
+use vfs::MemoryFS;
 
 #[derive(Debug)]
 pub struct WasmConnection;
@@ -115,7 +92,7 @@ impl WasmConnection {
         WasmConnection {}
     }
 
-    fn send_response(&mut self, response: WasmResponse) {
+    fn send_response(&mut self, response: message_for_js::response_type::Response4JSType) {
         if let Ok(bytes) = serde_json::to_vec(&response) {
             let ptr = bytes.as_ptr();
             let len = bytes.len();
@@ -133,18 +110,12 @@ thread_local! {
     pub static GLOBAL_CONNECTION: OnceCell<RefCell<WasmConnection>> = OnceCell::new();
 }
 
-// fn ensure_initialized() {
-//     static INIT: std::sync::Once = std::sync::Once::new();
-//     INIT.call_once(|| {
-//         init_context();
-//     });
-// }
-
 pub fn init_context() {
     let context = Context {
         projects: MultiProject::default(),
         ref_caches: Default::default(),
         diag_version: FileDiags::new(),
+        ide_files_root: MemoryFS::new().into(),
     };
 
     GLOBAL_CONTEXT.with(|cell| {
@@ -171,21 +142,15 @@ where
     GLOBAL_CONTEXT.with(|cell| {
         let ctx_cell = cell.get().expect("Context not initialized");
         let mut ctx = ctx_cell.borrow_mut();
+        GLOBAL_CONNECTION.with(|conn| {
+            try_reload_projects(&mut ctx, conn.get().unwrap());
+        });
+
         f(&mut ctx, val)
     })
 }
 
-#[derive(Serialize)]
-pub struct WasmResponse {
-    pub id: String,
-    pub method: String,
-    pub params: Option<serde_json::Value>,
-    pub result: Option<serde_json::Value>,
-    pub error: Option<serde_json::Value>,
-}
-
 fn update_defs(context: &mut Context, fpath: PathBuf, content: &str) {
-    println!("update_defs: fpath {:?}. content {:?}", fpath, content);
     use move_compiler::parser::syntax::parse_file_string;
     let file_hash = FileHash::new(content);
     let mut env = CompilationEnv::new(
@@ -270,13 +235,12 @@ fn handle_open_document<'a>(context: &'a mut Context, request: lsp_server::Reque
         None => {
             println!("not move project.");
             GLOBAL_CONNECTION.with(|conn| {
-                crate::context::send_show_message(
+                crate::context::send_popup_message(
                     conn.get().unwrap(),
-                    lsp_types::MessageType::ERROR,
-                    "from send_show_message".to_string(),
+                    lsp_types::MessageType::WARNING,
+                    format!("{} not in move project", fpath.as_path().to_string_lossy()),
                 );
             });
-            // send_not_project_file_error(context, fpath, true);
             return;
         }
     };
@@ -285,6 +249,7 @@ fn handle_open_document<'a>(context: &'a mut Context, request: lsp_server::Reque
             if let Ok(x) = std::fs::read_to_string(fpath.as_path()) {
                 update_defs(context, fpath.clone(), x.as_str());
             };
+            // make_diag(context, fpath);
             return;
         }
         None => {
@@ -292,7 +257,8 @@ fn handle_open_document<'a>(context: &'a mut Context, request: lsp_server::Reque
         }
     };
     GLOBAL_CONNECTION.with(|conn| {
-        let p = match context.projects.load_project(conn.get().unwrap(), &mani) {
+        let res = context.projects.load_project(conn.get().unwrap(), &mani);
+        let p = match res {
             anyhow::Result::Ok(x) => x,
             anyhow::Result::Err(e) => {
                 log::error!("load project failed,err:{:?}", e);
@@ -304,9 +270,8 @@ fn handle_open_document<'a>(context: &'a mut Context, request: lsp_server::Reque
             "context.projects.projects len: {:?}",
             context.projects.projects.len()
         );
+        make_diag(context, fpath);
     })
-
-    // make_diag(context, diag_sender, fpath);
 }
 
 fn handle_did_change(context: &mut Context, request: lsp_server::Request) {
@@ -328,14 +293,14 @@ fn handle_did_change(context: &mut Context, request: lsp_server::Request) {
         "context.projects.projects len: {:?}",
         context.projects.projects.len()
     );
-    update_defs(context, fpath, params.content.as_str());
+    update_defs(context, fpath.clone(), params.content.as_str());
+    // make_diag(context, fpath);
 }
 
 fn handle_goto_definition<'a>(
     context: &'a mut Context,
     request: lsp_server::Request,
 ) -> serde_json::Value {
-    println!("handle_goto_definition");
     #[derive(Deserialize, Debug)]
     struct GotoDefinitionParams {
         pub url: String,
@@ -353,14 +318,8 @@ fn handle_goto_definition<'a>(
     on_go_to_def_request(&context, fpath, params.pos)
 }
 
-#[derive(Deserialize)]
-struct Input {
-    id: String,
-}
-
-#[derive(Serialize)]
-struct Output {
-    message: String,
+fn handle_projects_clear(context: &mut Context, _request: lsp_server::Request) {
+    context.projects.clear();
 }
 
 #[no_mangle]
@@ -381,15 +340,21 @@ pub extern "C" fn process_message(ptr: *const u8, len: usize) -> *mut u8 {
     let method = request.method.clone();
     match method.as_str() {
         "DidOpenTextDocument" => {
-            println!("DidOpenTextDocument 000");
+            println!("DidOpenTextDocument");
             with_context(|ctx, request| handle_open_document(ctx, request), request);
         }
         "DidChangeTextDocument" => {
+            println!("DidChangeTextDocument");
             with_context(|ctx, request| handle_did_change(ctx, request), request);
         }
         "GotoDefinition" => {
+            println!("GotoDefinition");
             let result = with_context(|ctx, request| handle_goto_definition(ctx, request), request);
             return serialize_with_length_prefix(result);
+        }
+        "FetchDependencies" => {
+            println!("FetchDependencies");
+            with_context(|ctx, request| handle_projects_clear(ctx, request), request);
         }
         _ => {
             println!("Method is not a string");
