@@ -98,14 +98,6 @@ impl ItemOrAccessHandler for Handler {
         _project_context: &ProjectContext,
         item_or_access: &ItemOrAccess,
     ) {
-        println!(
-            "handle_item_or_access<goto>, item_or_access = {}",
-            item_or_access
-        );
-        println!(
-            ">> handle_item_or_access<goto>, self.result = {:?}",
-            self.result
-        );
         match item_or_access {
             ItemOrAccess::Item(item) => match item {
                 Item::Use(x) => {
@@ -184,7 +176,6 @@ impl ItemOrAccessHandler for Handler {
             },
             ItemOrAccess::Access(access) => match access {
                 Access::AccessFiled(AccessFiled { from, to, item, .. }) => {
-                    println!("-- handle_item_or_access<goto>, AccessFiled");
                     if self.match_loc(&from.loc(), services) {
                         if let Some(t) = services.convert_loc_range(&to.loc()) {
                             self.result = Some(t);
@@ -197,11 +188,6 @@ impl ItemOrAccessHandler for Handler {
                     }
                 }
                 Access::ExprAccessChain(chain, _, item) if item.is_build_in() => {
-                    println!("-- handle_item_or_access<goto>, ExprAccessChain");
-                    println!(
-                        "-- handle_item_or_access<goto>, chain.name = {}",
-                        chain.value
-                    );
                     if self.match_loc(&chain.loc, services) {
                         if let Some(t) = services.convert_loc_range(&chain.loc) {
                             self.result = Some(t);
@@ -211,15 +197,6 @@ impl ItemOrAccessHandler for Handler {
                 }
                 Access::ExprAccessChain(chain, _, item) => match chain.value {
                     move_compiler::parser::ast::NameAccessChain_::Single(..) => {
-                        println!("-- handle_item_or_access<goto> Single, ExprAccessChain");
-                        println!(
-                            "-- handle_item_or_access<goto> Single, chain.name = {}",
-                            chain.value
-                        );
-                        println!(
-                            "-- handle_item_or_access<goto> Single, chain.loc = {:?}",
-                            services.convert_loc_range(&chain.loc)
-                        );
                         if self.match_loc(&chain.loc, services) {
                             if let Some(t) = services.convert_loc_range(&item.def_loc()) {
                                 self.result = Some(t);
@@ -228,7 +205,6 @@ impl ItemOrAccessHandler for Handler {
                         }
                     }
                     _ => {
-                        println!("access:{}", access);
                         if let Some((access, def)) = access.access_module() {
                             if self.match_loc(&access, services) {
                                 if let Some(t) = services.convert_loc_range(&def) {
@@ -249,13 +225,18 @@ impl ItemOrAccessHandler for Handler {
                         }
                     }
                 },
-                _ => {}
+                _ => {
+                    let locs = access.access_def_loc();
+                    if self.match_loc(&locs.0, services) {
+                        if let Some(t) = services.convert_loc_range(&locs.1) {
+                            self.result = Some(t);
+                            self.result_loc = Some(locs.1);
+                            self.result_item_or_access = Some(item_or_access.clone());
+                        }
+                    }
+                }
             },
         }
-        println!(
-            "<< handle_item_or_access<goto>, self.result = {:?}",
-            self.result
-        );
     }
 
     fn function_or_spec_body_should_visit(&self, range: &FileRange) -> bool {
