@@ -1,3 +1,10 @@
 {
-    "rust-analyzer.cargo.target": "wasm32-wasip1-threads"
+    "rust-analyzer.cargo.target": "wasm32-wasip1-threads",
+    "rust-analyzer.server.extraEnv": {
+        "CARGO_HOME": "/data/zhangxiao/rust-depend/cargo",
+        "RUSTUP_HOME": "/data/zhangxiao/rust-depend/rustup",
+        "PATH": "/data/zhangxiao/rust-depend/cargo/bin:/usr/bin:/bin",
+        "CC": "/data/zhangxiao/cxx/third-party/wasi-sdk-24.0-x86_64-linux/bin/clang --sysroot=/absolute/path/to/wasi-sdk-24.0/share/wasi-sysroot",
+        "AR": "/data/zhangxiao/cxx/third-party/wasi-sdk-24.0-x86_64-linux/bin/llvm-ar",
+    }
 }
