@@ -3,14 +3,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use super::utils::*;
+use crate::js_message_callback;
+use crate::message_for_js::response_type::{Response4Diagnostic, Response4JSType, Response4Popup};
 use crate::{project::*, references::ReferencesCache, WasmConnection};
 use im::HashSet;
-use lsp_server::Connection;
 use lsp_types::{notification::Notification, MessageType};
 use move_command_line_common::files::FileHash;
 use move_compiler::parser::ast::Definition;
 use move_ir_types::location::Loc;
 use move_package::source_package::layout::SourcePackageLayout;
+use std::hash::Hash;
 use std::{
     cell::RefCell,
     collections::HashMap,
@@ -18,7 +20,8 @@ use std::{
     rc::Rc,
     sync::{Arc, Mutex},
 };
-use wasm_bindgen::JsValue;
+use url::Url;
+use vfs::VfsPath;
 
 /// The context within which the language server is running.
 pub struct Context {
@@ -26,6 +29,7 @@ pub struct Context {
     pub projects: MultiProject,
     pub ref_caches: ReferencesCache,
     pub diag_version: FileDiags,
+    pub ide_files_root: VfsPath,
 }
 
 impl std::fmt::Debug for Context {
@@ -55,7 +59,7 @@ impl MultiProject {
         mani: &PathBuf,
     ) -> anyhow::Result<Project> {
         Project::new(mani, self, |msg: String| {
-            send_show_message(sender, MessageType::ERROR, msg)
+            send_popup_message(sender, MessageType::ERROR, msg)
         })
     }
 
@@ -92,7 +96,7 @@ impl MultiProject {
         {
             Some(x) => x,
             None => {
-                log::error!("file_path {:?} not found", file_path.as_path());
+                println!("file_path {:?} not found", file_path.as_path());
                 return;
             }
         };
@@ -111,17 +115,33 @@ impl MultiProject {
             .into_iter()
             .for_each(|x| x.update_defs(&file_path, old_defs.as_ref()));
     }
+
+    pub fn clear(&mut self) {
+        self.projects.clear();
+        self.hash_file.borrow_mut().clear();
+        self.file_line_mapping.borrow_mut().clear();
+        self.asts.clear();
+    }
 }
 
-pub(crate) fn send_show_message(conn: &RefCell<WasmConnection>, _mty: MessageType, msg: String) {
-    let json_val: serde_json::Value = serde_json::json!(msg);
-    conn.borrow_mut().send_response(crate::WasmResponse {
-        id: "".to_string(),
-        method: "msg".to_string(),
-        params: Some(json_val),
-        result: None,
-        error: None,
-    });
+pub(crate) fn send_popup_message(conn: &RefCell<WasmConnection>, mty: MessageType, msg: String) {
+    conn.borrow_mut()
+        .send_response(Response4JSType::Popup(Response4Popup {
+            message: msg,
+            mty: mty,
+        }));
+}
+
+pub(crate) fn send_diag_message(diags: HashMap<Url, Vec<lsp_types::Diagnostic>>) {
+    let response = Response4JSType::Diagnostic(Response4Diagnostic { diags });
+    if let Ok(bytes) = serde_json::to_vec(&response) {
+        let ptr = bytes.as_ptr();
+        let len = bytes.len();
+        std::mem::forget(bytes); // 防止数据被提前释放
+        unsafe {
+            js_message_callback(ptr, len);
+        }
+    }
 }
 
 #[derive(Default, Debug)]
@@ -155,6 +175,7 @@ static LOAD_DEPS: bool = false;
 
 impl MultiProject {
     pub fn try_reload_projects(&mut self, connection: &RefCell<WasmConnection>) {
+        println!("try_reload_projects");
         let mut all = Vec::new();
         let not_founds = {
             let mut x = Vec::new();
@@ -169,6 +190,7 @@ impl MultiProject {
             }
             x
         };
+        println!("try_reload_projects not_founds: {:?}", not_founds);
         let mut modifies = Vec::new();
         for (k, p) in self.projects.iter() {
             if p.manifest_beed_modified() {
@@ -178,6 +200,7 @@ impl MultiProject {
                 }
             }
         }
+        println!("try_reload_projects modifies: {:?}", modifies);
         for (k, not_founds, root_manifest) in not_founds.into_iter() {
             let mut exists_now = false;
             for v in not_founds.iter() {
@@ -191,30 +214,30 @@ impl MultiProject {
             if !exists_now {
                 continue;
             }
-            eprintln!("reload  {:?}", root_manifest.as_path());
+            println!("reload  {:?}", root_manifest.as_path());
             let x = match Project::new(root_manifest, self, |msg| {
-                send_show_message(connection, MessageType::ERROR, msg)
+                send_popup_message(connection, MessageType::ERROR, msg)
             }) {
                 Ok(x) => x,
                 Err(_) => {
-                    log::error!("reload project failed");
+                    println!("reload project failed");
                     return;
                 }
             };
             all.push((k, x));
         }
         for (k, root_manifest) in modifies.into_iter() {
-            send_show_message(
+            send_popup_message(
                 connection,
                 MessageType::INFO,
                 format!("trying reload {:?}.", root_manifest.as_path()),
             );
             let x = match Project::new(root_manifest, self, |msg| {
-                send_show_message(connection, MessageType::ERROR, msg);
+                send_popup_message(connection, MessageType::ERROR, msg);
             }) {
                 Ok(x) => x,
                 Err(err) => {
-                    send_show_message(
+                    send_popup_message(
                         connection,
                         MessageType::ERROR,
                         format!("reload project failed,err:{:?}", err),
