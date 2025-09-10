@@ -51,6 +51,10 @@ impl PathBufHashMap {
     pub(crate) fn get_path(&self, hash: &FileHash) -> Option<&'_ PathBuf> {
         self.hash_2_path.get(hash)
     }
+    pub fn clear(&mut self) {
+        self.path_2_hash.clear();
+        self.hash_2_path.clear();
+    }
 }
 
 #[derive(Debug, Default)]
@@ -74,6 +78,10 @@ impl FileLineMapping {
             }
         }
         self.m.insert(filepath, v);
+    }
+
+    pub fn clear(&mut self) {
+        self.m.clear();
     }
 
     pub(crate) fn translate(
@@ -277,14 +285,11 @@ impl GetPosition for GetPositionStruct {
 
 pub fn discover_manifest_and_kind(x: &Path) -> Option<(PathBuf, SourcePackageLayout)> {
     let mut x: Vec<_> = x.components().collect();
-    println!("x.components().collect(): {:?}", x);
     // We should be able at least pop one.
     x.pop()?;
-    println!("x.components().collect(): {:?}", x);
     let mut layout: Option<&SourcePackageLayout> = None;
     while !x.is_empty() {
         while !x.is_empty() {
-            println!("x.last(): {:?}", x.last());
             layout = x
                 .last()
                 .and_then(|x| match x.as_os_str().to_str().unwrap() {
@@ -299,7 +304,6 @@ pub fn discover_manifest_and_kind(x: &Path) -> Option<(PathBuf, SourcePackageLay
             x.pop();
         }
         let layout = layout?;
-        println!("layout: {:?}", layout);
         // Pop tests or sources ...
         x.pop()?;
         let mut manifest_dir = PathBuf::new();
