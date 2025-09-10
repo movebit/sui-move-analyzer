@@ -178,6 +178,7 @@ impl Project {
         }
 
         if !manifest_path.exists() {
+            println!("manifest file '{:?}' not exists.", &manifest_path);
             self.manifest_not_exists.insert(manifest_path);
             return anyhow::Result::Ok(());
         }
@@ -217,7 +218,7 @@ impl Project {
             .iter()
             .chain(manifest.dev_dependencies.iter())
         {
-            let move_home = "/workspace";
+            let move_home = "/workspace/.move";
 
             let repository_path = |kind: &DependencyKind| -> PathBuf {
                 match kind {
