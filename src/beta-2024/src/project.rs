@@ -330,7 +330,15 @@ impl Project {
                 // This is a move file.
                 let defs = parse_file_string(&mut env, file_hash, file_content.as_str(), None);
                 let defs = match defs {
-                    std::result::Result::Ok(x) => x,
+                    std::result::Result::Ok(mut x) => {
+                        x.iter_mut().for_each(|x| match x {
+                            move_compiler::parser::ast::Definition::Module(m) => {
+                                m.members.extend(get_default_usedecl(file_hash));
+                            }
+                            _ => {}
+                        });
+                        x
+                    }
                     std::result::Result::Err(diags) => {
                         let mut m = HashMap::new();
                         m.insert(

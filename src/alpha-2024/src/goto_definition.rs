@@ -224,7 +224,6 @@ impl ItemOrAccessHandler for Handler {
                     }
                 }
                 _ => {
-                    log::trace!("access:{}", access);
                     if let Some((access, def)) = access.access_module() {
                         if self.match_loc(&access, services) {
                             if let Some(t) = services.convert_loc_range(&def) {
