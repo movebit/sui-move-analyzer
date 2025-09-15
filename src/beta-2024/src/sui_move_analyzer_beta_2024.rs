@@ -6,10 +6,10 @@ use crate::utils::path_concat;
 use crate::{
     code_lens, completion::on_completion_request, context::Context, goto_definition, hover,
     inlay_hints, inlay_hints::*, linter, move_generate_spec_file::on_generate_spec_file,
-    move_generate_spec_sel::on_generate_spec_sel, project::ConvertLoc, references, symbols,
-    utils::*,
+    move_generate_spec_sel::on_generate_spec_sel, project::ConvertLoc, references, snap_cache,
+    symbols, utils::*,
 };
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use crossbeam::channel::Sender;
 use lsp_server::{Notification, Request, Response};
 use lsp_types::{notification::Notification as _, request::Request as _};
@@ -38,7 +38,7 @@ use once_cell::sync::Lazy;
 use threadpool::ThreadPool;
 
 // only for diag
-static DIAG_THREAD_POOL: Lazy<ThreadPool> = Lazy::new(|| ThreadPool::new(2));
+static DIAG_THREAD_POOL: Lazy<ThreadPool> = Lazy::new(|| ThreadPool::new(1));
 
 pub fn try_reload_projects(context: &mut Context) {
     context.projects.try_reload_projects(&context.connection);
@@ -124,7 +124,15 @@ pub fn on_notification(
         );
         let defs = parse_file_string(&mut env, file_hash, content, None);
         let defs = match defs {
-            std::result::Result::Ok(x) => x,
+            std::result::Result::Ok(mut x) => {
+                x.iter_mut().for_each(|x| match x {
+                    move_compiler::parser::ast::Definition::Module(m) => {
+                        m.members.extend(get_default_usedecl(file_hash));
+                    }
+                    _ => {}
+                });
+                x
+            }
             std::result::Result::Err(d) => {
                 log::error!("update file failed,err:{:?}", d);
                 return;
@@ -159,9 +167,16 @@ pub fn on_notification(
             );
             return None;
         };
+        eprintln!("vfs_file_create: {:?}", vfs_path);
         if first_access {
             // create all directories on first access, otherwise file creation will fail
-            let _ = vfs_path.parent().create_dir_all();
+            let _ = vfs_path.parent().create_dir_all().ok() else {
+                eprintln!(
+                    "Could not create parent directories for file at {:?}",
+                    vfs_path
+                );
+                return None;
+            };
         }
         let Some(vfs_file) = vfs_path.create_file().ok() else {
             eprintln!("Could not create file at {:?}", vfs_path);
@@ -183,6 +198,27 @@ pub fn on_notification(
         };
     }
 
+    fn update_vfs_file(
+        ide_files_root: &VfsPath,
+        file_path: PathBuf,
+        content: String,
+        first_access: bool,
+    ) -> Result<()> {
+        let Some(mut vfs_file) = vfs_file_create(
+            &ide_files_root,
+            file_path.clone(),
+            /* first_access */ first_access,
+        ) else {
+            return Err(anyhow!("Could not create vfs file {:?}", file_path));
+        };
+
+        vfs_file.write_all(content.as_bytes())?;
+        vfs_file.flush()?;
+        // commit writer to flush changes
+        drop(vfs_file);
+        Ok(())
+    }
+
     match notification.method.as_str() {
         lsp_types::notification::DidSaveTextDocument::METHOD => {
             use lsp_types::DidSaveTextDocumentParams;
@@ -199,27 +235,16 @@ pub fn on_notification(
                     return;
                 }
             };
-            log::trace!("update_defs(beta) >>");
-            update_defs(context, fpath.clone(), content.as_str());
 
-            let Some(mut vfs_file) = vfs_file_create(
-                &ide_files_root,
-                fpath.clone(),
-                /* first_access */ false,
-            ) else {
-                return;
-            };
-            let Some(content) = parameters.text else {
-                eprintln!("Could not read saved file change");
-                return;
-            };
-            if vfs_file.write_all(content.as_bytes()).is_err() {
-                // try to remove file from the file system and schedule symbolicator to pick up
-                // changes from the file system
-                vfs_file_remove(&ide_files_root, fpath.clone());
+            match update_vfs_file(&ide_files_root, fpath.clone(), content.clone(), false) {
+                Ok(_) => make_diag(ide_files_root.clone(), diag_sender, fpath.clone()),
+                Err(err) => {
+                    eprintln!("Could not write to vfs file for saved document, {:?}", err);
+                    vfs_file_remove(&ide_files_root, fpath.clone());
+                }
             }
 
-            make_diag(context, ide_files_root.clone(), diag_sender, fpath);
+            update_defs(context, fpath, content.as_str());
         }
         lsp_types::notification::DidChangeTextDocument::METHOD => {
             use lsp_types::DidChangeTextDocumentParams;
@@ -228,26 +253,24 @@ pub fn on_notification(
                     .expect("could not deserialize DidChangeTextDocumentParams request");
             let fpath = parameters.text_document.uri.to_file_path().unwrap();
             let fpath = path_concat(&std::env::current_dir().unwrap(), &fpath);
+
+            let content = parameters.content_changes.last().unwrap().text.clone();
+            match update_vfs_file(&ide_files_root, fpath.clone(), content, false) {
+                Ok(_) => make_diag(ide_files_root.clone(), diag_sender, fpath.clone()),
+                Err(err) => {
+                    eprintln!(
+                        "Could not update to vfs file for change document , {:?}",
+                        err
+                    );
+                    vfs_file_remove(&ide_files_root, fpath.clone());
+                }
+            }
+
             update_defs(
                 context,
-                fpath.clone(),
+                fpath,
                 parameters.content_changes.last().unwrap().text.as_str(),
             );
-
-            let Some(mut vfs_file) = vfs_file_create(
-                &ide_files_root,
-                fpath.clone(),
-                /* first_access */ false,
-            ) else {
-                return;
-            };
-            let Some(changes) = parameters.content_changes.last() else {
-                eprintln!("Could not read last opened file change");
-                return;
-            };
-            if vfs_file.write_all(changes.text.as_bytes()).is_ok() {}
-
-            make_diag(context, ide_files_root.clone(), diag_sender, fpath);
         }
 
         lsp_types::notification::DidOpenTextDocument::METHOD => {
@@ -265,6 +288,16 @@ pub fn on_notification(
                     return;
                 }
             };
+
+            let content = parameters.text_document.text.clone();
+            match update_vfs_file(&ide_files_root, fpath.clone(), content, true) {
+                Ok(_) => make_diag(ide_files_root.clone(), diag_sender, fpath.clone()),
+                Err(err) => {
+                    eprintln!("Could not update to vfs file for open document , {:?}", err);
+                    vfs_file_remove(&ide_files_root, fpath.clone());
+                }
+            }
+
             match context.projects.get_project(&fpath) {
                 Some(_) => {
                     if let Ok(x) = std::fs::read_to_string(fpath.as_path()) {
@@ -276,6 +309,7 @@ pub fn on_notification(
                     eprintln!("project '{:?}' not found try load.", fpath.as_path());
                 }
             };
+
             let p = match context.projects.load_project(&context.connection, &mani) {
                 anyhow::Result::Ok(x) => x,
                 anyhow::Result::Err(e) => {
@@ -284,18 +318,6 @@ pub fn on_notification(
                 }
             };
             context.projects.insert_project(p);
-
-            let Some(mut vfs_file) =
-                vfs_file_create(&ide_files_root, fpath.clone(), /* first_access */ true)
-            else {
-                return;
-            };
-            if vfs_file
-                .write_all(parameters.text_document.text.as_bytes())
-                .is_ok()
-            {}
-
-            make_diag(context, ide_files_root.clone(), diag_sender, fpath);
         }
         lsp_types::notification::DidCloseTextDocument::METHOD => {
             use lsp_types::DidCloseTextDocumentParams;
@@ -326,8 +348,6 @@ fn get_package_compile_diagnostics(
     use anyhow::*;
     use move_compiler::{diagnostics::Diagnostics, PASS_CFGIR, PASS_PARSER, PASS_TYPING};
     use move_package::compilation::build_plan::BuildPlan;
-    // use sui_move_build::implicit_deps;
-    // use sui_package_management::system_package_versions::latest_system_packages;
     use tempfile::tempdir;
     let build_config = move_package::BuildConfig {
         test_mode: true,
@@ -342,22 +362,12 @@ fn get_package_compile_diagnostics(
     let resolution_graph =
         build_config.resolution_graph_for_package(pkg_path, None, &mut Vec::new())?;
 
-    // let root_pkg_name = resolution_graph.graph.root_package_name;
-
+    let snapshot_top = snap_cache::ensure_snapshot_for_graph(&resolution_graph, &ide_files_root)?;
     let overlay_fs_root = VfsPath::new(OverlayFS::new(&[
-        VfsPath::new(MemoryFS::new()),
         ide_files_root.clone(),
+        snapshot_top,
         VfsPath::new(PhysicalFS::new("/")),
     ]));
-
-    // let manifest_file = overlay_fs_root
-    //     .join(pkg_path.to_string_lossy())
-    //     .and_then(|p| p.join("Move.toml"))
-    //     .and_then(|p| p.open_file());
-
-    // Hash dependencies so we can check if something has changed.
-    // let (mapped_files, deps_hash) =
-    compute_mapped_files(&resolution_graph, overlay_fs_root.clone());
 
     let build_plan =
         BuildPlan::create(&resolution_graph)?.set_compiler_vfs_root(overlay_fs_root.clone());
@@ -421,39 +431,30 @@ fn get_package_compile_diagnostics(
     Ok(filterd_diagnostics)
 }
 
-fn make_diag(context: &Context, ide_files_root: VfsPath, diag_sender: DiagSender, fpath: PathBuf) {
+fn make_diag(ide_files_root: VfsPath, diag_sender: DiagSender, fpath: PathBuf) {
     log::info!("make_diag(beta) >>");
     let (mani, _) = match crate::utils::discover_manifest_and_kind(fpath.as_path()) {
         Some(x) => x,
         None => {
-            log::error!("manifest not found.");
+            log::info!("manifest not found.");
             return;
         }
     };
-    match context.projects.get_project(&fpath) {
-        Some(x) => {
-            if !x.load_ok() {
-                log::info!("load_ok(beta) false");
-                return;
-            }
-        }
-        None => return,
-    };
 
-    // 克隆必要的数据，放入线程池任务
+    // clone ide_files_root;
     let ide_files_root = ide_files_root.clone();
     let diag_sender = diag_sender.clone();
     let fpath = fpath.clone();
 
     DIAG_THREAD_POOL.execute(move || {
-        log::trace!("in threadpool worker, about get_package_compile_diagnostics(beta)");
+        log::info!("in threadpool worker, about get_package_compile_diagnostics(beta)");
         let x = match get_package_compile_diagnostics(ide_files_root.clone(), &fpath) {
             Ok(x) => {
                 log::info!("in worker, get(beta) diags success");
                 x
             }
             Err(err) => {
-                log::error!("get_package_compile_diagnostics failed, err:{:?}", err);
+                log::info!("get_package_compile_diagnostics failed, err:{:?}", err);
                 return;
             }
         };
@@ -462,23 +463,6 @@ fn make_diag(context: &Context, ide_files_root: VfsPath, diag_sender: DiagSender
             log::info!("failed to send diag: {:?}", e);
         }
     });
-    // std::thread::spawn(move || {
-    //     log::trace!("in new thread, about get_package_compile_diagnostics(beta)");
-    //     let x = match get_package_compile_diagnostics(ide_files_root.clone(), &fpath) {
-    //         Ok(x) => {
-    //             log::info!("in new thread, get(beta) diags success");
-    //             x
-    //         }
-    //         Err(err) => {
-    //             log::error!("get_package_compile_diagnostics failed,err:{:?}", err);
-    //             return;
-    //         }
-    //     };
-    //     log::info!("in new thread, send(beta) diags {:?}", x);
-    //     if let Err(e) = diag_sender.lock().unwrap().send((mani, x)) {
-    //         log::info!("failed to send diag: {:?}", e);
-    //     }
-    // });
 }
 
 fn send_not_project_file_error(context: &mut Context, fpath: PathBuf, is_open: bool) {
@@ -638,7 +622,15 @@ pub fn test_update_defs(context: &mut Context, fpath: PathBuf, content: &str) {
     );
     let defs = parse_file_string(&mut env, file_hash, content, None);
     let defs = match defs {
-        std::result::Result::Ok(x) => x,
+        std::result::Result::Ok(mut x) => {
+            x.iter_mut().for_each(|x| match x {
+                move_compiler::parser::ast::Definition::Module(m) => {
+                    m.members.extend(get_default_usedecl(file_hash));
+                }
+                _ => {}
+            });
+            x
+        }
         std::result::Result::Err(d) => {
             log::error!("update file failed,err:{:?}", d);
             return;
@@ -659,38 +651,4 @@ pub fn test_update_defs(context: &mut Context, fpath: PathBuf, content: &str) {
         .as_ref()
         .borrow_mut()
         .update(fpath, content);
-}
-
-fn compute_mapped_files(resolved_graph: &ResolvedGraph, overlay_fs: VfsPath)
-/* -> (MappedFiles, String) */
-{
-    // let mut mapped_files: MappedFiles = MappedFiles::empty();
-    // let mut hasher = Sha256::new();
-    for rpkg in resolved_graph.package_table.values() {
-        for f in rpkg.get_sources(&resolved_graph.build_options).unwrap() {
-            // let is_dep = rpkg.package_path != resolved_graph.graph.root_path;
-            // dunce does a better job of canonicalization on Windows
-            let fname = dunce::canonicalize(f.as_str())
-                .map(|p| p.to_string_lossy().to_string())
-                .unwrap_or_else(|_| f.to_string());
-            let mut contents = String::new();
-            // there is a fair number of unwraps here but if we can't read the files
-            // that by all accounts should be in the file system, then there is not much
-            // we can do so it's better to fail so that we can investigate
-            let vfs_file_path = overlay_fs.join(fname.as_str()).unwrap();
-            let mut vfs_file = vfs_file_path.open_file().unwrap();
-            let _ = vfs_file.read_to_string(&mut contents);
-            // let fhash = FileHash::new(&contents);
-            // if is_dep {
-            //     hasher.update(fhash.0);
-            // }
-            // write to top layer of the overlay file system so that the content
-            // is immutable for the duration of compilation and symbolication
-            let _ = vfs_file_path.parent().create_dir_all();
-            let mut vfs_file = vfs_file_path.create_file().unwrap();
-            let _ = vfs_file.write_all(contents.as_bytes());
-            // mapped_files.add(fhash, fname.into(), Arc::from(contents.into_boxed_str()));
-        }
-    }
-    // (mapped_files, format!("{:X}", hasher.finalize()))
 }
