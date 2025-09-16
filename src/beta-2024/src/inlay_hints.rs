@@ -64,6 +64,7 @@ struct Handler {
     range: FileRange,
     reuslts: Vec<InlayHint>,
     config: InlayHintsConfig,
+    is_in_dot_expr: bool,
 }
 
 impl Handler {
@@ -78,6 +79,7 @@ impl Handler {
             },
             reuslts: Default::default(),
             config,
+            is_in_dot_expr: false,
         }
     }
     #[allow(dead_code)]
@@ -100,6 +102,10 @@ impl Handler {
 }
 
 impl ItemOrAccessHandler for Handler {
+    fn set_skip_flag(&mut self, is_in_dot_expr: bool) {
+        self.is_in_dot_expr = is_in_dot_expr;
+    }
+
     fn need_para_arg_pair(&self) -> bool {
         true
     }
@@ -151,6 +157,10 @@ impl ItemOrAccessHandler for Handler {
         _project_context: &ProjectContext,
         item: &ItemOrAccess,
     ) {
+        if self.is_in_dot_expr {
+            eprintln!("skip in dot expr {}", item);
+            return;
+        }
         match item {
             ItemOrAccess::Item(item) => {
                 if let Item::Var {

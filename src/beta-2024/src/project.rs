@@ -1045,6 +1045,8 @@ pub trait ItemOrAccessHandler: std::fmt::Display {
     ) {
     }
 
+    fn set_skip_flag(&mut self, _is_in_dot_expr: bool) {}
+
     /// Need visit function or spec body or not.
     /// Sometimes you want visit function body But not all the function Body.
     fn function_or_spec_body_should_visit(&self, range: &FileRange) -> bool;
@@ -1099,6 +1101,9 @@ impl ItemOrAccessHandler for DummyHandler {
         _item: &ItemOrAccess,
     ) {
     }
+
+    fn set_skip_flag(&mut self, _is_in_dot_expr: bool) {}
+
     fn function_or_spec_body_should_visit(&self, _range: &FileRange) -> bool {
         false
     }

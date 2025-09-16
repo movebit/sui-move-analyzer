@@ -679,8 +679,10 @@ impl Project {
                           project_context: &ProjectContext,
                           visitor: &mut dyn ItemOrAccessHandler,
                           _has_ref: Option<bool>| {
-            // self.visit_expr(e, project_context, visitor);
+            visitor.set_skip_flag(true);
+            self.visit_expr(e, project_context, visitor);
             if visitor.finished() {
+                visitor.set_skip_flag(false);
                 return;
             }
 
@@ -712,6 +714,7 @@ impl Project {
                 }));
                 visitor.handle_item_or_access(self, project_context, &item);
             }
+            visitor.set_skip_flag(false);
         };
 
         match &exp.value {
@@ -827,7 +830,7 @@ impl Project {
             Exp_::DotCall(_, _, fun_name, _, _, call_paren_exp) => {
                 let opt_item = project_context.find_name_corresponding_item(fun_name);
                 let item = ItemOrAccess::Access(Access::ExprAccessChain(
-                    Spanned::new(exp.loc, NameAccessChain_::single(*fun_name)),
+                    Spanned::new(fun_name.loc, NameAccessChain_::single(*fun_name)),
                     None,
                     Box::new(opt_item.unwrap_or_default()),
                 ));
