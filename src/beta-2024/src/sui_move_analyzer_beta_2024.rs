@@ -21,7 +21,7 @@ use move_compiler::{
 };
 use move_package::resolution::resolution_graph::ResolvedGraph;
 use std::{
-    collections::HashMap,
+    collections::{BTreeSet, HashMap},
     io::Write,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
@@ -237,7 +237,7 @@ pub fn on_notification(
             };
 
             match update_vfs_file(&ide_files_root, fpath.clone(), content.clone(), false) {
-                Ok(_) => make_diag(ide_files_root.clone(), diag_sender, fpath.clone()),
+                Ok(_) => make_diag(ide_files_root.clone(), diag_sender, fpath.clone(), false),
                 Err(err) => {
                     eprintln!("Could not write to vfs file for saved document, {:?}", err);
                     vfs_file_remove(&ide_files_root, fpath.clone());
@@ -256,7 +256,7 @@ pub fn on_notification(
 
             let content = parameters.content_changes.last().unwrap().text.clone();
             match update_vfs_file(&ide_files_root, fpath.clone(), content, false) {
-                Ok(_) => make_diag(ide_files_root.clone(), diag_sender, fpath.clone()),
+                Ok(_) => make_diag(ide_files_root.clone(), diag_sender, fpath.clone(), false),
                 Err(err) => {
                     eprintln!(
                         "Could not update to vfs file for change document , {:?}",
@@ -290,8 +290,8 @@ pub fn on_notification(
             };
 
             let content = parameters.text_document.text.clone();
-            match update_vfs_file(&ide_files_root, fpath.clone(), content, true) {
-                Ok(_) => make_diag(ide_files_root.clone(), diag_sender, fpath.clone()),
+            match update_vfs_file(&ide_files_root, fpath.clone(), content.clone(), true) {
+                Ok(_) => make_diag(ide_files_root.clone(), diag_sender, fpath.clone(), true),
                 Err(err) => {
                     eprintln!("Could not update to vfs file for open document , {:?}", err);
                     vfs_file_remove(&ide_files_root, fpath.clone());
@@ -318,6 +318,7 @@ pub fn on_notification(
                 }
             };
             context.projects.insert_project(p);
+            update_defs(context, fpath, content.as_str());
         }
         lsp_types::notification::DidCloseTextDocument::METHOD => {
             use lsp_types::DidCloseTextDocumentParams;
@@ -343,7 +344,8 @@ pub fn on_notification(
 
 fn get_package_compile_diagnostics(
     ide_files_root: VfsPath,
-    pkg_path: &Path,
+    file_path: &Path,
+    file_to_diag: bool,
 ) -> Result<move_compiler::diagnostics::Diagnostics> {
     use anyhow::*;
     use move_compiler::{diagnostics::Diagnostics, PASS_CFGIR, PASS_PARSER, PASS_TYPING};
@@ -360,7 +362,7 @@ fn get_package_compile_diagnostics(
     // resolution graph diagnostics are only needed for CLI commands so ignore them by passing a
     // vector as the writer
     let resolution_graph =
-        build_config.resolution_graph_for_package(pkg_path, None, &mut Vec::new())?;
+        build_config.resolution_graph_for_package(file_path, None, &mut Vec::new())?;
 
     let snapshot_top = snap_cache::ensure_snapshot_for_graph(&resolution_graph, &ide_files_root)?;
     let overlay_fs_root = VfsPath::new(OverlayFS::new(&[
@@ -375,8 +377,13 @@ fn get_package_compile_diagnostics(
     let mut diagnostics = None;
     build_plan.compile_with_driver_and_deps(dependencies, &mut std::io::sink(), |compiler| {
         let compiler = compiler.set_ide_mode();
-        let (files, compilation_result) =
-            compiler.set_files_to_compile(None).run::<PASS_PARSER>()?;
+        let (files, compilation_result) = compiler
+            .set_files_to_compile(if file_to_diag {
+                Some(BTreeSet::from([file_path.to_path_buf()]))
+            } else {
+                None
+            })
+            .run::<PASS_PARSER>()?;
 
         let compiler = match compilation_result {
             std::result::Result::Ok(v) => v,
@@ -431,7 +438,7 @@ fn get_package_compile_diagnostics(
     Ok(filterd_diagnostics)
 }
 
-fn make_diag(ide_files_root: VfsPath, diag_sender: DiagSender, fpath: PathBuf) {
+fn make_diag(ide_files_root: VfsPath, diag_sender: DiagSender, fpath: PathBuf, file_to_diag: bool) {
     log::info!("make_diag(beta) >>");
     let (mani, _) = match crate::utils::discover_manifest_and_kind(fpath.as_path()) {
         Some(x) => x,
@@ -448,7 +455,8 @@ fn make_diag(ide_files_root: VfsPath, diag_sender: DiagSender, fpath: PathBuf) {
 
     DIAG_THREAD_POOL.execute(move || {
         log::info!("in threadpool worker, about get_package_compile_diagnostics(beta)");
-        let x = match get_package_compile_diagnostics(ide_files_root.clone(), &fpath) {
+        let x = match get_package_compile_diagnostics(ide_files_root.clone(), &fpath, file_to_diag)
+        {
             Ok(x) => {
                 log::info!("in worker, get(beta) diags success");
                 x

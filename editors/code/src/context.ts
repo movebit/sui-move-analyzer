@@ -13,8 +13,8 @@ import { IndentAction } from 'vscode';
 export class Context {
     private client: lc.LanguageClient | undefined;
     private didChangeTimer: NodeJS.Timeout | null = null;
-    private lastChangeTime: number = 0;
-    private didchange: boolean = false;
+    // private lastChangeTime: number = 0;
+    // private didchange: boolean = false;
 
     private constructor(
         private readonly extensionContext: Readonly<vscode.ExtensionContext>,
@@ -106,7 +106,6 @@ export class Context {
      * we need to mark the function as asynchronous
      **/
     async startClient(): Promise<void> {
-        this.didchange;
         const executable: lc.Executable = {
             command: this.configuration.serverPath,
             options: { shell: true },
@@ -130,23 +129,15 @@ export class Context {
             traceOutputChannel,
             middleware: {
                 didChange: (data, next) => {
-                    const currentTime = Date.now();
-                    if (currentTime - this.lastChangeTime < 800) {
-                        this.lastChangeTime = currentTime;
-                        if (this.didChangeTimer) {
-                            clearTimeout(this.didChangeTimer);  // clear the previous timer
-                            this.didChangeTimer = null;
-                        }
-                        this.didChangeTimer = setTimeout(() => {
-                            next(data);
-                            this.didchange = true;
-                            this.didChangeTimer = null;
-                        }, 500);
-                        return Promise.resolve();
+                    if (this.didChangeTimer) {
+                        clearTimeout(this.didChangeTimer);
                     }
 
-                    this.lastChangeTime = currentTime;
-                    // return next(data);
+                    this.didChangeTimer = setTimeout(() => {
+                        next(data);  // 只发送最后一次
+                        this.didChangeTimer = null;
+                    }, 300);
+
                     return Promise.resolve();
                 }
             }
