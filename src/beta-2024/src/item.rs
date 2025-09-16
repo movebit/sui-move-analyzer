@@ -629,7 +629,6 @@ impl Access {
     pub(crate) fn access_def_loc(&self) -> (Loc /* access loc */, Loc /* def loc */) {
         match self {
             Access::ApplyType(name, _, x) => {
-                log::warn!("Access::ApplyType");
                 (get_name_chain_last_name(name).loc, x.as_ref().def_loc())
             }
             Access::ExprVar(var, x) => (var.loc(), x.def_loc()),
