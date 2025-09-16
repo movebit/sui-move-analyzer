@@ -87,7 +87,7 @@ impl FileLineMapping {
             end_index = start_index;
         }
         let vec = self.m.get(filepath)?;
-        let too_big = vec.last().map(|x| *x <= end_index).unwrap_or(false);
+        let too_big = vec.last().map(|x| *x < end_index).unwrap_or(false);
         if too_big {
             log::error!(
                 "end index too big. vec.last() = {:?}, end index = {:?}",
