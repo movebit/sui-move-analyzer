@@ -565,13 +565,6 @@ pub fn send_diag(context: &mut Context, mani: PathBuf, x: DiagnosticsBeta2024) {
     for (k, v) in result.iter() {
         context.diag_version.update(&mani, k, v.len());
     }
-    context.diag_version.with_manifest(&mani, |x| {
-        for (old, v) in x.iter() {
-            if !result.contains_key(old) && *v > 0 {
-                result.insert(old.clone(), vec![]);
-            }
-        }
-    });
     for (k, x) in result.iter() {
         if x.is_empty() {
             context.diag_version.update(&mani, k, 0);
