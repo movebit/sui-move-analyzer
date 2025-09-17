@@ -656,8 +656,15 @@ impl ProjectContext {
 
     pub(crate) fn find_name_corresponding_item(
         &self,
+        project: &Project,
+        pre_expr: &Box<Exp>,
         item_name: &move_compiler::shared::Name,
     ) -> Option<Item> {
+        let struct_ty = project.get_expr_type(pre_expr, self);
+        let struct_ty = match &struct_ty {
+            ResolvedType::Ref(_, ty) => ty.as_ref(),
+            _ => &struct_ty,
+        };
         let mut item_ret = None;
 
         let visit_fn = |s: Scope| {
@@ -677,38 +684,33 @@ impl ProjectContext {
         };
         self.inner_first_visit(|s| {
             let found_item = visit_fn(s.clone());
-            if found_item.is_some() {
+            if found_item.is_some() && is_member_function_of_type(&struct_ty, &found_item.as_ref())
+            {
                 item_ret = found_item;
                 return true;
             }
             for (_, use_item) in &s.uses {
-                // log::warn!("-- find_name_corresponding_item, use_item 00 = {}", use_item);
                 if let Item::Use(item_use_vec) = use_item {
                     for x in item_use_vec {
                         match x {
                             ItemUse::Module(ItemUseModule { members, .. }) => {
-                                // for xxx in &members.as_ref().borrow().module.items {
-                                //     log::warn!("-- find_name_corresponding_item, use_item 111 = {:?}", xxx.0);
-                                // }
                                 if let Some(item) =
                                     members.as_ref().borrow().module.items.get(&item_name.value)
                                 {
-                                    // module_scope = Some(
-                                    //     members.as_ref().borrow().name_and_addr.clone(),
-                                    // );
-                                    item_ret = Some(item.clone());
-                                    return true;
+                                    if is_member_function_of_type(&struct_ty, &Some(&item)) {
+                                        item_ret = Some(item.clone());
+                                        return true;
+                                    }
                                 }
                             }
                             ItemUse::Item(ItemUseItem { members, .. }) => {
-                                // for xxx in &members.as_ref().borrow().module.items {
-                                //     log::warn!("-- find_name_corresponding_item, use_item 222 = {:?}", xxx.0);
-                                // }
                                 if let Some(item) =
                                     members.as_ref().borrow().module.items.get(&item_name.value)
                                 {
-                                    item_ret = Some(item.clone());
-                                    return true;
+                                    if is_member_function_of_type(&struct_ty, &Some(&item)) {
+                                        item_ret = Some(item.clone());
+                                        return true;
+                                    }
                                 }
                             }
                         }
@@ -1312,4 +1314,15 @@ impl Drop for ScopesGuarder {
     fn drop(&mut self) {
         self.0.as_ref().borrow_mut().pop().unwrap();
     }
+}
+
+fn is_member_function_of_type(ty: &ResolvedType, item: &Option<&Item>) -> bool {
+    if let Some(Item::Fun(f)) = item {
+        if let Some(first_para) = f.parameters.get(0) {
+            if &first_para.1 == ty {
+                return true;
+            }
+        }
+    }
+    false
 }

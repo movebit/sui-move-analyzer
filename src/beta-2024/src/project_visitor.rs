@@ -381,6 +381,9 @@ impl Project {
                 });
                 let item = ItemOrAccess::Item(item);
                 visitor.handle_item_or_access(modules, scopes, &item);
+                if (f.name.value().as_str() == "some_func") {
+                    eprintln!(",module{}::{}", module_name, f.name);
+                }
                 scopes.enter_top_item(
                     self,
                     addr,
@@ -829,7 +832,8 @@ impl Project {
 
             Exp_::DotCall(pre_expr, _, fun_name, _, _, call_paren_exp) => {
                 self.visit_expr(pre_expr, project_context, visitor);
-                let opt_item = project_context.find_name_corresponding_item(fun_name);
+                let opt_item =
+                    project_context.find_name_corresponding_item(self, pre_expr, fun_name);
                 let item = ItemOrAccess::Access(Access::ExprAccessChain(
                     Spanned::new(fun_name.loc, NameAccessChain_::single(*fun_name)),
                     None,

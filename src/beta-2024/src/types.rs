@@ -11,7 +11,7 @@ use move_compiler::{
 };
 use move_ir_types::location::{Loc, Spanned};
 use move_symbol_pool::Symbol;
-use std::{collections::HashMap, fmt::Debug, vec};
+use std::{cmp::PartialEq, collections::HashMap, fmt::Debug, vec};
 
 #[derive(Clone)]
 pub enum ResolvedType {
@@ -39,6 +39,27 @@ pub enum ResolvedType {
     /// Spec type
     Range,
 }
+
+impl PartialEq for ResolvedType {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (ResolvedType::Struct(n1, ts1), ResolvedType::Struct(n2, ts2)) => {
+                n1 == n2 && ts1 == ts2
+            }
+
+            (ResolvedType::BuildInType(b1), ResolvedType::BuildInType(b2)) => b1 == b2,
+            (ResolvedType::Ref(_, t1), ResolvedType::Ref(_, t2)) => t1 == t2,
+            (ResolvedType::Multiple(v1), ResolvedType::Multiple(v2)) => v1 == v2,
+            (ResolvedType::Vec(t1), ResolvedType::Vec(t2)) => t1 == t2,
+
+            (ResolvedType::Ref(_, t1), other) => t1.as_ref() == other,
+            (other, ResolvedType::Ref(_, t2)) => other == t2.as_ref(),
+            _ => false,
+        }
+    }
+}
+
+impl Eq for ResolvedType {}
 
 impl Default for ResolvedType {
     fn default() -> Self {
@@ -168,7 +189,7 @@ impl ResolvedType {
     }
 }
 
-#[derive(Clone, Debug, Copy, Sequence)]
+#[derive(Clone, Debug, Copy, Sequence, Eq, PartialEq)]
 pub enum BuildInType {
     Bool,
     U8,
@@ -278,6 +299,12 @@ impl std::fmt::Display for ResolvedType {
                 }
             }
         }
+    }
+}
+
+impl std::fmt::Debug for ResolvedType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self)
     }
 }
 

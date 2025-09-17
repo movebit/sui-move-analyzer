@@ -127,7 +127,16 @@ impl std::fmt::Debug for Item {
             Item::Field(_, _) => "Field(Field, ResolvedType)",
             Item::Struct(_) => "Struct(ItemStruct)",
             Item::StructNameRef(_) => "StructNameRef(ItemStructNameRef)",
-            Item::Fun(_) => "Fun(ItemFun)",
+            Item::Fun(func) => {
+                let param_str = func
+                    .parameters
+                    .iter()
+                    .map(|p| format!("{}", p.1)) // 调用 ResolvedType 的 Display
+                    .collect::<Vec<_>>()
+                    .join(", ");
+
+                return write!(f, "item::Func({}({}), ...)", func.name, param_str);
+            }
             Item::MoveBuildInFun(_) => "MoveBuildInFun(MoveBuildInFun)",
             Item::SpecBuildInFun(_) => "SpecBuildInFun(SpecBuildInFun)",
             Item::SpecConst(_) => "SpecConst(ItemConst)",
@@ -194,7 +203,7 @@ impl Item {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct ItemStructNameRef {
     pub(crate) addr: AccountAddress,
     pub(crate) module_name: Symbol,
