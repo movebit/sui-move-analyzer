@@ -158,7 +158,6 @@ impl ItemOrAccessHandler for Handler {
         item: &ItemOrAccess,
     ) {
         if self.is_in_dot_expr {
-            eprintln!("skip in dot expr {}", item);
             return;
         }
         match item {
