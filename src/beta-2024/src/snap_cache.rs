@@ -72,6 +72,7 @@ pub fn ensure_snapshot_for_graph(
             let p = top.join(&fname).unwrap();
             let _ = p.parent().create_dir_all();
             let mut f = p.create_file().unwrap();
+            eprintln!("snapshot add file: {}", fname);
             let _ = f.write_all(content.as_bytes());
         }
 

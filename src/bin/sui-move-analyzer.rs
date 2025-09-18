@@ -15,7 +15,6 @@ use std::{
     str::FromStr,
     sync::{Arc, Mutex},
 };
-use vfs::{VfsPath, impls::memory::MemoryFS};
 
 use beta_2024::{
     context::{
@@ -23,8 +22,9 @@ use beta_2024::{
         MultiProject as MultiProject_beta_2024,
     },
     symbols as symbols_beta_2024,
-    // vfs::VirtualFileSystem as VirtualFileSystem_beta_2024,
 };
+
+use vfs::{VfsPath, impls::memory::MemoryFS};
 
 use move_package::source_package::manifest_parser::parse_move_manifest_from_file;
 // use url::Url;
@@ -51,7 +51,6 @@ use alpha_2024::{
     symbols as symbols_alpha_2024,
     // vfs::VirtualFileSystem as VirtualFileSystem_alpha_2024,
 };
-
 pub(crate) struct ContextManager<'a> {
     pub context_alpha_2024: Context_alpha_2024<'a>,
     pub context_beta_2024: Context_beta_2024<'a>,
@@ -212,6 +211,8 @@ fn main() {
     let mut inlay_hints_config_beta_2024 = beta_2024::inlay_hints::InlayHintsConfig::default();
     let mut inlay_hints_config_alpha_2024 = alpha_2024::inlay_hints::InlayHintsConfig::default();
     let ide_files_root: VfsPath = MemoryFS::new().into();
+
+    let implicit_deps = beta_2024::implicit_deps();
     loop {
         select! {
             recv(diag_receiver_beta_2024) -> message => {
@@ -259,7 +260,7 @@ fn main() {
                                 if version == "alpha_2024" {
                                     on_notification_alpha_2024(&mut context_manager.context_alpha_2024, diag_sender_alpha2024.clone(), &notification);
                                 } else if version == "beta_2024" {
-                                    on_notification_beta_2024(&mut context_manager.context_beta_2024,ide_files_root.clone(), diag_sender_beta2024.clone(), &notification);
+                                    on_notification_beta_2024(&mut context_manager.context_beta_2024,ide_files_root.clone(), diag_sender_beta2024.clone(), &notification, implicit_deps.clone());
                                 } else {
                                     eprintln!("On_Notification Error: could not parse compiler version from Move.toml. Error version {:?}", version);
                                 }

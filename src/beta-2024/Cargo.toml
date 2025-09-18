@@ -37,6 +37,11 @@ crossbeam = "0.8"
 vfs = "0.10.0"
 threadpool = "1.8"
 sha2 = "0.9.3"
+walkdir = "2"
+log = "0.4.14"
+stderrlog = "0.5.4"
+enum-iterator = "1.2.0"
+stacker = "0.1.15"
 
 move-command-line-common = { git = "https://github.com/movebit/sui_for_analyzer_2025.git", branch = "analyzer", package = "move-command-line-common" }
 move-ir-types = { git = "https://github.com/movebit/sui_for_analyzer_2025.git", branch = "analyzer", package = "move-ir-types" }
@@ -47,11 +52,11 @@ move-core-types = { git = "https://github.com/movebit/sui_for_analyzer_2025.git"
 move-model = { git = "https://github.com/movebit/sui_for_analyzer_2025.git", branch = "analyzer", package = "move-model" }
 move-proc-macros= { git = "https://github.com/movebit/sui_for_analyzer_2025.git", branch = "analyzer", package = "move-proc-macros" }
 
-walkdir = "2"
-log = "0.4.14"
-stderrlog = "0.5.4"
-enum-iterator = "1.2.0"
-stacker = "0.1.15"
+[build-dependencies]
+ureq = "2.6"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0.64"
+anyhow = "1.0.52"
 
 
 [target.'cfg(not(target_os= "windows"))'.dependencies]

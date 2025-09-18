@@ -480,7 +480,7 @@ fn generate_default_use_decl_for_std_module_member(
     default_loc: Loc,
 ) {
     default_use_decl.extend(
-        IMPLICIT_SUI_MEMBERS
+        IMPLICIT_STD_MEMBERS
             .iter()
             .copied()
             .map(|(m_sym, mem_sym, _)| {
