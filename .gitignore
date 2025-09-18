@@ -1,4 +1,4 @@
 target/
 *.lock
-*build*
+*build/
 tmp/
