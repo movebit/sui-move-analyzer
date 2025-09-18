@@ -72,14 +72,18 @@ impl MultiProject {
 
             let mut child = c.spawn().unwrap();
             let mut fetch_ok = false;
-            match child.wait_timeout(Duration::new(30, 0)) {
-                Ok(_) => {
-                    fetch_ok = true;
+            match child.wait_timeout(Duration::new(120, 0)) {
+                Ok(Some(status)) => {
+                    fetch_ok = status.success();
+                }
+                Ok(None) => {
+                    log::error!("fetch deps timeout after 120s");
                 }
                 Err(err) => {
                     log::error!("exec cmd fetch deps failed,err:{:?}", err);
                 }
             }
+
             let _ = child.kill();
             if !fetch_ok {
                 log::error!("fetch deps failed");
@@ -196,7 +200,7 @@ impl FileDiags {
 }
 
 ///
-static LOAD_DEPS: bool = false;
+static LOAD_DEPS: bool = true;
 
 impl MultiProject {
     pub fn try_reload_projects(&mut self, connection: &Connection) {

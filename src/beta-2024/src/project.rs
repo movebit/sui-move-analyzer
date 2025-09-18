@@ -861,11 +861,33 @@ impl Project {
             Exp_::Cast(_, ty) => project_context.resolve_type(ty, self),
             Exp_::Annotate(_, ty) => project_context.resolve_type(ty, self),
             Exp_::Spec(_) => ResolvedType::new_unit(),
+            Exp_::DotCall(pre_expr, _, func_name, _, _, _) => {
+                let Some(item) =
+                    project_context.find_name_corresponding_item(self, pre_expr, func_name)
+                else {
+                    return ResolvedType::UnKnown;
+                };
+
+                if let Item::Fun(item_fun) = item {
+                    item_fun.ret_type.as_ref().clone()
+                } else {
+                    ResolvedType::UnKnown
+                }
+            }
             _ => {
+                eprintln!("other exp:{:?}", expr.value);
                 // Nothings. didn't know what to do.
                 ResolvedType::UnKnown
             }
         }
+    }
+
+    pub(crate) fn get_dotcall_ret_type(
+        &self,
+        pre_ty: ResolvedType,
+        func_name: &Name,
+    ) -> ResolvedType {
+        ResolvedType::UnKnown
     }
 
     pub(crate) fn visit_struct_tparam(

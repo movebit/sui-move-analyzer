@@ -123,7 +123,9 @@ impl std::fmt::Debug for Item {
         let s = match self {
             Item::Parameter(_, _) => "Parameter(Var, ResolvedType)",
             Item::Const(_) => "Const(ItemConst)",
-            Item::Var { .. } => "Var { var, ty, lambda, has_decl_ty }",
+            Item::Var { var, ty, .. } => {
+                return write!(f, "Var(name:{}, ty:{:?})", var, ty);
+            }
             Item::Field(_, _) => "Field(Field, ResolvedType)",
             Item::Struct(_) => "Struct(ItemStruct)",
             Item::StructNameRef(_) => "StructNameRef(ItemStructNameRef)",
