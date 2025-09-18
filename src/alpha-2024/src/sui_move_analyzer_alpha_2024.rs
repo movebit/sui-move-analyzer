@@ -16,7 +16,7 @@ use std::{
 
 use crate::{
     code_lens, completion::on_completion_request, context::Context, goto_definition, hover,
-    inlay_hints, inlay_hints::*, linter, move_generate_spec_file::on_generate_spec_file,
+    inlay_hints, inlay_hints::*, move_generate_spec_file::on_generate_spec_file,
     move_generate_spec_sel::on_generate_spec_sel, project::ConvertLoc, references, symbols,
     utils::*,
 };

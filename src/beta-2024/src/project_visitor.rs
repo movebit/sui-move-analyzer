@@ -381,9 +381,6 @@ impl Project {
                 });
                 let item = ItemOrAccess::Item(item);
                 visitor.handle_item_or_access(modules, scopes, &item);
-                if (f.name.value().as_str() == "some_func") {
-                    eprintln!(",module{}::{}", module_name, f.name);
-                }
                 scopes.enter_top_item(
                     self,
                     addr,
