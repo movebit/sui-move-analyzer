@@ -134,7 +134,7 @@ export class Context {
                     }
 
                     this.didChangeTimer = setTimeout(() => {
-                        next(data);  // 只发送最后一次
+                        next(data);  // only handle last event
                         this.didChangeTimer = null;
                     }, 300);
 
