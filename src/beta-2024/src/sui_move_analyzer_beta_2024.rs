@@ -40,8 +40,10 @@ use threadpool::ThreadPool;
 // only for diag
 static DIAG_THREAD_POOL: Lazy<ThreadPool> = Lazy::new(|| ThreadPool::new(2));
 
-pub fn try_reload_projects(context: &mut Context) {
-    context.projects.try_reload_projects(&context.connection);
+pub fn try_reload_projects(context: &mut Context, implicit_deps: Dependencies) {
+    context
+        .projects
+        .try_reload_projects(&context.connection, implicit_deps);
 }
 
 pub fn on_request(
@@ -244,7 +246,7 @@ pub fn on_notification(
                     diag_sender,
                     fpath.clone(),
                     true,
-                    implicit_deps,
+                    implicit_deps.clone(),
                 ),
                 Err(err) => {
                     eprintln!("Could not write to vfs file for saved document, {:?}", err);
@@ -269,7 +271,7 @@ pub fn on_notification(
                     diag_sender,
                     fpath.clone(),
                     true,
-                    implicit_deps,
+                    implicit_deps.clone(),
                 ),
                 Err(err) => {
                     eprintln!(
@@ -310,7 +312,7 @@ pub fn on_notification(
                     diag_sender,
                     fpath.clone(),
                     false,
-                    implicit_deps,
+                    implicit_deps.clone(),
                 ),
                 Err(err) => {
                     eprintln!("Could not update to vfs file for open document , {:?}", err);
@@ -330,7 +332,10 @@ pub fn on_notification(
                 }
             };
 
-            let p = match context.projects.load_project(&context.connection, &mani) {
+            let p = match context
+                .projects
+                .load_project(&context.connection, &mani, implicit_deps)
+            {
                 anyhow::Result::Ok(x) => x,
                 anyhow::Result::Err(e) => {
                     log::error!("load project failed,err:{:?}", e);

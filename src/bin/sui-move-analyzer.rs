@@ -240,7 +240,7 @@ fn main() {
                             try_reload_projects_alpha_2024(&mut context_manager.context_alpha_2024);
                             on_request_alpha_2024(&mut context_manager.context_alpha_2024, &request , &mut inlay_hints_config_alpha_2024);
                         } else if version == "beta_2024" {
-                            try_reload_projects_beta_2024(&mut context_manager.context_beta_2024);
+                            try_reload_projects_beta_2024(&mut context_manager.context_beta_2024, implicit_deps.clone());
                             on_request_beta_2024(&mut context_manager.context_beta_2024, &request, &mut inlay_hints_config_beta_2024);
                         } else {
                             eprintln!("On_Request Error: could not parse compiler version from Move.toml. Error version {:?}", version);

@@ -5,7 +5,9 @@
 use super::{item::*, project_context::*, types::*, utils::*};
 use crate::context::MultiProject;
 use anyhow::{Ok, Result};
-use move_package::source_package::parsed_manifest::{DependencyKind, GitInfo, OnChainInfo};
+use move_package::source_package::parsed_manifest::{
+    Dependencies, Dependency, DependencyKind, GitInfo, OnChainInfo, SourceManifest,
+};
 use once_cell::sync::Lazy;
 
 use move_command_line_common::files::FileHash;
@@ -84,6 +86,7 @@ impl Project {
         root_dir: impl Into<PathBuf>,
         multi: &mut MultiProject,
         report_err: impl FnMut(String) + Clone,
+        implicit_deps: Dependencies,
     ) -> Result<Self> {
         let working_dir = root_dir.into();
         log::info!("scan modules at {:?}", &working_dir);
@@ -100,7 +103,14 @@ impl Project {
             dependents: vec![],
         };
         let mut dependents_paths: Vec<PathBuf> = Vec::new();
-        modules.load_project(&working_dir, multi, report_err, true, &mut dependents_paths)?;
+        modules.load_project(
+            &working_dir,
+            multi,
+            report_err,
+            true,
+            &mut dependents_paths,
+            implicit_deps,
+        )?;
         modules.dependents = dependents_paths
             .into_iter()
             .map(|p| p.to_string_lossy().to_string())
@@ -151,10 +161,10 @@ impl Project {
         mut report_err: impl FnMut(String) + Clone,
         is_main_source: bool,
         dependents_paths: &mut Vec<PathBuf>,
+        implicit_deps: Dependencies,
     ) -> Result<()> {
         let manifest_path = normal_path(manifest_path);
         if self.modules.get(&manifest_path).is_some() {
-            log::info!("manifest '{:?}' loaded before skipped.", &manifest_path);
             return Ok(());
         }
         self.manifest_paths.push(manifest_path.clone());
@@ -202,12 +212,11 @@ impl Project {
             }
         };
         self.manifests.push(manifest.clone());
+
+        let all_deps = merge_implicit_deps_to_manifest(&manifest, implicit_deps.clone());
+
         // load depends.
-        for (dep_name, de) in manifest
-            .dependencies
-            .iter()
-            .chain(manifest.dev_dependencies.iter())
-        {
+        for (dep_name, de) in all_deps.iter() {
             let move_home = Lazy::new(|| {
                 std::env::var("MOVE_HOME").unwrap_or_else(|_| {
                     format!(
@@ -279,7 +288,14 @@ impl Project {
                 &manifest_path,
                 dep_name
             );
-            self.load_project(&p, multi, report_err.clone(), false, dependents_paths)?;
+            self.load_project(
+                &p,
+                multi,
+                report_err.clone(),
+                false,
+                dependents_paths,
+                implicit_deps.clone(),
+            )?;
         }
         Ok(())
     }
@@ -882,14 +898,6 @@ impl Project {
         }
     }
 
-    pub(crate) fn get_dotcall_ret_type(
-        &self,
-        pre_ty: ResolvedType,
-        func_name: &Name,
-    ) -> ResolvedType {
-        ResolvedType::UnKnown
-    }
-
     pub(crate) fn visit_struct_tparam(
         &self,
         t: &DatatypeTypeParameter,
@@ -1467,4 +1475,45 @@ impl Project {
             }
         })
     }
+}
+
+fn merge_implicit_deps_to_manifest(
+    manifest: &SourceManifest,
+    mut implicit_deps: Dependencies,
+) -> Dependencies {
+    let mut merged = manifest.dev_dependencies.clone();
+    for (k, v) in manifest.dependencies.iter() {
+        merged.entry(*k).or_insert(v.clone()); // 如果 key 已经存在，不覆盖
+    }
+
+    let mut implicit_version_in_mani_dep = None;
+    for (pkg_name, d) in implicit_deps.iter() {
+        if merged.contains_key(pkg_name) {
+            implicit_version_in_mani_dep = Some(d.clone());
+        }
+    }
+
+    // if sui-framework have been in manifest,
+    if let Some(dep) = implicit_version_in_mani_dep {
+        let Dependency::Internal(i) = dep else {
+            return merged;
+        };
+
+        let DependencyKind::Git(g) = &i.kind else {
+            return merged;
+        };
+
+        for d in implicit_deps.iter_mut() {
+            if let Dependency::Internal(i) = d.1 {
+                if let DependencyKind::Git(g2) = &mut i.kind {
+                    g2.git_rev = g.git_rev.clone();
+                }
+            }
+        }
+    }
+
+    for (k, v) in implicit_deps.iter() {
+        merged.entry(*k).or_insert(v.clone());
+    }
+    merged
 }

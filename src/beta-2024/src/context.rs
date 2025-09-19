@@ -10,7 +10,7 @@ use lsp_types::{notification::Notification, MessageType};
 use move_command_line_common::files::FileHash;
 use move_compiler::parser::ast::Definition;
 use move_ir_types::location::Loc;
-use move_package::source_package::layout::SourcePackageLayout;
+use move_package::source_package::{layout::SourcePackageLayout, parsed_manifest::Dependencies};
 use std::{
     cell::RefCell,
     collections::HashMap,
@@ -51,6 +51,7 @@ impl MultiProject {
         &mut self,
         sender: &lsp_server::Connection,
         mani: &PathBuf,
+        implicit_deps: Dependencies,
     ) -> anyhow::Result<Project> {
         if LOAD_DEPS {
             use std::{
@@ -91,9 +92,12 @@ impl MultiProject {
                 return anyhow::Result::Err(anyhow::anyhow!("fetch deps failed"));
             }
         }
-        Project::new(mani, self, |msg: String| {
-            send_show_message(sender, MessageType::ERROR, msg)
-        })
+        Project::new(
+            mani,
+            self,
+            |msg: String| send_show_message(sender, MessageType::ERROR, msg),
+            implicit_deps.clone(),
+        )
     }
 
     pub fn new() -> MultiProject {
@@ -199,7 +203,7 @@ impl FileDiags {
 static LOAD_DEPS: bool = false;
 
 impl MultiProject {
-    pub fn try_reload_projects(&mut self, connection: &Connection) {
+    pub fn try_reload_projects(&mut self, connection: &Connection, implicit_deps: Dependencies) {
         let mut all = Vec::new();
         let not_founds = {
             let mut x = Vec::new();
@@ -237,9 +241,12 @@ impl MultiProject {
                 continue;
             }
             eprintln!("reload  {:?}", root_manifest.as_path());
-            let x = match Project::new(root_manifest, self, |msg| {
-                send_show_message(connection, MessageType::ERROR, msg)
-            }) {
+            let x = match Project::new(
+                root_manifest,
+                self,
+                |msg| send_show_message(connection, MessageType::ERROR, msg),
+                implicit_deps.clone(),
+            ) {
                 Ok(x) => x,
                 Err(_) => {
                     log::error!("reload project failed");
@@ -254,9 +261,14 @@ impl MultiProject {
                 MessageType::INFO,
                 format!("trying reload {:?}.", root_manifest.as_path()),
             );
-            let x = match Project::new(root_manifest, self, |msg| {
-                send_show_message(connection, MessageType::ERROR, msg);
-            }) {
+            let x = match Project::new(
+                root_manifest,
+                self,
+                |msg| {
+                    send_show_message(connection, MessageType::ERROR, msg);
+                },
+                implicit_deps.clone(),
+            ) {
                 Ok(x) => x,
                 Err(err) => {
                     send_show_message(
