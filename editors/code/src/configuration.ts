@@ -47,6 +47,10 @@ class Configuration {
 
     /** The path to the sui-move-analyzer executable. */
     get serverPath(): string {
+        if (fs.existsSync(this.defaultServerPath.fsPath)) {
+            return this.defaultServerPath.fsPath;
+        }
+
         const defaultName = 'sui-move-analyzer';
         let serverPath = this.configuration.get<string>('server.path', defaultName);
         if (serverPath.length === 0) {
