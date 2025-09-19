@@ -305,6 +305,18 @@ pub fn on_notification(
                 }
             };
 
+            match context.projects.get_project(&fpath) {
+                Some(_) => {
+                    if let Ok(x) = std::fs::read_to_string(fpath.as_path()) {
+                        update_defs(context, fpath.clone(), x.as_str());
+                    };
+                    return;
+                }
+                None => {
+                    eprintln!("project '{:?}' not found try load.", fpath.as_path());
+                }
+            };
+
             let content = parameters.text_document.text.clone();
             match update_vfs_file(&ide_files_root, fpath.clone(), content.clone(), true) {
                 Ok(_) => make_diag(
@@ -319,18 +331,6 @@ pub fn on_notification(
                     vfs_file_remove(&ide_files_root, fpath.clone());
                 }
             }
-
-            match context.projects.get_project(&fpath) {
-                Some(_) => {
-                    if let Ok(x) = std::fs::read_to_string(fpath.as_path()) {
-                        update_defs(context, fpath.clone(), x.as_str());
-                    };
-                    return;
-                }
-                None => {
-                    eprintln!("project '{:?}' not found try load.", fpath.as_path());
-                }
-            };
 
             let p = match context
                 .projects
