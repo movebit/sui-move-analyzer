@@ -168,7 +168,7 @@ impl Project {
             return Ok(());
         }
         self.manifest_paths.push(manifest_path.clone());
-        log::info!("load manifest file at {:?}", &manifest_path);
+        log::debug!("load manifest file at {:?}", &manifest_path);
         if let Some(x) = multi.asts.get(&manifest_path) {
             self.modules.insert(manifest_path.clone(), x.clone());
         } else {
@@ -283,7 +283,7 @@ impl Project {
                 Dependency::Internal(x) => local_path(&x.kind),
             };
             let p = path_concat(manifest_path.as_path(), &de_path);
-            log::info!(
+            log::debug!(
                 "load dependency for '{:?}' dep_name '{}'",
                 &manifest_path,
                 dep_name
@@ -554,11 +554,17 @@ impl Project {
     pub(crate) fn initialize_fun_call(
         &self,
         project_context: &ProjectContext,
-        name: &NameAccessChain,
+        name: Option<&NameAccessChain>,
+        fun_type: Option<Item>,
         type_args: &Option<Vec<Type>>,
         exprs: &Spanned<Vec<Exp>>,
     ) -> Option<ResolvedType> {
-        let (fun_type, _) = project_context.find_name_chain_item(name, self);
+        let fun_type = if let Some(name) = name {
+            project_context.find_name_chain_item(name, self).0
+        } else {
+            fun_type
+        };
+
         let fun_type = fun_type.unwrap_or_default().to_type().unwrap_or_default();
         match &fun_type {
             ResolvedType::Lambda { .. } => Some(fun_type),
@@ -591,6 +597,13 @@ impl Project {
                             .collect::<Vec<_>>(),
                         &exprs_types,
                     );
+                    log::debug!(
+                        "infer_type_parameter_on_expression, {:?}, parameters: {}, para_expr.len(): {}, get_types{:?}",
+                        types,
+                        parameters.len(),
+                        exprs_types.len(),
+                        types
+                    );
                 }
                 fun_type.bind_type_parameter(&types);
                 Some(fun_type)
@@ -598,6 +611,33 @@ impl Project {
             _ => None,
         }
     }
+
+    // pub fn initialize_dot_fun_call(&self, project_context: &ProjectContext, fun_type: Item) {
+    //     let fun_type = fun_type.to_type().unwrap_or_default();
+    //     match &fun_type {
+    //         ResolvedType::Lambda { .. } => Some(fun_type),
+    //         ResolvedType::Fun(x) => {
+    //             let type_parameters = &x.type_parameters;
+    //             let parameters = &x.parameters;
+    //             let type_args: Option<Vec<ResolvedType>> = type_args.as_ref().map(|type_args| {
+    //                 type_args
+    //                     .iter()
+    //                     .map(|x| project_context.resolve_type(x, self))
+    //                     .collect()
+    //             });
+    //             let mut fun_type = fun_type.clone();
+    //             let mut types: HashMap<Symbol, ResolvedType> = HashMap::new();
+    //             if let Some(ref ts) = type_args {
+    //                 for (para, args) in type_parameters.iter().zip(ts.iter()) {
+    //                     types.insert(para.0.value, args.clone());
+    //                 }
+    //             }
+    //             fun_type.bind_type_parameter(&types);
+    //             Some(fun_type)
+    //         }
+    //         _ => None,
+    //     }
+    // }
 
     /// Get A Type for exprme if possible otherwise Unknown is return.
     pub(crate) fn get_expr_type(
@@ -676,14 +716,37 @@ impl Project {
                     }
                     _ => {}
                 }
-                let ty = self.initialize_fun_call(project_context, name, &type_args, exprs);
+                let ty =
+                    self.initialize_fun_call(project_context, Some(name), None, &type_args, exprs);
                 match ty.unwrap_or_default() {
                     ResolvedType::Fun(x) => x.ret_type.as_ref().clone(),
                     ResolvedType::Lambda { ret_ty, .. } => ret_ty.as_ref().clone(),
                     _ => ResolvedType::UnKnown,
                 }
             }
+            Exp_::DotCall(pre_expr, _, func_name, _, type_args, exprs) => {
+                log::debug!("op_ty {:?}", type_args);
+                let Some(item) =
+                    project_context.find_name_corresponding_item(self, pre_expr, func_name)
+                else {
+                    return ResolvedType::UnKnown;
+                };
+                let mut exprs = exprs.clone();
+                exprs.value.insert(0, (**pre_expr).clone());
+                let ty = self.initialize_fun_call(
+                    project_context,
+                    None,
+                    Some(item.clone()),
+                    type_args,
+                    &exprs,
+                );
 
+                match ty.unwrap_or_default() {
+                    ResolvedType::Fun(x) => x.ret_type.as_ref().clone(),
+                    ResolvedType::Lambda { ret_ty, .. } => ret_ty.as_ref().clone(),
+                    _ => ResolvedType::UnKnown,
+                }
+            }
             Exp_::Pack(name, fields) => {
                 let (struct_item, _) = project_context.find_name_chain_item(name, self);
                 let struct_item = match struct_item {
@@ -849,19 +912,24 @@ impl Project {
                     ResolvedType::Ref(_, ty) => ty.as_ref(),
                     _ => &ty,
                 };
+                log::debug!("dot result{}, exp: {:?}, name: {:?}", ty, e, name);
                 match ty {
                     ResolvedType::Struct(_, _) => {
                         let s = ty.struct_ref_to_struct(project_context);
                         if let Some(field) = s.find_filed_by_name(name.value) {
+                            log::debug!("find field {}", field.1);
                             field.1.clone()
                         } else {
+                            log::debug!("not find field");
                             ResolvedType::UnKnown
                         }
                     }
-                    _ => ResolvedType::UnKnown,
+                    _ => {
+                        log::debug!("other ty");
+                        ResolvedType::UnKnown
+                    }
                 }
             }
-
             Exp_::Index(e, _index) => {
                 let ty = self.get_expr_type(e, project_context);
                 let ty = match &ty {
@@ -873,29 +941,47 @@ impl Project {
                     _ => ty,
                 }
             }
-
             Exp_::Cast(_, ty) => project_context.resolve_type(ty, self),
             Exp_::Annotate(_, ty) => project_context.resolve_type(ty, self),
             Exp_::Spec(_) => ResolvedType::new_unit(),
-            Exp_::DotCall(pre_expr, _, func_name, _, _, _) => {
-                let Some(item) =
-                    project_context.find_name_corresponding_item(self, pre_expr, func_name)
-                else {
-                    return ResolvedType::UnKnown;
-                };
-
-                if let Item::Fun(item_fun) = item {
-                    item_fun.ret_type.as_ref().clone()
-                } else {
-                    ResolvedType::UnKnown
-                }
-            }
             _ => {
-                eprintln!("other exp:{:?}", expr.value);
                 // Nothings. didn't know what to do.
                 ResolvedType::UnKnown
             }
         }
+    }
+
+    /// Collects the chain of sub-expressions before a dot-style call.
+    ///
+    /// Example:
+    ///   For expression `a.b.c` this function will collect `[a, a.b, a.b.c]`
+    ///   in left-to-right order, representing the type chain `(t1, t2, t3)`.
+    pub(crate) fn collect_expr_before_dotcall(
+        &self,
+        expr: &Exp,
+        project_context: &ProjectContext,
+        exprs: &mut Vec<Exp>,
+    ) {
+        fn collect(expr: &Exp, project_context: &ProjectContext, exprs: &mut Vec<Exp>) {
+            exprs.push(expr.clone());
+            match &expr.value {
+                Exp_::Move(_, e)
+                | Exp_::Copy(_, e)
+                | Exp_::Dereference(e)
+                | Exp_::UnaryExp(_, e)
+                | Exp_::Borrow(_, e)
+                | Exp_::Dot(e, _, _)
+                | Exp_::Index(e, _)
+                | Exp_::DotCall(e, _, _, _, _, _) => {
+                    collect(e, project_context, exprs);
+                }
+
+                _ => {}
+            }
+        }
+
+        collect(expr, project_context, exprs);
+        exprs.reverse();
     }
 
     pub(crate) fn visit_struct_tparam(
@@ -984,6 +1070,7 @@ pub(crate) fn infer_type_parameter_on_expression(
     parameters: &[ResolvedType],
     expression_types: &[ResolvedType],
 ) {
+    log::debug!("sign ty: {:?}, expr_ty: {:?}", parameters, expression_types);
     for (p, expr_type) in parameters.iter().zip(expression_types.iter()) {
         bind(ret, p, expr_type);
     }
@@ -1003,6 +1090,8 @@ pub(crate) fn infer_type_parameter_on_expression(
             ResolvedType::Ref(_, l) => {
                 if let ResolvedType::Ref(_, r) = expr_type {
                     bind(ret, l.as_ref(), r.as_ref())
+                } else {
+                    bind(ret, l.as_ref(), expr_type)
                 }
             }
             ResolvedType::Unit => {}

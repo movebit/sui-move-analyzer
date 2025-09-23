@@ -539,11 +539,27 @@ impl ProjectContext {
     pub(crate) fn find_name_chain_item(
         &self,
         chain: &NameAccessChain,
-        _name_to_addr: &impl Name2Addr,
+        project: &Project,
     ) -> (
         Option<Item>,
         Option<AddrAndModuleName>, /* with a possible module loc returned  */
     ) {
+        let get_addr = |module: &ModuleIdent| -> AccountAddress {
+            match &module.value.address.value {
+                LeadingNameAccess_::AnonymousAddress(num) => num.into_inner(),
+                LeadingNameAccess_::Name(name) => project.name_to_addr_impl(name.value),
+                LeadingNameAccess_::GlobalAddress(name) => project.name_to_addr_impl(name.value),
+            }
+        };
+
+        let option_rc_refcell_to_option =
+            |opt: Option<Rc<RefCell<ModuleScope>>>| -> Option<AddrAndModuleName> {
+                let Some(ms) = opt.as_ref().map(|rc| rc.borrow().clone()) else {
+                    return None;
+                };
+                Some(ms.name_and_addr)
+            };
+
         let mut item_ret = None;
         let mut module_scope = None;
         match &chain.value {
@@ -559,7 +575,22 @@ impl ProjectContext {
                             Item::Use(x) => {
                                 for x in x.iter() {
                                     match x {
-                                        ItemUse::Module(_) => {}
+                                        ItemUse::Module(ItemUseModule { module_ident, .. }) => {
+                                            module_scope =
+                                                option_rc_refcell_to_option(self.visit_address(
+                                                    |top| -> Option<Rc<RefCell<ModuleScope>>> {
+                                                        let x = top
+                                                            .address
+                                                            .get(&get_addr(module_ident))?
+                                                            .modules
+                                                            .get(
+                                                                &module_ident.value.module.0.value,
+                                                            )?
+                                                            .clone();
+                                                        Some(x)
+                                                    },
+                                                ));
+                                        }
                                         ItemUse::Item(_) => {
                                             item_ret = Some(v.clone());
                                             return true;
@@ -633,7 +664,6 @@ impl ProjectContext {
                         });
                     }
                     LeadingNameAccess_::AnonymousAddress(addr) => {
-                        eprintln!("LeadingNameAccess_::AnonymousAddress");
                         let x = self.visit_address(|x| -> Option<AddrAndModuleName> {
                             Some(
                                 x.address
@@ -661,6 +691,7 @@ impl ProjectContext {
         item_name: &move_compiler::shared::Name,
     ) -> Option<Item> {
         let struct_ty = project.get_expr_type(pre_expr, self);
+        log::debug!("pre expr type: {:?}", struct_ty);
         let struct_ty = match &struct_ty {
             ResolvedType::Ref(_, ty) => ty.as_ref(),
             _ => &struct_ty,
@@ -669,6 +700,7 @@ impl ProjectContext {
 
         let visit_fn = |s: Scope| {
             if let Some(v) = if let Some(x) = s.items.get(&item_name.value) {
+                log::debug!("visit_fn :{:?}", x);
                 Some(x)
             } else {
                 None
@@ -684,9 +716,8 @@ impl ProjectContext {
         };
         self.inner_first_visit(|s| {
             let found_item = visit_fn(s.clone());
-            if found_item.is_some() && is_member_function_of_type(&struct_ty, &found_item.as_ref())
-            {
-                item_ret = found_item;
+            if let Some(item) = get_ty_with_generic_type(struct_ty, found_item) {
+                item_ret = Some(item);
                 return true;
             }
             for (_, use_item) in &s.uses {
@@ -694,23 +725,29 @@ impl ProjectContext {
                     for x in item_use_vec {
                         match x {
                             ItemUse::Module(ItemUseModule { members, .. }) => {
-                                if let Some(item) =
-                                    members.as_ref().borrow().module.items.get(&item_name.value)
-                                {
-                                    if is_member_function_of_type(&struct_ty, &Some(&item)) {
-                                        item_ret = Some(item.clone());
-                                        return true;
-                                    }
+                                let item = members
+                                    .as_ref()
+                                    .borrow()
+                                    .module
+                                    .items
+                                    .get(&item_name.value)
+                                    .cloned();
+                                if let Some(item) = get_ty_with_generic_type(struct_ty, item) {
+                                    item_ret = Some(item);
+                                    return true;
                                 }
                             }
                             ItemUse::Item(ItemUseItem { members, .. }) => {
-                                if let Some(item) =
-                                    members.as_ref().borrow().module.items.get(&item_name.value)
-                                {
-                                    if is_member_function_of_type(&struct_ty, &Some(&item)) {
-                                        item_ret = Some(item.clone());
-                                        return true;
-                                    }
+                                let item = members
+                                    .as_ref()
+                                    .borrow()
+                                    .module
+                                    .items
+                                    .get(&item_name.value)
+                                    .cloned();
+                                if let Some(item) = get_ty_with_generic_type(struct_ty, item) {
+                                    item_ret = Some(item);
+                                    return true;
                                 }
                             }
                         }
@@ -865,10 +902,10 @@ impl ProjectContext {
     pub(crate) fn resolve_type(&self, ty: &Type, name_to_addr: &impl Name2Addr) -> ResolvedType {
         let r = match &ty.value {
             Type_::Apply(ref chain) => {
-                let types = Default::default();
+                let mut types = Default::default();
                 if let NameAccessChain_::Single(path_entry) = &chain.value {
                     // Special handle for vector.
-                    let types = match path_entry.clone().tyargs {
+                    types = match path_entry.clone().tyargs {
                         Some(x) => x
                             .value
                             .iter()
@@ -881,9 +918,10 @@ impl ProjectContext {
                     if path_entry.name.value.as_str() == "vector" {
                         // let e_ty = types.get(0).unwrap_or(&UNKNOWN_TYPE).clone();
                         return ResolvedType::new_vector(e_ty);
+                    } else if BuildInType::is_num_types_str(path_entry.name.value.as_str()) {
+                        return ResolvedType::new_build_in_from_str(path_entry.name.value.as_str());
                     }
                 }
-
                 let (chain_ty, _) = self.find_name_chain_ty(chain, name_to_addr);
                 let mut chain_ty = chain_ty.unwrap_or_default();
                 let chain_ty = match &mut chain_ty {
@@ -1316,13 +1354,36 @@ impl Drop for ScopesGuarder {
     }
 }
 
-fn is_member_function_of_type(ty: &ResolvedType, item: &Option<&Item>) -> bool {
-    if let Some(Item::Fun(f)) = item {
+fn is_member_function_of_type(ty: &ResolvedType, item: Option<Item>) -> Option<ItemFun> {
+    if let Some(Item::Fun(mut f)) = item {
+        log::debug!("visit_fn 2:{}", f);
         if let Some(first_para) = f.parameters.get(0) {
+            log::debug!("first_para {}, pre_ty {}", first_para.1, ty);
             if &first_para.1 == ty {
-                return true;
+                return Some(f.clone());
             }
         }
     }
-    false
+    None
+}
+
+fn get_ty_with_generic_type(ty: &ResolvedType, item: Option<Item>) -> Option<Item> {
+    use std::collections::HashMap;
+
+    let Some(mut fun) = is_member_function_of_type(ty, item) else {
+        return None;
+    };
+
+    let mut generic_type_in_preious = vec![];
+    ty.collect_type_parameters(&mut generic_type_in_preious);
+    Some(Item::Fun(fun))
+
+    // if fun.type_parameters.len() == generic_type_in_preious.len() {
+    //     if let ResolvedType::Vec(vec_generic_ty) = ty {
+
+    //     }
+    //     eprintln!("collect_type_parameters: {:?}, fun: {}", generic_type, fun);
+    // } else {
+    //     None
+    // }
 }

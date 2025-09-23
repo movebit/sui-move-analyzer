@@ -147,7 +147,6 @@ impl Project {
     ) -> Result<()> {
         let manifest_path = normal_path(manifest_path);
         if self.modules.get(&manifest_path).is_some() {
-            log::info!("manifest '{:?}' loaded before skipped.", &manifest_path);
             return Ok(());
         }
         self.manifest_paths.push(manifest_path.clone());

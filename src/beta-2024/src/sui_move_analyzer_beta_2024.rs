@@ -167,7 +167,7 @@ pub fn on_notification(
             );
             return None;
         };
-        eprintln!("vfs_file_create: {:?}", vfs_path);
+        log::debug!("vfs_file_create: {:?}", vfs_path);
         if first_access {
             // create all directories on first access, otherwise file creation will fail
             if vfs_path.parent().create_dir_all().is_err() {
@@ -305,18 +305,6 @@ pub fn on_notification(
                 }
             };
 
-            match context.projects.get_project(&fpath) {
-                Some(_) => {
-                    if let Ok(x) = std::fs::read_to_string(fpath.as_path()) {
-                        update_defs(context, fpath.clone(), x.as_str());
-                    };
-                    return;
-                }
-                None => {
-                    eprintln!("project '{:?}' not found try load.", fpath.as_path());
-                }
-            };
-
             let content = parameters.text_document.text.clone();
             match update_vfs_file(&ide_files_root, fpath.clone(), content.clone(), true) {
                 Ok(_) => make_diag(
@@ -331,6 +319,18 @@ pub fn on_notification(
                     vfs_file_remove(&ide_files_root, fpath.clone());
                 }
             }
+
+            match context.projects.get_project(&fpath) {
+                Some(_) => {
+                    if let Ok(x) = std::fs::read_to_string(fpath.as_path()) {
+                        update_defs(context, fpath.clone(), x.as_str());
+                    };
+                    return;
+                }
+                None => {
+                    eprintln!("project '{:?}' not found try load.", fpath.as_path());
+                }
+            };
 
             let p = match context
                 .projects
@@ -352,6 +352,13 @@ pub fn on_notification(
                     .expect("could not deserialize DidCloseTextDocumentParams request");
             let fpath = parameters.text_document.uri.to_file_path().unwrap();
             vfs_file_remove(&ide_files_root, fpath.clone());
+            make_diag(
+                ide_files_root.clone(),
+                diag_sender,
+                fpath.clone(),
+                false,
+                implicit_deps.clone(),
+            );
             let fpath = path_concat(&std::env::current_dir().unwrap(), &fpath);
             let (_, _) = match crate::utils::discover_manifest_and_kind(&fpath) {
                 Some(x) => x,
@@ -472,7 +479,7 @@ fn make_diag(
     file_to_diag: bool,
     implicit_deps: Dependencies,
 ) {
-    log::info!("make_diag(beta) >>");
+    log::debug!("make_diag(beta) >>");
     let (mani, _) = match crate::utils::discover_manifest_and_kind(fpath.as_path()) {
         Some(x) => x,
         None => {
@@ -487,7 +494,6 @@ fn make_diag(
     let fpath = fpath.clone();
 
     DIAG_THREAD_POOL.execute(move || {
-        log::info!("in threadpool worker, about get_package_compile_diagnostics(beta)");
         let x = match get_package_compile_diagnostics(
             ide_files_root.clone(),
             &fpath,
@@ -495,7 +501,7 @@ fn make_diag(
             implicit_deps,
         ) {
             Ok(x) => {
-                log::info!("in worker, get(beta) diags success");
+                log::debug!("in worker, get(beta) diags success");
                 x
             }
             Err(err) => {
@@ -599,9 +605,17 @@ pub fn send_diag(context: &mut Context, mani: PathBuf, x: DiagnosticsBeta2024) {
         }
     }
     // update version.
+    // update version.
     for (k, v) in result.iter() {
         context.diag_version.update(&mani, k, v.len());
     }
+    context.diag_version.with_manifest(&mani, |x| {
+        for (old, v) in x.iter() {
+            if !result.contains_key(old) && *v > 0 {
+                result.insert(old.clone(), vec![]);
+            }
+        }
+    });
     for (k, x) in result.iter() {
         if x.is_empty() {
             context.diag_version.update(&mani, k, 0);
@@ -628,10 +642,8 @@ pub fn read_move_toml(path: &Path) -> Option<PathBuf> {
     let move_toml_path = path.join("Move.toml");
 
     if move_toml_path.exists() {
-        // 如果存在 Move.toml 文件，则尝试读取内容并返回
         Some(move_toml_path)
     } else {
-        // 如果不存在 Move.toml 文件，则递归查找上一级目录
         let parent = path.parent()?;
         if parent != Path::new("") {
             read_move_toml(parent)

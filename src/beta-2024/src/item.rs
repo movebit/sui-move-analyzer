@@ -50,6 +50,17 @@ impl ItemStruct {
         });
         m
     }
+
+    pub(crate) fn collect_type_parameters(&self) -> HashMap<Symbol, ResolvedType> {
+        let mut types_map: HashMap<Symbol, ResolvedType> = Default::default();
+        self.type_parameters
+            .iter()
+            .zip(self.type_parameters_ins.iter())
+            .for_each(|x| {
+                types_map.insert(x.0.name.value.clone(), x.1.clone());
+            });
+        types_map
+    }
 }
 
 impl ItemStruct {
@@ -130,14 +141,7 @@ impl std::fmt::Debug for Item {
             Item::Struct(_) => "Struct(ItemStruct)",
             Item::StructNameRef(_) => "StructNameRef(ItemStructNameRef)",
             Item::Fun(func) => {
-                let param_str = func
-                    .parameters
-                    .iter()
-                    .map(|p| format!("{}", p.1)) // 调用 ResolvedType 的 Display
-                    .collect::<Vec<_>>()
-                    .join(", ");
-
-                return write!(f, "item::Func({}({}), ...)", func.name, param_str);
+                return write!(f, "item::Func[{}])", func);
             }
             Item::MoveBuildInFun(_) => "MoveBuildInFun(MoveBuildInFun)",
             Item::SpecBuildInFun(_) => "SpecBuildInFun(SpecBuildInFun)",
@@ -211,6 +215,7 @@ pub struct ItemStructNameRef {
     pub(crate) module_name: Symbol,
     pub(crate) name: DatatypeName,
     pub(crate) type_parameters: Vec<DatatypeTypeParameter>,
+    // pub(crate) type_parameters_ins: Vec<ResolvedType>,
     pub(crate) is_test: bool,
 }
 
@@ -218,8 +223,10 @@ pub struct ItemStructNameRef {
 pub struct ItemFun {
     pub(crate) name: FunctionName,
     pub(crate) type_parameters: Vec<(Name, Vec<Ability>)>,
+    // pub(crate) type_parameters_ty: Vec<ResolvedType>, // for generic type
     pub(crate) parameters: Vec<(Var, ResolvedType)>,
     pub(crate) ret_type: Box<ResolvedType>,
+    // pub(crate) ret_generic_type: Option<u8>, // the return generic type's index in `type_parameters`
     pub(crate) is_spec: bool,
     pub(crate) vis: Visibility,
     pub(crate) addr_and_name: AddrAndModuleName,
@@ -312,7 +319,10 @@ impl Item {
     pub(crate) fn to_type(&self) -> Option<ResolvedType> {
         let x = match self {
             Item::TParam(name, ab) => ResolvedType::TParam(*name, ab.clone()),
-            Item::Struct(x) => ResolvedType::Struct(x.to_struct_ref(), Default::default()),
+            Item::Struct(x) => ResolvedType::Struct(
+                x.to_struct_ref(),
+                x.fields.iter().map(|field| field.1.clone()).collect(),
+            ),
             Item::StructNameRef(x) => ResolvedType::Struct(x.clone(), Default::default()),
             Item::BuildInType(b) => ResolvedType::BuildInType(*b),
             Item::Parameter(_, ty) | Item::Var { ty, .. } | Item::Const(ItemConst { ty, .. }) => {
@@ -675,7 +685,7 @@ impl Access {
             },
 
             Self::ApplyType(chain, Option::Some(module), _) => match &chain.value {
-                NameAccessChain_::Single(_) => None,
+                NameAccessChain_::Single(path_entry) => Some((path_entry.name.loc, module.loc())),
                 NameAccessChain_::Path(name_path) => Some((name_path.root.name.loc, module.loc())),
             },
 

@@ -298,7 +298,18 @@ impl Project {
                             if visitor.finished() {
                                 return;
                             }
+
+                            // if let Type_::Apply(chain) = &ty.value {
+                            //     self.visit_namechain_tyargs(project_context, visitor, chain);
+                            // }
+
+                            log::debug!(
+                                "\n-------------\nstruct field: ty{:?}, loc{:?}",
+                                ty.value,
+                                self.convert_loc_range(&ty.loc)
+                            );
                             let ty = scopes.resolve_type(ty, self);
+                            log::debug!("resolve_type: {:?}\n-------------\n", ty);
                             {
                                 let item = ItemOrAccess::Item(Item::Field(*f, ty.clone()));
                                 visitor.handle_item_or_access(self, scopes, &item);
@@ -357,12 +368,19 @@ impl Project {
                         return;
                     }
                 }
-                let params: Vec<_> = s
+                let params: Vec<(Var, ResolvedType)> = s
                     .parameters
                     .iter()
                     .map(|(_, var, ty)| (*var, scopes.resolve_type(ty, self)))
                     .collect();
                 let ret = scopes.resolve_type(&s.return_type, self);
+                log::debug!(
+                    "enter function: {}, yuan: {:?}, pars: {:?}, ret {:?}",
+                    f.name,
+                    s.parameters.len(),
+                    params,
+                    ret
+                );
                 let item = Item::Fun(ItemFun {
                     name: f.name,
                     type_parameters: ts,
@@ -663,6 +681,40 @@ impl Project {
         }
     }
 
+    pub(crate) fn visit_tyargs(
+        &self,
+        project_context: &ProjectContext,
+        visitor: &mut dyn ItemOrAccessHandler,
+        tyargs: &Option<Spanned<Vec<Type>>>,
+    ) {
+        let Some(tyargs) = tyargs else {
+            return;
+        };
+        tyargs
+            .value
+            .iter()
+            .for_each(|ty| self.visit_type_apply(ty, project_context, visitor));
+    }
+
+    pub(crate) fn visit_namechain_tyargs(
+        &self,
+        project_context: &ProjectContext,
+        visitor: &mut dyn ItemOrAccessHandler,
+        chain: &NameAccessChain,
+    ) {
+        match &chain.value {
+            NameAccessChain_::Single(path_entry) => {
+                self.visit_tyargs(project_context, visitor, &path_entry.tyargs);
+            }
+            NameAccessChain_::Path(name_path) => {
+                self.visit_tyargs(project_context, visitor, &name_path.root.tyargs);
+                for path_entry in name_path.entries.iter() {
+                    self.visit_tyargs(project_context, visitor, &path_entry.tyargs);
+                }
+            }
+        }
+    }
+
     pub(crate) fn visit_expr(
         &self,
         exp: &Exp,
@@ -728,6 +780,8 @@ impl Project {
                 self.visit_expr(expr.as_ref(), project_context, visitor);
             }
             Exp_::Name(chain) => {
+                self.visit_namechain_tyargs(project_context, visitor, chain);
+
                 let (item, module) = project_context.find_name_chain_item(chain, self);
                 let item = ItemOrAccess::Access(Access::ExprAccessChain(
                     chain.clone(),
@@ -739,6 +793,11 @@ impl Project {
             }
 
             Exp_::Call(ref chain, ref exprs) => {
+                log::debug!(
+                    "exp::call {:?}, {:?}",
+                    chain,
+                    self.convert_loc_range(&chain.loc)
+                );
                 let chain_clone = chain.clone();
                 match chain_clone.value {
                     NameAccessChain_::Single(path_entry) => {
@@ -759,8 +818,10 @@ impl Project {
                             None
                         }
                     }
-                    NameAccessChain_::Path(_) => None,
+                    _ => None,
                 };
+
+                self.visit_namechain_tyargs(project_context, visitor, chain);
 
                 let (item, module) = project_context.find_name_chain_item(chain, self);
 
@@ -786,7 +847,7 @@ impl Project {
 
                 // try visit lambda expr.
                 if let ResolvedType::Fun(x) = self
-                    .initialize_fun_call(project_context, chain, &type_args, exprs)
+                    .initialize_fun_call(project_context, Some(chain), None, &type_args, exprs)
                     .unwrap_or_default()
                 {
                     // TODO we maybe need infer type parameter first.
@@ -815,6 +876,7 @@ impl Project {
                     return;
                 }
                 visitor.handle_item_or_access(self, project_context, &item);
+
                 if visitor.finished() {
                     return;
                 }
@@ -827,16 +889,43 @@ impl Project {
                 }
             }
 
-            Exp_::DotCall(pre_expr, _, fun_name, _, _, call_paren_exp) => {
+            Exp_::DotCall(pre_expr, _, fun_name, _, type_args, call_paren_exp) => {
+                log::debug!(
+                    "\n --------------------\nloc: {:?}",
+                    self.convert_loc_range(&fun_name.loc)
+                );
                 self.visit_expr(pre_expr, project_context, visitor);
                 let opt_item =
                     project_context.find_name_corresponding_item(self, pre_expr, fun_name);
+                let opt_item = if opt_item.is_some() {
+                    let mut call_paren_exp = call_paren_exp.clone();
+                    call_paren_exp.value.insert(0, (**pre_expr).clone());
+                    let ty = self
+                        .initialize_fun_call(
+                            project_context,
+                            None,
+                            opt_item.clone(),
+                            type_args,
+                            &call_paren_exp,
+                        )
+                        .unwrap_or_default();
+                    match ty {
+                        ResolvedType::Fun(f) => Some(Item::Fun(f)),
+                        _ => opt_item,
+                    }
+                } else {
+                    opt_item
+                };
+
+                log::debug!("dot call item: {:?}", opt_item);
+
                 let item = ItemOrAccess::Access(Access::ExprAccessChain(
                     Spanned::new(fun_name.loc, NameAccessChain_::single(*fun_name)),
                     None,
                     Box::new(opt_item.unwrap_or_default()),
                 ));
                 visitor.handle_item_or_access(self, project_context, &item);
+                log::debug!("\n --------------------\n");
                 for paren_exp in &call_paren_exp.value {
                     self.visit_expr(&paren_exp, project_context, visitor);
                 }
@@ -1064,14 +1153,21 @@ impl Project {
                 }
                 self.visit_expr(right, project_context, visitor);
             }
-            Exp_::Borrow(is_mut, e) => match &e.value {
-                Exp_::Dot(e, _, f) => {
-                    handle_dot(e, f, project_context, visitor, Some(*is_mut));
+            Exp_::Borrow(is_mut, e) => {
+                log::debug!(
+                    "exp_borrow {:?}, loc {:?}",
+                    e,
+                    self.convert_loc_range(&e.loc)
+                );
+                match &e.value {
+                    Exp_::Dot(e, _, f) => {
+                        handle_dot(e, f, project_context, visitor, Some(*is_mut));
+                    }
+                    _ => {
+                        self.visit_expr(e.as_ref(), project_context, visitor);
+                    }
                 }
-                _ => {
-                    self.visit_expr(e.as_ref(), project_context, visitor);
-                }
-            },
+            }
             Exp_::Dot(e, _, field) => {
                 handle_dot(e, field, project_context, visitor, None);
             }
@@ -1199,8 +1295,20 @@ impl Project {
     ) {
         match &ty.value {
             Type_::Apply(chain) => {
+                log::debug!("Type_::Apply loc:{:?}", self.convert_loc_range(&chain.loc));
+                self.visit_namechain_tyargs(project_context, visitor, chain);
                 let ty = project_context.resolve_type(ty, self);
                 let (_, module) = project_context.find_name_chain_item(chain, self);
+                log::debug!(
+                    "Type_::Apply module:{:?}",
+                    if let Some(ref module) = &module {
+                        log::debug!("loc {:?}", self.convert_loc_range(&module.name.loc()));
+
+                        module.name.to_string()
+                    } else {
+                        "".to_string()
+                    }
+                );
                 let item = ItemOrAccess::Access(Access::ApplyType(
                     chain.as_ref().clone(),
                     module.map(|x| x.name),
@@ -1257,12 +1365,19 @@ impl Project {
                         .modules
                         .get(&module.value.module.0.value)?
                         .clone();
+
                     Some(x)
                 });
             let module_scope = match module_scope {
                 Some(x) => x,
                 None => return None,
             };
+            log::debug!(
+                "get module_scope{}, name:{}, loc{:?}",
+                module_scope.borrow().name_and_addr.addr,
+                module_scope.borrow().name_and_addr.name,
+                self.convert_loc_range(&module_scope.borrow().name_and_addr.name.loc())
+            );
             Some(module_scope)
         };
 

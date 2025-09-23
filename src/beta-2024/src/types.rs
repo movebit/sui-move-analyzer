@@ -43,14 +43,12 @@ pub enum ResolvedType {
 impl PartialEq for ResolvedType {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (ResolvedType::Struct(n1, ts1), ResolvedType::Struct(n2, ts2)) => {
-                n1 == n2 && ts1 == ts2
-            }
+            (ResolvedType::Struct(n1, ts1), ResolvedType::Struct(n2, ts2)) => n1 == n2,
 
             (ResolvedType::BuildInType(b1), ResolvedType::BuildInType(b2)) => b1 == b2,
             (ResolvedType::Ref(_, t1), ResolvedType::Ref(_, t2)) => t1 == t2,
             (ResolvedType::Multiple(v1), ResolvedType::Multiple(v2)) => v1 == v2,
-            (ResolvedType::Vec(t1), ResolvedType::Vec(t2)) => t1 == t2,
+            (ResolvedType::Vec(t1), ResolvedType::Vec(t2)) => true,
 
             (ResolvedType::Ref(_, t1), other) => t1.as_ref() == other,
             (other, ResolvedType::Ref(_, t2)) => other == t2.as_ref(),
@@ -91,6 +89,20 @@ impl ResolvedType {
     #[inline]
     pub(crate) fn new_unit() -> Self {
         ResolvedType::Unit
+    }
+    #[inline]
+    pub(crate) fn new_build_in_from_str(name: &str) -> Self {
+        match name {
+            "bool" => ResolvedType::BuildInType(BuildInType::Bool),
+            "u8" => ResolvedType::BuildInType(BuildInType::U8),
+            "u16" => ResolvedType::BuildInType(BuildInType::U16),
+            "u32" => ResolvedType::BuildInType(BuildInType::U32),
+            "u64" => ResolvedType::BuildInType(BuildInType::U64),
+            "u128" => ResolvedType::BuildInType(BuildInType::U128),
+            "u256" => ResolvedType::BuildInType(BuildInType::U256),
+            "address" => ResolvedType::BuildInType(BuildInType::Address),
+            _ => unreachable!(),
+        }
     }
     #[inline]
     pub(crate) fn new_build_in(b: BuildInType) -> Self {
@@ -169,6 +181,16 @@ impl ResolvedType {
             }
         }
     }
+
+    /// collect type parameter from concrete type
+    pub(crate) fn collect_type_parameters(&self, results: &mut Vec<ResolvedType>) {
+        match self {
+            ResolvedType::Vec(inner) => {
+                results.push(inner.as_ref().clone());
+            }
+            _ => {}
+        }
+    }
 }
 
 impl ResolvedType {
@@ -225,6 +247,13 @@ impl BuildInType {
         }
     }
 
+    pub(crate) fn is_num_types_str(name: &str) -> bool {
+        Self::num_types()
+            .iter()
+            .map(|t| t.to_static_str())
+            .any(|s| s == name)
+    }
+
     pub(crate) fn num_types() -> Vec<Self> {
         vec![
             Self::U8,
@@ -251,8 +280,32 @@ impl std::fmt::Display for ResolvedType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ResolvedType::UnKnown => write!(f, "unknown"),
-            ResolvedType::Struct(ItemStructNameRef { name, .. }, _) => {
-                write!(f, "Struct:{}", name.value().as_str())
+            ResolvedType::Struct(
+                ItemStructNameRef {
+                    name,
+                    type_parameters,
+                    ..
+                },
+                ty_args,
+            ) => {
+                let ty_str = type_parameters
+                    .iter()
+                    .map(|tp| tp.name.value.as_str())
+                    .collect::<Vec<_>>()
+                    .join(",");
+
+                let tp_str = type_parameters
+                    .iter()
+                    .zip(ty_args.iter())
+                    .map(|(dt, ty)| format!("{}:{}", dt.name, ty))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+
+                if ty_str.is_empty() {
+                    write!(f, "Struct:{}<{}>;", name.value().as_str(), tp_str)
+                } else {
+                    write!(f, "Struct:{}<{}>;", name.value().as_str(), tp_str)
+                }
             }
             ResolvedType::BuildInType(x) => write!(f, "{}", x.to_static_str()),
             ResolvedType::TParam(name, _) => {
@@ -321,11 +374,12 @@ impl ResolvedType {
                 },
                 v,
             ) => {
+                log::debug!("struct_ref_to_struct => {:?}", v);
                 s.query_item(addr, module_name, name.0.value, |x| match x {
                     Item::Struct(item) => {
                         let mut item = item.clone();
                         item.type_parameters_ins = v;
-                        item.bind_type_parameter(None );
+                        item.bind_type_parameter(Some(&item.collect_type_parameters()) );
                         item
                     }
                     _ => {
@@ -333,7 +387,24 @@ impl ResolvedType {
                     }
                 }) .expect("You are looking for a struct which can't be found,It is possible But should not happen.")
             }
-            _ => { ItemStruct { name: DatatypeName(Spanned { loc : Loc::new(FileHash::empty(), 0, 0) , value  :Symbol::from("")}), type_parameters: vec![ ], type_parameters_ins: vec![ ], fields: vec![ ], is_test: false , addr:  * ERR_ADDRESS, module_name: Symbol::from("") } },
+            _ => ItemStruct {
+                name: DatatypeName(Spanned {
+                    loc: Loc::new(FileHash::empty(), 0, 0),
+                    value: Symbol::from(""),
+                }),
+                type_parameters: vec![],
+                type_parameters_ins: vec![],
+                fields: vec![],
+                is_test: false,
+                addr: *ERR_ADDRESS,
+                module_name: Symbol::from(""),
+            },
         }
     }
+
+    // pub(crate) fn get_generic_liternal_str(&self) {
+    //     match self {
+    //         ResolvedType::Vec(ty) => ty.
+    //     }
+    // }
 }

@@ -254,6 +254,7 @@ impl ItemOrAccessHandler for Handler {
                             "-- handle_item_or_access<goto> Single, chain.loc = {:?}",
                             services.convert_loc_range(&chain.loc)
                         );
+
                         if self.match_loc(&chain.loc, services) {
                             if let Some(t) = services.convert_loc_range(&item.def_loc()) {
                                 self.result = Some(t);
@@ -283,6 +284,17 @@ impl ItemOrAccessHandler for Handler {
                     }
                 },
                 Access::ApplyType(_chain, _, _ty) => {
+                    if let Some((access, def)) = access.access_module() {
+                        if self.match_loc(&access, services) {
+                            if let Some(t) = services.convert_loc_range(&def) {
+                                self.result = Some(t);
+                                self.result_loc = Some(def);
+                                self.result_item_or_access = Some(item_or_access.clone());
+                                return;
+                            }
+                        }
+                    }
+
                     let locs = access.access_def_loc();
                     if self.match_loc(&locs.0, services) {
                         if let Some(t) = services.convert_loc_range(&locs.1) {

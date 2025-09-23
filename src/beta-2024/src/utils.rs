@@ -394,6 +394,8 @@ use move_compiler::expansion::name_validation::{
     IMPLICIT_STD_MEMBERS, IMPLICIT_STD_MODULES, IMPLICIT_SUI_MEMBERS, IMPLICIT_SUI_MODULES,
 };
 
+use crate::types::BuildInType;
+
 fn generate_module_ident_by_name(
     ident_address_name: &str,
     module_name: Symbol,
@@ -412,6 +414,25 @@ fn generate_module_ident_by_name(
             module: module_name,
         },
     )
+}
+
+fn generate_buildin_type_use_decl_for_std_module(
+    default_use_decl: &mut Vec<move_compiler::parser::ast::ModuleMember>,
+    default_loc: Loc,
+) {
+    default_use_decl.extend(BuildInType::num_types().iter().map(|ty| {
+        let module_symbol = Symbol::from(ty.to_static_str());
+        let module_use = move_compiler::parser::ast::Use::ModuleUse {
+            0: generate_module_ident_by_name("std", module_symbol, default_loc),
+            1: move_compiler::parser::ast::ModuleUse::Module { 0: None },
+        };
+        move_compiler::parser::ast::ModuleMember::Use(move_compiler::parser::ast::UseDecl {
+            doc: move_compiler::parser::ast::DocComment::empty(),
+            loc: default_loc,
+            attributes: vec![],
+            use_: module_use,
+        })
+    }));
 }
 
 fn generate_default_use_decl_for_std_module(
@@ -507,5 +528,6 @@ pub fn get_default_usedecl(file_hash: FileHash) -> Vec<move_compiler::parser::as
     generate_default_use_decl_for_sui_module(&mut default_use_decl, default_loc);
     generate_default_use_decl_for_sui_module_member(&mut default_use_decl, default_loc);
     generate_default_use_decl_for_std_module_member(&mut default_use_decl, default_loc);
+    generate_buildin_type_use_decl_for_std_module(&mut default_use_decl, default_loc);
     return default_use_decl;
 }
