@@ -26,13 +26,13 @@ derivative = "2.2.0"
 dunce = "1.0.2"
 im = "15.1.0"
 lsp-server = "0.7.0"
-lsp-types = "0.94.0"
-petgraph = "0.5.1"
+lsp-types = "0.95.1"
+petgraph = "0.8.2"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.64"
 tempfile = "3.2.0"
 url = "2.2.2"
-clap = { version = "3.1.8", features = ["derive"] }
+clap = { version = "4.5.41", features = ["derive"] }
 crossbeam = "0.8"
 vfs = "0.10.0"
 threadpool = "1.8"
@@ -42,6 +42,9 @@ log = "0.4.14"
 stderrlog = "0.5.4"
 enum-iterator = "1.2.0"
 stacker = "0.1.15"
+bitvec = "0.20.4"   
+heck = "0.5.0"
+strsim = "0.11.1" 
 
 move-command-line-common = { git = "https://github.com/movebit/sui_for_analyzer_2025.git", branch = "analyzer", package = "move-command-line-common" }
 move-ir-types = { git = "https://github.com/movebit/sui_for_analyzer_2025.git", branch = "analyzer", package = "move-ir-types" }
@@ -49,8 +52,6 @@ move-compiler = { git = "https://github.com/movebit/sui_for_analyzer_2025.git", 
 move-package = { git = "https://github.com/movebit/sui_for_analyzer_2025.git", branch = "analyzer", package = "move-package" }
 move-symbol-pool = { git = "https://github.com/movebit/sui_for_analyzer_2025.git", branch = "analyzer", package = "move-symbol-pool" }
 move-core-types = { git = "https://github.com/movebit/sui_for_analyzer_2025.git", branch = "analyzer", package = "move-core-types" }
-move-model = { git = "https://github.com/movebit/sui_for_analyzer_2025.git", branch = "analyzer", package = "move-model" }
-move-proc-macros= { git = "https://github.com/movebit/sui_for_analyzer_2025.git", branch = "analyzer", package = "move-proc-macros" }
 
 [build-dependencies]
 ureq = "2.6"
@@ -58,13 +59,8 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.64"
 anyhow = "1.0.52"
 
-
-[target.'cfg(not(target_os= "windows"))'.dependencies]
-pprof = { version = "0.11.0" , features = ["flamegraph" , "protobuf"]}
-
 [features]
 aptos = []
 sui = []
-pprof = []
 
 
