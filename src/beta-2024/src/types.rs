@@ -43,12 +43,12 @@ pub enum ResolvedType {
 impl PartialEq for ResolvedType {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (ResolvedType::Struct(n1, ts1), ResolvedType::Struct(n2, ts2)) => n1 == n2,
+            (ResolvedType::Struct(n1, _), ResolvedType::Struct(n2, _)) => n1 == n2,
 
             (ResolvedType::BuildInType(b1), ResolvedType::BuildInType(b2)) => b1 == b2,
             (ResolvedType::Ref(_, t1), ResolvedType::Ref(_, t2)) => t1 == t2,
             (ResolvedType::Multiple(v1), ResolvedType::Multiple(v2)) => v1 == v2,
-            (ResolvedType::Vec(t1), ResolvedType::Vec(t2)) => true,
+            (ResolvedType::Vec(_), ResolvedType::Vec(_)) => true,
 
             (ResolvedType::Ref(_, t1), other) => t1.as_ref() == other,
             (other, ResolvedType::Ref(_, t2)) => other == t2.as_ref(),

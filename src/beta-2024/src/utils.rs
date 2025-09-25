@@ -359,37 +359,6 @@ impl From<&Location> for PathAndRange {
 
 pub const PROJECT_FILE_NAME: &str = "Move.toml";
 
-#[cfg(not(target_os = "windows"))]
-pub fn cpu_pprof(_seconds: u64) {
-    use std::{fs::File, str::FromStr, time::Duration};
-    let guard = pprof::ProfilerGuardBuilder::default()
-        .frequency(1000)
-        .blocklist(&["libc", "libgcc", "pthread", "vdso"])
-        .build()
-        .unwrap();
-    std::thread::spawn(move || loop {
-        std::thread::sleep(Duration::new(_seconds, 0));
-        match guard.report().build() {
-            Result::Ok(report) => {
-                // let mut tmp = std::env::temp_dir();
-                let mut tmp = PathBuf::from_str("/Users/yuyang/.move-analyzer").unwrap();
-
-                tmp.push("move-analyzer-flamegraph.svg");
-                let file = File::create(tmp.clone()).unwrap();
-                report.flamegraph(file).unwrap();
-                eprintln!("pprof file at {:?}", tmp.as_path());
-            }
-            Result::Err(e) => {
-                log::error!("build report failed,err:{}", e);
-            }
-        };
-    });
-}
-#[cfg(target_os = "windows")]
-pub fn cpu_pprof(_seconds: u64) {
-    log::error!("Can't run pprof in Windows");
-}
-
 use move_compiler::expansion::name_validation::{
     IMPLICIT_STD_MEMBERS, IMPLICIT_STD_MODULES, IMPLICIT_SUI_MEMBERS, IMPLICIT_SUI_MODULES,
 };

@@ -956,6 +956,7 @@ impl Project {
     /// Example:
     ///   For expression `a.b.c` this function will collect `[a, a.b, a.b.c]`
     ///   in left-to-right order, representing the type chain `(t1, t2, t3)`.
+    #[allow(unused)]
     pub(crate) fn collect_expr_before_dotcall(
         &self,
         expr: &Exp,
