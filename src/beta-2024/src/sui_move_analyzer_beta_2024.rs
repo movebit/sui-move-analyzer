@@ -5,7 +5,7 @@
 use crate::utils::path_concat;
 use crate::{
     code_lens, completion::on_completion_request, context::Context, goto_definition, hover,
-    inlay_hints, inlay_hints::*, linter, move_generate_spec_file::on_generate_spec_file,
+    inlay_hints, inlay_hints::*, move_generate_spec_file::on_generate_spec_file,
     move_generate_spec_sel::on_generate_spec_sel, project::ConvertLoc, references, snap_cache,
     symbols, utils::*,
 };
@@ -86,7 +86,7 @@ pub fn on_request(
             *inlay_hints_config = parameters;
         }
         "runLinter" => {
-            linter::on_run_linter(context, request);
+            // linter::on_run_linter(context, request);
         }
         _ => eprintln!("handle request '{}' from client", request.method),
     }
@@ -193,7 +193,8 @@ pub fn on_notification(
             );
             return;
         };
-        if vfs_path.remove_file().is_err() {
+
+        if vfs_path.exists().is_ok() && vfs_path.remove_file().is_err() {
             eprintln!("Could not remove file at {:?}", vfs_path);
         };
     }
@@ -288,7 +289,6 @@ pub fn on_notification(
                 parameters.content_changes.last().unwrap().text.as_str(),
             );
         }
-
         lsp_types::notification::DidOpenTextDocument::METHOD => {
             use lsp_types::DidOpenTextDocumentParams;
             let parameters =
@@ -307,13 +307,7 @@ pub fn on_notification(
 
             let content = parameters.text_document.text.clone();
             match update_vfs_file(&ide_files_root, fpath.clone(), content.clone(), true) {
-                Ok(_) => make_diag(
-                    ide_files_root.clone(),
-                    diag_sender,
-                    fpath.clone(),
-                    false,
-                    implicit_deps.clone(),
-                ),
+                Ok(_) => {}
                 Err(err) => {
                     eprintln!("Could not update to vfs file for open document , {:?}", err);
                     vfs_file_remove(&ide_files_root, fpath.clone());
@@ -331,6 +325,15 @@ pub fn on_notification(
                     eprintln!("project '{:?}' not found try load.", fpath.as_path());
                 }
             };
+
+            // only make diag for new project.
+            make_diag(
+                ide_files_root.clone(),
+                diag_sender,
+                fpath.clone(),
+                false,
+                implicit_deps.clone(),
+            );
 
             let p = match context
                 .projects
@@ -352,13 +355,13 @@ pub fn on_notification(
                     .expect("could not deserialize DidCloseTextDocumentParams request");
             let fpath = parameters.text_document.uri.to_file_path().unwrap();
             vfs_file_remove(&ide_files_root, fpath.clone());
-            make_diag(
-                ide_files_root.clone(),
-                diag_sender,
-                fpath.clone(),
-                false,
-                implicit_deps.clone(),
-            );
+            // make_diag(
+            //     ide_files_root.clone(),
+            //     diag_sender,
+            //     fpath.clone(),
+            //     false,
+            //     implicit_deps.clone(),
+            // );
             let fpath = path_concat(&std::env::current_dir().unwrap(), &fpath);
             let (_, _) = match crate::utils::discover_manifest_and_kind(&fpath) {
                 Some(x) => x,
@@ -369,7 +372,90 @@ pub fn on_notification(
                 }
             };
         }
+        lsp_types::notification::DidCreateFiles::METHOD => {
+            let params: lsp_types::CreateFilesParams =
+                serde_json::from_value(notification.params.clone())
+                    .expect("could not deserialize CreateFilesParams request");
+            let Some(fpath_string) = params.files.last() else {
+                return;
+            };
 
+            make_diag(
+                ide_files_root.clone(),
+                diag_sender,
+                Path::new(&fpath_string.uri).into(),
+                false,
+                implicit_deps.clone(),
+            );
+        }
+        lsp_types::notification::DidDeleteFiles::METHOD => {
+            let params: lsp_types::DeleteFilesParams =
+                serde_json::from_value(notification.params.clone())
+                    .expect("could not deserialize DeleteFilesParams request");
+            let Some(fpath_string) = params.files.last() else {
+                return;
+            };
+
+            make_diag(
+                ide_files_root.clone(),
+                diag_sender,
+                Path::new(&fpath_string.uri).into(),
+                false,
+                implicit_deps.clone(),
+            );
+        }
+        lsp_types::notification::DidRenameFiles::METHOD => {
+            let params: lsp_types::RenameFilesParams =
+                serde_json::from_value(notification.params.clone())
+                    .expect("could not deserialize RenameFilesParams request");
+
+            let mut last_new_path = None;
+            for lsp_types::FileRename { old_uri, new_uri } in params.files.iter() {
+                let old_pathbuf = Path::new(old_uri);
+                let new_pathbuf = Path::new(new_uri);
+                last_new_path = Some(new_pathbuf);
+                let Some(old_vfs_path) = ide_files_root.join(old_pathbuf.to_string_lossy()).ok()
+                else {
+                    eprintln!(
+                        "Could not construct file path for file rename old at {:?}",
+                        old_uri
+                    );
+                    continue;
+                };
+
+                let Ok(is_exist) = old_vfs_path.exists() else {
+                    eprintln!(
+                        "vfs_path.exists() error when rename {:?} to {:?}",
+                        old_uri, new_uri
+                    );
+                    continue;
+                };
+
+                if is_exist {
+                    let Some(new_vfs_path) =
+                        ide_files_root.join(new_pathbuf.to_string_lossy()).ok()
+                    else {
+                        eprintln!(
+                            "Could not construct file path for file rename new at {:?}",
+                            new_uri
+                        );
+                        continue;
+                    };
+
+                    let _ = old_vfs_path.move_file(&new_vfs_path);
+                }
+            }
+
+            if let Some(last_new_path) = last_new_path {
+                make_diag(
+                    ide_files_root.clone(),
+                    diag_sender,
+                    last_new_path.into(),
+                    false,
+                    implicit_deps.clone(),
+                );
+            }
+        }
         _ => {}
     }
     eprintln!("=================\n")
