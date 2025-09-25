@@ -48,7 +48,7 @@ pub mod symbols;
 pub mod types;
 pub mod utils;
 // pub mod vfs;
-pub mod linter;
+// pub mod linter;
 pub mod move_generate_spec;
 pub mod move_generate_spec_chen;
 pub mod move_generate_spec_file;
