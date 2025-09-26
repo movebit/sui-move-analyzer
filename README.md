@@ -26,64 +26,47 @@ Move source file (a file with a `.move` file extension) and:
   - inlay hints
   - linter for move file
   - ...
+Got it 👍 I’ll rewrite the **Installation** section in English, simplify it to reflect the new flow (just install from Marketplace), add the optional build instructions, and remove all the PATH-related steps.
 
 ## Installation <span id="Installation">
 
 **Note**:
 
-1.If you already have installed *move-analyzer* or *aptos-move-analyzer*, please disable them before installing **sui-move-analyzer**, because it may have some conflicts.
+1. If you already have *move-analyzer* or *aptos-move-analyzer* installed, please disable them before installing **sui-move-analyzer** to avoid conflicts.
+2. You need to install [Sui CLI](https://docs.sui.io/references/cli) first, otherwise some features will not work.
 
-2.You need to install SuiCLI refer as https://docs.sui.io/references/cli before install `sui-move-analyzer`.
+### Recommended: Install from Marketplace
 
-### How to Install (Must Read)
-The `sui-move-analyzer` Visual Studio Code extension works via two components: the `sui-move-analyzer language server` and the extension itself. Below are two steps that describe how to install all of them.
+The **sui-move-analyzer** is now fully integrated into the VSCode extension.
+Simply install it from the **VSCode Marketplace**—no additional setup is required.
 
+Steps:
 
-### 1. Installing the `sui-move-analyzer language server`<span id="Step1">
-`sui-move-analyzer language server` may be installed in one of two ways:
+1. Open VSCode (version 1.55.2 or later).
+2. Open the Command Palette (`⇧⌘P` on macOS, or *View > Command Palette...*).
+3. Select **Extensions: Install Extensions**.
+4. Search for **sui-move-analyzer** in the Marketplace and click **Install**.
+5. Open any `.move` file and start coding with highlighting, autocomplete, diagnostics, and more.
 
-#### A. Download the precompiled binaries for the sui-move-analyzer language server(Recommended)
+After installation, restart VSCode to ensure the extension loads properly.
 
-```Windows & MacOS & Ubuntu```
- 
- > 1.Download the newest binary files for the corresponding platform from [sui-move-analyzer-releases-pages](https://github.com/movebit/sui-move-analyzer/releases).
- >
- > 2.Rename it to `sui-move-analyzer` or `sui-move-analyzer.exe`. 
- > 
- > 3.Make sure `sui-move-analyzer`/`sui-move-analyzer.exe` can be found in your **PATH** environment.
+### Optional: Build from Source
 
-After completing the above steps, **restart** VSCode.
+If you prefer to build the language server yourself:
 
-
-#### B. Use Cargo
-
-The `sui-move-analyzer` language server is a Rust program, so we suggest installing it via `cargo`. If you haven't installed the Rust toolchain, you can install [Rustup](https://rustup.rs/), which will install the latest stable Rust toolchain including `cargo`.
-
-**Execute the below command to install `sui_move_analyzer`**
+```bash
+git clone https://github.com/movebit/sui-move-analyzer.git
+cd sui-move-analyzer
+cargo build --release
 ```
-cargo install --git http://github.com/movebit/sui-move-analyzer --branch master sui-move-analyzer
+
+The binary will be available at:
+
 ```
-The installation may take some time, often several minutes. After installation, the `sui-move-analyzer` program is in your `cargo` binary directory. On macOS and Linux, this directory is usually `~/.cargo/bin`. You should make sure this location is in your `PATH` environment variable via `export PATH="$PATH:~/.cargo/bin"` .
+target/release/sui-move-analyzer
+```
 
-To confirm that you've installed the language server program successfully, execute
-`sui-move-analyzer --version` on the command line. You should see the output `sui-move-analyzer version number(1.1.2)`.
-If you don't see it, check the troubleshooting section at the end.
 
-After completing the above steps, **restart** VSCode.
-
-### 2. Installing the `sui-move-analyzer` Visual Studio Code extension
-
-1. Open a new window in any Visual Studio Code application version 1.55.2 or greater.
-2. Open the command palette (`⇧⌘P` on macOS, or use the menu item *View > Command Palette...*) and
-   type **Extensions: Install Extensions**. This will open a panel named *Extensions* in the
-   sidebar of your Visual Studio Code window.
-3. In the search bar labeled *Search Extensions in Marketplace*, type **sui-move-analyzer**. The
-   sui-move-analyzer extension should appear in the list below the search bar. Click **Install**.
-4. Open any file that ends in `.move`. Or to create a new file, click **Select a language**, and
-   choose the **Move** language. As you type, you should see that keywords and types appear in
-   different colors.
-
-After completing the above steps, **restart** VSCode.
 
 ### Troubleshooting
 Please note: If you don't see the version number, you can refer to the troubleshooting section."
