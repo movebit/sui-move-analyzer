@@ -45,8 +45,8 @@ pub fn ensure_snapshot_for_graph(
                 };
                 if is_dep {
                     hasher.update(content.as_bytes());
+                    files.push((fname, content));
                 }
-                files.push((fname, content));
             }
         }
         (format!("{:X}", hasher.finalize()), files)

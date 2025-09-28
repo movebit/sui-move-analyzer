@@ -4,9 +4,9 @@ use crossbeam::channel::{bounded, select};
 use log::{Level, Metadata, Record};
 use lsp_server::{Connection, Message};
 use lsp_types::{
-    CompletionOptions, HoverProviderCapability, OneOf, SaveOptions, TextDocumentSyncCapability,
-    TextDocumentSyncKind, TextDocumentSyncOptions, TypeDefinitionProviderCapability,
-    WorkDoneProgressOptions, notification::Notification,
+    CompletionOptions, GlobPattern, HoverProviderCapability, OneOf, SaveOptions,
+    TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions,
+    TypeDefinitionProviderCapability, WorkDoneProgressOptions, notification::Notification,
 };
 use std::{
     path::PathBuf,
@@ -117,6 +117,7 @@ fn main() {
             }),
         )
         .expect("could not finish connection initialization");
+    registere_did_change_watched_files(&context_manager);
 
     let (diag_sender_beta2024, diag_receiver_beta_2024) =
         bounded::<(PathBuf, DiagnosticsBeta2024)>(1);
@@ -270,4 +271,53 @@ fn get_lsp_capabilities() -> lsp_types::ServerCapabilities {
         workspace: Some(generate_workspace_server_capabilities()),
         ..Default::default()
     }
+}
+
+fn registere_did_change_watched_files(context_manager: &ContextManager) {
+    use lsp_server::{Message, Request};
+    use lsp_types::{
+        DidChangeWatchedFilesRegistrationOptions, FileSystemWatcher, Registration,
+        RegistrationParams,
+    };
+    let watchers = vec![
+        FileSystemWatcher {
+            glob_pattern: GlobPattern::String("**/*.move".into()),
+            kind: None,
+        },
+        FileSystemWatcher {
+            glob_pattern: GlobPattern::String("**/Move.toml".into()),
+            kind: None,
+        },
+    ];
+
+    let options = DidChangeWatchedFilesRegistrationOptions { watchers };
+    let reg = Registration {
+        id: "file-watcher-1".to_string(),
+        method: "workspace/didChangeWatchedFiles".to_string(),
+        register_options: Some(serde_json::to_value(options).unwrap()),
+    };
+
+    let params = RegistrationParams {
+        registrations: vec![reg],
+    };
+
+    let request = Request::new(
+        lsp_server::RequestId::from("reg-1".to_string()),
+        "client/registerCapability".to_string(),
+        params,
+    );
+
+    let Err(e) = context_manager
+        .connection
+        .sender
+        .send(Message::Request(request))
+    else {
+        eprintln!("Registered workspace/didChangeWatchedFiles");
+        return;
+    };
+
+    eprintln!(
+        "Registered workspace/didChangeWatchedFiles Failed. err info: {:?}",
+        e
+    );
 }

@@ -13,6 +13,7 @@ use anyhow::{anyhow, Result};
 use crossbeam::channel::Sender;
 use lsp_server::{Notification, Request, Response};
 use lsp_types::{notification::Notification as _, request::Request as _};
+use lsp_types::{FileChangeType, FileEvent};
 use move_command_line_common::files::FileHash;
 use move_compiler::{
     diagnostics::warning_filters::WarningFiltersBuilder,
@@ -178,9 +179,12 @@ pub fn on_notification(
                 return None;
             };
         }
-        let Some(vfs_file) = vfs_path.create_file().ok() else {
-            eprintln!("Could not create file at {:?}", vfs_path);
-            return None;
+        let vfs_file = match vfs_path.create_file() {
+            Ok(vfs_file) => vfs_file,
+            Err(e) => {
+                eprintln!("Could not create file at {:?}, err info: {:?}", vfs_path, e);
+                return None;
+            }
         };
         Some(vfs_file)
     }
@@ -264,7 +268,6 @@ pub fn on_notification(
                     .expect("could not deserialize DidChangeTextDocumentParams request");
             let fpath = parameters.text_document.uri.to_file_path().unwrap();
             let fpath = path_concat(&std::env::current_dir().unwrap(), &fpath);
-
             let content = parameters.content_changes.last().unwrap().text.clone();
             match update_vfs_file(&ide_files_root, fpath.clone(), content, false) {
                 Ok(_) => make_diag(
@@ -355,13 +358,6 @@ pub fn on_notification(
                     .expect("could not deserialize DidCloseTextDocumentParams request");
             let fpath = parameters.text_document.uri.to_file_path().unwrap();
             vfs_file_remove(&ide_files_root, fpath.clone());
-            // make_diag(
-            //     ide_files_root.clone(),
-            //     diag_sender,
-            //     fpath.clone(),
-            //     false,
-            //     implicit_deps.clone(),
-            // );
             let fpath = path_concat(&std::env::current_dir().unwrap(), &fpath);
             let (_, _) = match crate::utils::discover_manifest_and_kind(&fpath) {
                 Some(x) => x,
@@ -371,6 +367,48 @@ pub fn on_notification(
                     return;
                 }
             };
+        }
+        lsp_types::notification::DidChangeWatchedFiles::METHOD => {
+            use lsp_types::DidChangeWatchedFilesParams;
+            let parameters =
+                serde_json::from_value::<DidChangeWatchedFilesParams>(notification.params.clone())
+                    .expect("could not deserialize DidChangeWatchedFilesParams request");
+
+            let mut need_diag = false;
+            let mut fpath = PathBuf::new();
+            for FileEvent { uri, typ } in parameters.changes.iter() {
+                fpath = uri.to_file_path().unwrap();
+                fpath = path_concat(&std::env::current_dir().unwrap(), &fpath);
+                eprintln!("   FileEvent:{:?}", fpath);
+                match typ {
+                    &FileChangeType::CHANGED => {
+                        if let Ok(content) = std::fs::read_to_string(&fpath) {
+                            if let Err(e) =
+                                update_vfs_file(&ide_files_root, fpath.clone(), content, false)
+                            {
+                                eprintln!(
+                                    "   DidChangeWatchedFiles::CHANGED, update_vfs_file err: {:?}",
+                                    e
+                                );
+                                continue;
+                            }
+                            need_diag = true;
+                        }
+                        eprintln!("     changed");
+                    }
+                    &FileChangeType::DELETED => {
+                        vfs_file_remove(&ide_files_root, fpath.clone());
+                        need_diag = true;
+                        eprintln!("     DELETED");
+                    }
+                    _ => {
+                        eprintln!("     Create");
+                    } // ignore FileChangeType::CREATE beacuse new file never in vfs.
+                }
+            }
+            if need_diag {
+                make_diag(ide_files_root, diag_sender, fpath, false, implicit_deps);
+            }
         }
         lsp_types::notification::DidCreateFiles::METHOD => {
             let params: lsp_types::CreateFilesParams =
