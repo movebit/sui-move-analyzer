@@ -75,11 +75,11 @@ use serde_json::Value;
 use crate::{
     context::{Context, FileDiags, MultiProject},
     sui_move_analyzer_beta_2024::try_reload_projects,
-    utils::discover_manifest_and_kind,
+    utils::{discover_manifest_and_kind, get_default_usedecl},
 };
 
 use crate::goto_definition::{on_go_to_def_request, on_go_to_type_def_request};
-use crate::sui_move_analyzer_beta_2024::make_diag;
+// use crate::sui_move_analyzer_beta_2024::make_diag;
 use once_cell::unsync::OnceCell;
 use std::cell::RefCell;
 use vfs::MemoryFS;
@@ -169,7 +169,15 @@ fn update_defs(context: &mut Context, fpath: PathBuf, content: &str) {
     );
     let defs = parse_file_string(&mut env, file_hash, content, None);
     let defs = match defs {
-        std::result::Result::Ok(x) => x,
+        std::result::Result::Ok(mut x) => {
+            x.iter_mut().for_each(|x| match x {
+                move_compiler::parser::ast::Definition::Module(m) => {
+                    m.members.extend(get_default_usedecl(file_hash));
+                }
+                _ => {}
+            });
+            x
+        }
         std::result::Result::Err(d) => {
             log::error!("update file failed,err:{:?}", d);
             return;
@@ -270,7 +278,6 @@ fn handle_open_document<'a>(context: &'a mut Context, request: lsp_server::Reque
             "context.projects.projects len: {:?}",
             context.projects.projects.len()
         );
-        make_diag(context, fpath);
     })
 }
 

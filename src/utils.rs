@@ -398,3 +398,143 @@ pub fn get_url_from_path(path: impl AsRef<Path>) -> Result<Url, ()> {
     };
     Ok(Url::parse(&format!("file://{}", path_str)).unwrap())
 }
+
+use move_compiler::expansion::name_validation::{
+    IMPLICIT_STD_MEMBERS, IMPLICIT_STD_MODULES, IMPLICIT_SUI_MEMBERS, IMPLICIT_SUI_MODULES,
+};
+
+fn generate_module_ident_by_name(
+    ident_address_name: &str,
+    module_name: Symbol,
+    default_loc: Loc,
+) -> Spanned<move_compiler::parser::ast::ModuleIdent_> {
+    let std_name = Spanned::new(default_loc, Symbol::from(ident_address_name));
+    let module_symbol = Spanned::new(default_loc, module_name);
+
+    let std_lead_access = move_compiler::parser::ast::LeadingNameAccess_::Name { 0: std_name };
+    let module_name = move_compiler::parser::ast::ModuleName { 0: module_symbol };
+
+    Spanned::new(
+        default_loc,
+        move_compiler::parser::ast::ModuleIdent_ {
+            address: Spanned::new(default_loc, std_lead_access),
+            module: module_name,
+        },
+    )
+}
+
+fn generate_default_use_decl_for_std_module(
+    default_use_decl: &mut Vec<move_compiler::parser::ast::ModuleMember>,
+    default_loc: Loc,
+) {
+    default_use_decl.extend(IMPLICIT_STD_MODULES.iter().copied().map(|module_symbol| {
+        let module_use = move_compiler::parser::ast::Use::ModuleUse {
+            0: generate_module_ident_by_name("std", module_symbol, default_loc),
+            1: move_compiler::parser::ast::ModuleUse::Module { 0: None },
+        };
+        move_compiler::parser::ast::ModuleMember::Use(move_compiler::parser::ast::UseDecl {
+            doc: move_compiler::parser::ast::DocComment::empty(),
+            loc: default_loc,
+            attributes: vec![],
+            use_: module_use,
+        })
+    }));
+}
+
+fn generate_default_use_decl_for_sui_module(
+    default_use_decl: &mut Vec<move_compiler::parser::ast::ModuleMember>,
+    default_loc: Loc,
+) {
+    default_use_decl.extend(IMPLICIT_SUI_MODULES.iter().copied().map(|module_symbol| {
+        let module_use = move_compiler::parser::ast::Use::ModuleUse {
+            0: generate_module_ident_by_name("sui", module_symbol, default_loc),
+            1: move_compiler::parser::ast::ModuleUse::Module { 0: None },
+        };
+        move_compiler::parser::ast::ModuleMember::Use(move_compiler::parser::ast::UseDecl {
+            doc: move_compiler::parser::ast::DocComment::empty(),
+            loc: default_loc,
+            attributes: vec![],
+            use_: module_use,
+        })
+    }));
+}
+
+fn generate_default_use_decl_for_sui_module_member(
+    default_use_decl: &mut Vec<move_compiler::parser::ast::ModuleMember>,
+    default_loc: Loc,
+) {
+    default_use_decl.extend(
+        IMPLICIT_SUI_MEMBERS
+            .iter()
+            .copied()
+            .map(|(m_sym, mem_sym, _)| {
+                let module_use = move_compiler::parser::ast::Use::ModuleUse {
+                    0: generate_module_ident_by_name("sui", m_sym, default_loc),
+                    1: move_compiler::parser::ast::ModuleUse::Members {
+                        0: vec![(Spanned::new(default_loc, mem_sym), None)],
+                    },
+                };
+                move_compiler::parser::ast::ModuleMember::Use(move_compiler::parser::ast::UseDecl {
+                    doc: move_compiler::parser::ast::DocComment::empty(),
+                    loc: default_loc,
+                    attributes: vec![],
+                    use_: module_use,
+                })
+            }),
+    );
+}
+
+fn generate_default_use_decl_for_std_module_member(
+    default_use_decl: &mut Vec<move_compiler::parser::ast::ModuleMember>,
+    default_loc: Loc,
+) {
+    default_use_decl.extend(
+        IMPLICIT_STD_MEMBERS
+            .iter()
+            .copied()
+            .map(|(m_sym, mem_sym, _)| {
+                let module_use = move_compiler::parser::ast::Use::ModuleUse {
+                    0: generate_module_ident_by_name("std", m_sym, default_loc),
+                    1: move_compiler::parser::ast::ModuleUse::Members {
+                        0: vec![(Spanned::new(default_loc, mem_sym), None)],
+                    },
+                };
+                move_compiler::parser::ast::ModuleMember::Use(move_compiler::parser::ast::UseDecl {
+                    doc: move_compiler::parser::ast::DocComment::empty(),
+                    loc: default_loc,
+                    attributes: vec![],
+                    use_: module_use,
+                })
+            }),
+    );
+}
+
+fn generate_buildin_type_use_decl_for_std_module(
+    default_use_decl: &mut Vec<move_compiler::parser::ast::ModuleMember>,
+    default_loc: Loc,
+) {
+    default_use_decl.extend(crate::types::BuildInType::num_types().iter().map(|ty| {
+        let module_symbol = Symbol::from(ty.to_static_str());
+        let module_use = move_compiler::parser::ast::Use::ModuleUse {
+            0: generate_module_ident_by_name("std", module_symbol, default_loc),
+            1: move_compiler::parser::ast::ModuleUse::Module { 0: None },
+        };
+        move_compiler::parser::ast::ModuleMember::Use(move_compiler::parser::ast::UseDecl {
+            doc: move_compiler::parser::ast::DocComment::empty(),
+            loc: default_loc,
+            attributes: vec![],
+            use_: module_use,
+        })
+    }));
+}
+
+pub fn get_default_usedecl(file_hash: FileHash) -> Vec<move_compiler::parser::ast::ModuleMember> {
+    let default_loc = Loc::new(file_hash, 0, 0);
+    let mut default_use_decl = vec![];
+    generate_default_use_decl_for_std_module(&mut default_use_decl, default_loc);
+    generate_default_use_decl_for_sui_module(&mut default_use_decl, default_loc);
+    generate_default_use_decl_for_sui_module_member(&mut default_use_decl, default_loc);
+    generate_default_use_decl_for_std_module_member(&mut default_use_decl, default_loc);
+    generate_buildin_type_use_decl_for_std_module(&mut default_use_decl, default_loc);
+    return default_use_decl;
+}

@@ -293,78 +293,77 @@ fn get_package_compile_diagnostics(
     let build_plan =
         BuildPlan::create(&resolution_graph)?.set_compiler_vfs_root(overlay_fs_root.clone());
     let dependencies = build_plan.compute_dependencies();
-    // let mut diagnostics = None;
-    // build_plan.compile_with_driver_and_deps(dependencies, &mut std::io::sink(), |compiler| {
-    //     // let compiler = compiler.set_ide_mode();
-    //     // let (files, compilation_result) =
-    //     //     compiler.set_files_to_compile(None).run::<PASS_TYPING>()?;
+    let mut diagnostics = None;
+    build_plan.compile_with_driver_and_deps(dependencies, &mut std::io::sink(), |compiler| {
+        // let compiler = compiler.set_ide_mode();
+        let (files, compilation_result) = compiler.set_files_to_compile(None).run::<PASS_HLIR>()?;
 
-    //     // let compiler = match compilation_result {
-    //     //     std::result::Result::Ok(v) => v,
-    //     //     Err((_pass, diags)) => {
-    //     //         let failure = true;
-    //     //         diagnostics = Some((diags, failure));
-    //     //         eprintln!("parsed AST compilation failed");
-    //     //         return Ok((files, vec![]));
-    //     //     }
-    //     // };
-    //     // eprintln!("compiled to parsed AST");
+        let compiler = match compilation_result {
+            std::result::Result::Ok(v) => v,
+            Err((_pass, diags)) => {
+                let failure = true;
+                diagnostics = Some((diags, failure));
+                eprintln!("parsed AST compilation failed");
+                return Ok((files, vec![]));
+            }
+        };
+        eprintln!("compiled to parsed AST");
 
-    //     // // extract typed AST
-    //     // let (compiler, parsed_program) = compiler.into_ast();
-    //     // let compilation_result = compiler.at_parser(parsed_program).run::<PASS_TYPING>();
-    //     // let compiler = match compilation_result {
-    //     //     std::result::Result::Ok(v) => v,
-    //     //     Err((_pass, diags)) => {
-    //     //         let failure = true;
-    //     //         diagnostics = Some((diags, failure));
-    //     //         eprintln!("typed AST compilation failed");
-    //     //         eprintln!("diagnostics: {:#?}", diagnostics);
-    //     //         return Ok((files, vec![]));
-    //     //     }
-    //     // };
-    //     // eprintln!("compiled to typed AST");
+        // // extract typed AST
+        // let (compiler, parsed_program) = compiler.into_ast();
+        // let compilation_result = compiler.at_parser(parsed_program).run::<PASS_TYPING>();
+        // let compiler = match compilation_result {
+        //     std::result::Result::Ok(v) => v,
+        //     Err((_pass, diags)) => {
+        //         let failure = true;
+        //         diagnostics = Some((diags, failure));
+        //         eprintln!("typed AST compilation failed");
+        //         eprintln!("diagnostics: {:#?}", diagnostics);
+        //         return Ok((files, vec![]));
+        //     }
+        // };
+        // eprintln!("compiled to typed AST");
 
-    //     //     // // extract typed AST
-    //     //     // let (compiler, parsed_program) = compiler.into_ast();
-    //     //     // let compilation_result = compiler.at_parser(parsed_program).run::<PASS_TYPING>();
-    //     //     // let compiler = match compilation_result {
-    //     //     //     std::result::Result::Ok(v) => v,
-    //     //     //     Err((_pass, diags)) => {
-    //     //     //         let failure = true;
-    //     //     //         diagnostics = Some((diags, failure));
-    //     //     //         eprintln!("typed AST compilation failed");
-    //     //     //         eprintln!("diagnostics: {:#?}", diagnostics);
-    //     //     //         return Ok((files, vec![]));
-    //     //     //     }
-    //     //     // };
-    //     //     // eprintln!("compiled to typed AST");
+        //     // // extract typed AST
+        //     // let (compiler, parsed_program) = compiler.into_ast();
+        //     // let compilation_result = compiler.at_parser(parsed_program).run::<PASS_TYPING>();
+        //     // let compiler = match compilation_result {
+        //     //     std::result::Result::Ok(v) => v,
+        //     //     Err((_pass, diags)) => {
+        //     //         let failure = true;
+        //     //         diagnostics = Some((diags, failure));
+        //     //         eprintln!("typed AST compilation failed");
+        //     //         eprintln!("diagnostics: {:#?}", diagnostics);
+        //     //         return Ok((files, vec![]));
+        //     //     }
+        //     // };
+        //     // eprintln!("compiled to typed AST");
 
-    //     //     // let (compiler, typed_program) = compiler.into_ast();
-    //     //     // eprintln!("compiling to CFGIR");
-    //     //     // let compilation_result = compiler.at_typing(typed_program).run::<PASS_CFGIR>();
-    //     //     // let compiler = match compilation_result {
-    //     //     //     std::result::Result::Ok(v) => v,
-    //     //     //     Err((_pass, diags)) => {
-    //     //     //         let failure = false;
-    //     //     //         diagnostics = Some((diags, failure));
-    //     //     //         eprintln!("compilation to CFGIR failed");
-    //     //     //         return Ok((files, vec![]));
-    //     //     //     }
-    //     //     // };
-    //     //     // let failure = false;
-    //     //     // diagnostics = Some((compiler.compilation_env().take_final_diags(), failure));
-    //     //     // eprintln!("compiled to CFGIR");
-    //     Ok((files, Default::default()))
-    // })?;
+        //     // let (compiler, typed_program) = compiler.into_ast();
+        //     // eprintln!("compiling to CFGIR");
+        //     // let compilation_result = compiler.at_typing(typed_program).run::<PASS_CFGIR>();
+        //     // let compiler = match compilation_result {
+        //     //     std::result::Result::Ok(v) => v,
+        //     //     Err((_pass, diags)) => {
+        //     //         let failure = false;
+        //     //         diagnostics = Some((diags, failure));
+        //     //         eprintln!("compilation to CFGIR failed");
+        //     //         return Ok((files, vec![]));
+        //     //     }
+        //     // };
+        //     // let failure = false;
+        //     // diagnostics = Some((compiler.compilation_env().take_final_diags(), failure));
+        //     // eprintln!("compiled to CFGIR");
+        Ok((files, Default::default()))
+    })?;
 
     // println!("diagnostics: {:#?}", diagnostics);
     let mut filterd_diagnostics = Diagnostics::new();
-    // if let Some((diags, _is_failed)) = diagnostics.clone() {
-    //     for diag in diags.into_vec() {
-    //         filterd_diagnostics.add(diag);
-    //     }
-    // }
+    if let Some((diags, _is_failed)) = diagnostics.clone() {
+        for diag in diags.into_vec() {
+            filterd_diagnostics.add(diag);
+        }
+    }
     Ok((mapped_files, filterd_diagnostics))
 }
 
@@ -390,9 +389,7 @@ pub fn make_diag(context: &Context, fpath: PathBuf) {
             return;
         }
     };
-    println!("11111111111");
-    let ide_files_root = context.ide_files_root.clone();
-    println!("222222222222");
+
     let res = std::panic::catch_unwind(|| get_package_compile_diagnostics(&fpath));
 
     let res = match res {
@@ -413,7 +410,7 @@ pub fn make_diag(context: &Context, fpath: PathBuf) {
             return;
         }
     };
-    println!("start send diag");
+    println!("start send diag {:?}", x);
     send_diag(&mapped_file, mani, x);
 }
 
