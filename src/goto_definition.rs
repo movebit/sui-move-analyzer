@@ -266,41 +266,21 @@ impl GetPosition for Handler {
 }
 
 /// Handles go-to-def request of the language server
-pub fn on_go_to_type_def_request(context: &Context, fpath: PathBuf, pos: lsp_types::Position) {
+pub fn on_go_to_type_def_request(
+    context: &Context,
+    fpath: PathBuf,
+    pos: lsp_types::Position,
+) -> serde_json::Value {
     println!(
         "on_go_to_type_def_request, fpath: {:?}, pos: {:?}",
         fpath, pos
     );
-    // let parameters = serde_json::from_value::<GotoDefinitionParams>(request.params.clone())
-    //     .expect("could not deserialize go-to-def request");
-    // let fpath = get_path_from_url(&parameters
-    //     .text_document_position_params
-    //     .text_document
-    //     .uri
-    // ).unwrap();
-
-    // let loc = parameters.text_document_position_params.position;
-    // let line = loc.line;
-    // let col = loc.character;
-    // let fpath = path_concat(std::env::current_dir().unwrap().as_path(), fpath.as_path());
-    // log::info!(
-    //     "request is goto type definition,fpath:{:?}  line:{} col:{}",
-    //     fpath.as_path(),
-    //     line,
-    //     col,
-    // );
-
     let mut handler = Handler::new(fpath.clone(), pos.line, pos.character);
     let modules = match context.projects.get_project(&fpath) {
         Some(x) => x,
         None => {
             println!("on_go_to_type_def_request: No available project");
-            return;
-            // return Response {
-            //     id: "".to_string().into(),
-            //     result: Some(serde_json::json!({"msg": "No available project"})),
-            //     error: None,
-            // };
+            return serde_json::Value::Null;
         }
     };
     let _ = modules.run_visitor_for_file(&mut handler, &fpath, false);
@@ -378,16 +358,6 @@ pub fn on_go_to_type_def_request(context: &Context, fpath: PathBuf, pos: lsp_typ
         },
         None => {}
     };
-    println!("goto definition result: {:?}", locations)
-    // let r = Response::new_ok(
-    //     request.id.clone(),
-    //     serde_json::to_value(GotoDefinitionResponse::Array(locations)).unwrap(),
-    // );
-    // let ret_response = r.clone();
-    // context
-    //     .connection
-    //     .sender
-    //     .send(Message::Response(r))
-    //     .unwrap();
-    // ret_response
+    println!("on_go_to_def_request result: {:?}", locations);
+    serde_json::to_value(locations).unwrap()
 }

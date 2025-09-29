@@ -8,7 +8,6 @@ use move_command_line_common::files::FileHash;
 use move_ir_types::location::Loc;
 use move_symbol_pool::Symbol;
 use std::collections::{BTreeMap, HashMap};
-use url::Url;
 
 /// Converts diagnostics from the codespan format to the format understood by the language server.
 pub fn lsp_diagnostics(

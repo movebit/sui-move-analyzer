@@ -7,18 +7,16 @@ use crate::js_message_callback;
 use crate::message_for_js::response_type::{Response4Diagnostic, Response4JSType, Response4Popup};
 use crate::{project::*, references::ReferencesCache, WasmConnection};
 use im::HashSet;
-use lsp_types::{notification::Notification, MessageType};
+use lsp_types::MessageType;
 use move_command_line_common::files::FileHash;
 use move_compiler::parser::ast::Definition;
 use move_ir_types::location::Loc;
 use move_package::source_package::layout::SourcePackageLayout;
-use std::hash::Hash;
 use std::{
     cell::RefCell,
     collections::HashMap,
     path::{Path, PathBuf},
     rc::Rc,
-    sync::{Arc, Mutex},
 };
 use url::Url;
 use vfs::VfsPath;
@@ -33,7 +31,7 @@ pub struct Context {
 }
 
 impl std::fmt::Debug for Context {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         Ok(())
     }
 }
@@ -170,7 +168,7 @@ impl FileDiags {
     }
 }
 
-///
+#[allow(unused)]
 static LOAD_DEPS: bool = false;
 
 impl MultiProject {

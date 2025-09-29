@@ -1,4 +1,3 @@
-use lsp_types::Diagnostic;
 use std::collections::HashMap;
 use url::Url;
 
