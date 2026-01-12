@@ -1,9 +1,11 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::project::{ConvertLoc, Project};
 use codespan_reporting::files::{Files, SimpleFiles};
 use lsp_types::{Command, Location, Position};
 use move_command_line_common::files::FileHash;
+use move_compiler::parser::ast::NamePath;
 use move_ir_types::location::*;
 use move_package::source_package::layout::SourcePackageLayout;
 use move_symbol_pool::Symbol;
@@ -97,9 +99,9 @@ impl FileLineMapping {
             end_index = start_index;
         }
         let vec = self.m.get(filepath)?;
-        let too_big = vec.last().map(|x| *x <= end_index).unwrap_or(false);
+        let too_big = vec.last().map(|x| *x < end_index).unwrap_or(false);
         if too_big {
-            log::error!(
+            println!(
                 "end index too big. vec.last() = {:?}, end index = {:?}",
                 vec.last(),
                 end_index
@@ -537,4 +539,34 @@ pub fn get_default_usedecl(file_hash: FileHash) -> Vec<move_compiler::parser::as
     generate_default_use_decl_for_std_module_member(&mut default_use_decl, default_loc);
     generate_buildin_type_use_decl_for_std_module(&mut default_use_decl, default_loc);
     return default_use_decl;
+}
+
+pub fn make_diag_for_empty_entries(name_path: &NamePath, project: &Project) {
+    // use move_compiler::diagnostics::{
+    //     codes::{custom, Severity},
+    //     Diagnostic, Diagnostics,
+    // };
+    // let diag_info = custom("", Severity::Bug, 1, 1, "Syntax Error");
+
+    // let mut diags = Diagnostics::new();
+    // if let Some(sender_arc) = crate::DIAG_SENDER.get() {
+    //     // sender_arc 是 Arc<Mutex<Sender<...>>>
+    //     let sender = sender_arc.lock().unwrap(); // 这里才是 Mutex 的 lock
+    //     if let Some(fr) = project.convert_loc_range(&name_path.root.name.loc) {
+    //         let notes: Vec<String> = vec![
+    //             "entries should be non-zero, or this should be converted to a `SingleName`."
+    //                 .to_string(),
+    //         ];
+    //         let secound_labels: Vec<(Loc, String)> = vec![];
+
+    //         let diag = Diagnostic::new(
+    //             diag_info,
+    //             (name_path.root.name.loc.clone(), "Empty path entry"),
+    //             secound_labels,
+    //             notes,
+    //         );
+    //         diags.add(diag);
+    //         let _ = sender.send((fr.path, diags));
+    //     }
+    // };
 }

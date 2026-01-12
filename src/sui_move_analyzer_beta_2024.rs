@@ -129,7 +129,7 @@ type DiagSender = Arc<Mutex<Sender<(PathBuf, DiagnosticsBeta2024)>>>;
 //         let defs = match defs {
 //             std::result::Result::Ok(x) => x,
 //             std::result::Result::Err(d) => {
-//                 log::error!("update file failed,err:{:?}", d);
+//                 println!("update file failed,err:{:?}", d);
 //                 return;
 //             }
 //         };
@@ -162,7 +162,7 @@ type DiagSender = Arc<Mutex<Sender<(PathBuf, DiagnosticsBeta2024)>>>;
 //             let content = match content {
 //                 Ok(x) => x,
 //                 Err(err) => {
-//                     log::error!("read file failed,err:{:?}", err);
+//                     println!("read file failed,err:{:?}", err);
 //                     return;
 //                 }
 //             };
@@ -213,7 +213,7 @@ type DiagSender = Arc<Mutex<Sender<(PathBuf, DiagnosticsBeta2024)>>>;
 //             let p = match context.projects.load_project(&conn, &mani) {
 //                 anyhow::Result::Ok(x) => x,
 //                 anyhow::Result::Err(e) => {
-//                     log::error!("load project failed,err:{:?}", e);
+//                     println!("load project failed,err:{:?}", e);
 //                     return;
 //                 }
 //             };
@@ -545,7 +545,7 @@ fn compute_mapped_files(resolved_graph: &ResolvedGraph, overlay_fs: VfsPath) -> 
 //     let defs = match defs {
 //         std::result::Result::Ok(x) => x,
 //         std::result::Result::Err(d) => {
-//             log::error!("update file failed,err:{:?}", d);
+//             println!("update file failed,err:{:?}", d);
 //             return;
 //         }
 //     };

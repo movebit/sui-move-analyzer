@@ -225,7 +225,18 @@ impl ItemOrAccessHandler for Handler {
                         }
                     }
                 },
-                _ => {
+                Access::ApplyType(_chain, _, _ty) => {
+                    if let Some((access, def)) = access.access_module() {
+                        if self.match_loc(&access, services) {
+                            if let Some(t) = services.convert_loc_range(&def) {
+                                self.result = Some(t);
+                                self.result_loc = Some(def);
+                                self.result_item_or_access = Some(item_or_access.clone());
+                                return;
+                            }
+                        }
+                    }
+
                     let locs = access.access_def_loc();
                     if self.match_loc(&locs.0, services) {
                         if let Some(t) = services.convert_loc_range(&locs.1) {
@@ -235,6 +246,7 @@ impl ItemOrAccessHandler for Handler {
                         }
                     }
                 }
+                _ => {}
             },
         }
     }
@@ -245,7 +257,8 @@ impl ItemOrAccessHandler for Handler {
     }
 
     fn finished(&self) -> bool {
-        self.result.is_some()
+        // self.result.is_some()
+        false
     }
 }
 
@@ -253,7 +266,7 @@ impl std::fmt::Display for Handler {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "goto_definition,file:{:?} line:{} col:{}",
+            "111 goto_definition,file:{:?} line:{} col:{}",
             self.filepath, self.line, self.col
         )
     }

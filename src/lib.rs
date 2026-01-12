@@ -39,6 +39,7 @@ pub mod goto_definition;
 pub mod hover;
 pub mod inlay_hints;
 pub mod item;
+pub mod lastest_implicit_deps;
 pub mod linter;
 pub mod message_for_js;
 pub mod move_generate_spec;
@@ -180,7 +181,7 @@ fn update_defs(context: &mut Context, fpath: PathBuf, content: &str) {
             x
         }
         std::result::Result::Err(d) => {
-            log::error!("update file failed,err:{:?}", d);
+            println!("update file failed,err:{:?}", d);
             return;
         }
     };
@@ -270,7 +271,7 @@ fn handle_open_document<'a>(context: &'a mut Context, request: lsp_server::Reque
         let p = match res {
             anyhow::Result::Ok(x) => x,
             anyhow::Result::Err(e) => {
-                log::error!("load project failed,err:{:?}", e);
+                println!("load project failed,err:{:?}", e);
                 return;
             }
         };

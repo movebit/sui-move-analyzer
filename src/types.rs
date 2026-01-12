@@ -40,6 +40,25 @@ pub enum ResolvedType {
     Range,
 }
 
+impl PartialEq for ResolvedType {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (ResolvedType::Struct(n1, _), ResolvedType::Struct(n2, _)) => n1 == n2,
+
+            (ResolvedType::BuildInType(b1), ResolvedType::BuildInType(b2)) => b1 == b2,
+            (ResolvedType::Ref(_, t1), ResolvedType::Ref(_, t2)) => t1 == t2,
+            (ResolvedType::Multiple(v1), ResolvedType::Multiple(v2)) => v1 == v2,
+            (ResolvedType::Vec(_), ResolvedType::Vec(_)) => true,
+
+            (ResolvedType::Ref(_, t1), other) => t1.as_ref() == other,
+            (other, ResolvedType::Ref(_, t2)) => other == t2.as_ref(),
+            _ => false,
+        }
+    }
+}
+
+impl Eq for ResolvedType {}
+
 impl Default for ResolvedType {
     fn default() -> Self {
         Self::UnKnown
@@ -168,7 +187,7 @@ impl ResolvedType {
     }
 }
 
-#[derive(Clone, Debug, Copy, Sequence)]
+#[derive(Clone, Debug, Copy, Sequence, Eq, PartialEq)]
 pub enum BuildInType {
     Bool,
     U8,
@@ -253,7 +272,7 @@ impl std::fmt::Display for ResolvedType {
                 write!(f, "{}", x)
             }
             ResolvedType::Vec(ty) => {
-                write!(f, "vector<<{}>>", ty.as_ref())
+                write!(f, "vector[{}]", ty.as_ref())
             }
             ResolvedType::Range => {
                 write!(f, "range(n..m)")
@@ -298,7 +317,8 @@ impl ResolvedType {
                     Item::Struct(item) => {
                         let mut item = item.clone();
                         item.type_parameters_ins = v;
-                        item.bind_type_parameter(None );
+                        item.bind_type_parameter(Some(&item.collect_type_parameters()) );
+
                         item
                     }
                     _ => {

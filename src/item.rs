@@ -50,6 +50,16 @@ impl ItemStruct {
         });
         m
     }
+    pub(crate) fn collect_type_parameters(&self) -> HashMap<Symbol, ResolvedType> {
+        let mut types_map: HashMap<Symbol, ResolvedType> = Default::default();
+        self.type_parameters
+            .iter()
+            .zip(self.type_parameters_ins.iter())
+            .for_each(|x| {
+                types_map.insert(x.0.name.value.clone(), x.1.clone());
+            });
+        types_map
+    }
 }
 
 impl ItemStruct {
@@ -170,7 +180,7 @@ impl Item {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct ItemStructNameRef {
     pub(crate) addr: AccountAddress,
     pub(crate) module_name: Symbol,
@@ -640,7 +650,7 @@ impl Access {
             },
 
             Self::ApplyType(chain, Option::Some(module), _) => match &chain.value {
-                NameAccessChain_::Single(_) => None,
+                NameAccessChain_::Single(path_entry) => Some((path_entry.name.loc, module.loc())),
                 NameAccessChain_::Path(name_path) => Some((name_path.root.name.loc, module.loc())),
             },
 

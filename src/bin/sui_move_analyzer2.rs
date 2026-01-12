@@ -214,7 +214,7 @@ fn main() {
 //                     Ok ((mani ,x)) => {
 //                         send_diag_beta_2024(&mut context_manager.context_beta_2024, mani, x);
 //                     }
-//                     Err(error) => log::error!("beta IDE diag message error: {:?}", error),
+//                     Err(error) => println!("beta IDE diag message error: {:?}", error),
 //                 }
 //             },
 //             recv(context_manager.connection.receiver) -> message => {

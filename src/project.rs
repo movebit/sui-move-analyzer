@@ -114,7 +114,7 @@ impl Project {
     pub fn update_defs(&mut self, file_path: &PathBuf, old_defs: Option<&Vec<Definition>>) {
         let manifest = super::utils::discover_manifest_and_kind(file_path.as_path());
         if manifest.is_none() {
-            log::error!("path can't find manifest file:{:?}", file_path);
+            println!("path can't find manifest file:{:?}", file_path);
             return;
         }
         let (manifest, layout) = manifest.unwrap();
@@ -199,25 +199,17 @@ impl Project {
                     manifest_path,
                     err
                 ));
-                log::error!("parse_move_manifest_from_file failed,err:{:?}", err);
                 self.manifest_load_failures.insert(manifest_path.clone());
                 return anyhow::Result::Ok(());
             }
         };
         self.manifests.push(manifest.clone());
-        let a = self
-            .modules
-            .get(&manifest_path)
-            .unwrap()
-            .borrow()
-            .sources
-            .len();
 
-        for (dep_name, de) in manifest
-            .dependencies
-            .iter()
-            .chain(manifest.dev_dependencies.iter())
-        {
+        let all_deps =
+            crate::lastest_implicit_deps::implicit_deps::merge_implicit_deps_to_manifest(&manifest);
+
+        for (dep_name, de) in all_deps.iter() {
+            println!("dep_name{}, dep: {:?}", dep_name, de);
             let move_home = "/workspace/.move";
 
             let repository_path = |kind: &DependencyKind| -> PathBuf {
@@ -352,7 +344,6 @@ impl Project {
                             false,
                         );
                         let s = String::from_utf8_lossy(buffer.as_slice());
-                        log::error!("{}", s);
                         continue;
                     }
                 };
@@ -538,11 +529,17 @@ impl Project {
     pub(crate) fn initialize_fun_call(
         &self,
         project_context: &ProjectContext,
-        name: &NameAccessChain,
+        name: Option<&NameAccessChain>,
+        fun_type: Option<Item>,
         type_args: &Option<Vec<Type>>,
         exprs: &Spanned<Vec<Exp>>,
     ) -> Option<ResolvedType> {
-        let (fun_type, _) = project_context.find_name_chain_item(name, self);
+        let fun_type = if let Some(name) = name {
+            project_context.find_name_chain_item(name, self).0
+        } else {
+            fun_type
+        };
+
         let fun_type = fun_type.unwrap_or_default().to_type().unwrap_or_default();
         match &fun_type {
             ResolvedType::Lambda { .. } => Some(fun_type),
@@ -660,14 +657,36 @@ impl Project {
                     }
                     _ => {}
                 }
-                let ty = self.initialize_fun_call(project_context, name, &type_args, exprs);
+                let ty =
+                    self.initialize_fun_call(project_context, Some(name), None, &type_args, exprs);
                 match ty.unwrap_or_default() {
                     ResolvedType::Fun(x) => x.ret_type.as_ref().clone(),
                     ResolvedType::Lambda { ret_ty, .. } => ret_ty.as_ref().clone(),
                     _ => ResolvedType::UnKnown,
                 }
             }
+            Exp_::DotCall(pre_expr, _, func_name, _, type_args, exprs) => {
+                let Some(item) =
+                    project_context.find_name_corresponding_item(self, pre_expr, func_name)
+                else {
+                    return ResolvedType::UnKnown;
+                };
+                let mut exprs = exprs.clone();
+                exprs.value.insert(0, (**pre_expr).clone());
+                let ty = self.initialize_fun_call(
+                    project_context,
+                    None,
+                    Some(item.clone()),
+                    type_args,
+                    &exprs,
+                );
 
+                match ty.unwrap_or_default() {
+                    ResolvedType::Fun(x) => x.ret_type.as_ref().clone(),
+                    ResolvedType::Lambda { ret_ty, .. } => ret_ty.as_ref().clone(),
+                    _ => ResolvedType::UnKnown,
+                }
+            }
             Exp_::Pack(name, fields) => {
                 let (struct_item, _) = project_context.find_name_chain_item(name, self);
                 let struct_item = match struct_item {
@@ -827,7 +846,7 @@ impl Project {
                 let ty = self.get_expr_type(e, project_context);
                 ResolvedType::new_ref(*is_mut, ty)
             }
-            Exp_::Dot(e, _loc, name) => {
+            Exp_::Dot(e, _, name) => {
                 let ty = self.get_expr_type(e, project_context);
                 let ty = match &ty {
                     ResolvedType::Ref(_, ty) => ty.as_ref(),
@@ -845,7 +864,6 @@ impl Project {
                     _ => ResolvedType::UnKnown,
                 }
             }
-
             Exp_::Index(e, _index) => {
                 let ty = self.get_expr_type(e, project_context);
                 let ty = match &ty {
@@ -857,7 +875,6 @@ impl Project {
                     _ => ty,
                 }
             }
-
             Exp_::Cast(_, ty) => project_context.resolve_type(ty, self),
             Exp_::Annotate(_, ty) => project_context.resolve_type(ty, self),
             Exp_::Spec(_) => ResolvedType::new_unit(),
@@ -973,6 +990,8 @@ pub(crate) fn infer_type_parameter_on_expression(
             ResolvedType::Ref(_, l) => {
                 if let ResolvedType::Ref(_, r) = expr_type {
                     bind(ret, l.as_ref(), r.as_ref())
+                } else {
+                    bind(ret, l.as_ref(), expr_type)
                 }
             }
             ResolvedType::Unit => {}

@@ -679,7 +679,7 @@ impl Project {
                           project_context: &ProjectContext,
                           visitor: &mut dyn ItemOrAccessHandler,
                           _has_ref: Option<bool>| {
-            // self.visit_expr(e, project_context, visitor);
+            self.visit_expr(e, project_context, visitor);
             if visitor.finished() {
                 return;
             }
@@ -724,6 +724,7 @@ impl Project {
                 self.visit_expr(expr.as_ref(), project_context, visitor);
             }
             Exp_::Name(chain) => {
+                self.visit_namechain_tyargs(project_context, visitor, chain);
                 let (item, module) = project_context.find_name_chain_item(chain, self);
                 let item = ItemOrAccess::Access(Access::ExprAccessChain(
                     chain.clone(),
@@ -758,6 +759,8 @@ impl Project {
                     NameAccessChain_::Path(_) => None,
                 };
 
+                self.visit_namechain_tyargs(project_context, visitor, chain);
+
                 let (item, module) = project_context.find_name_chain_item(chain, self);
                 if visitor.need_call_pair() {
                     if let Item::Fun(_f) = item.clone().unwrap_or_default() {
@@ -781,7 +784,7 @@ impl Project {
 
                 // try visit lambda expr.
                 if let ResolvedType::Fun(x) = self
-                    .initialize_fun_call(project_context, chain, &type_args, exprs)
+                    .initialize_fun_call(project_context, Some(chain), None, &type_args, exprs)
                     .unwrap_or_default()
                 {
                     // TODO we maybe need infer type parameter first.
@@ -821,10 +824,33 @@ impl Project {
                 }
             }
 
-            Exp_::DotCall(_, _, fun_name, _, _, call_paren_exp) => {
-                let opt_item = project_context.find_name_corresponding_item(fun_name);
+            Exp_::DotCall(pre_expr, _, fun_name, _, type_args, call_paren_exp) => {
+                self.visit_expr(pre_expr, project_context, visitor);
+                println!("dot call loc: {:?}", self.convert_loc_range(&pre_expr.loc));
+                let opt_item =
+                    project_context.find_name_corresponding_item(self, pre_expr, fun_name);
+                let opt_item = if opt_item.is_some() {
+                    let mut call_paren_exp = call_paren_exp.clone();
+                    call_paren_exp.value.insert(0, (**pre_expr).clone());
+                    let ty = self
+                        .initialize_fun_call(
+                            project_context,
+                            None,
+                            opt_item.clone(),
+                            type_args,
+                            &call_paren_exp,
+                        )
+                        .unwrap_or_default();
+                    match ty {
+                        ResolvedType::Fun(f) => Some(Item::Fun(f)),
+                        _ => opt_item,
+                    }
+                } else {
+                    opt_item
+                };
+
                 let item = ItemOrAccess::Access(Access::ExprAccessChain(
-                    Spanned::new(exp.loc, NameAccessChain_::single(*fun_name)),
+                    Spanned::new(fun_name.loc, NameAccessChain_::single(*fun_name)),
                     None,
                     Box::new(opt_item.unwrap_or_default()),
                 ));
@@ -949,7 +975,7 @@ impl Project {
             Exp_::Lambda(_, _, _) => {
                 // TODO have lambda expression in ast structure.
                 // But I don't find in msl spec.
-                log::error!("lambda expression in ast.");
+                println!("lambda expression in ast.");
             }
 
             Exp_::Quant(_, binds, bodies, where_, result) => {
@@ -977,7 +1003,7 @@ impl Project {
                             } else if ty.is_range().is_some() {
                                 ResolvedType::new_build_in(BuildInType::NumType)
                             } else {
-                                log::error!("bind the wrong type:{}", ty);
+                                println!("bind the wrong type:{}", ty);
                                 ty
                             };
                             let item = ItemOrAccess::Item(Item::Parameter(*var, ty));
@@ -1097,6 +1123,40 @@ impl Project {
         }
     }
 
+    pub(crate) fn visit_tyargs(
+        &self,
+        project_context: &ProjectContext,
+        visitor: &mut dyn ItemOrAccessHandler,
+        tyargs: &Option<Spanned<Vec<Type>>>,
+    ) {
+        let Some(tyargs) = tyargs else {
+            return;
+        };
+        tyargs
+            .value
+            .iter()
+            .for_each(|ty| self.visit_type_apply(ty, project_context, visitor));
+    }
+
+    pub(crate) fn visit_namechain_tyargs(
+        &self,
+        project_context: &ProjectContext,
+        visitor: &mut dyn ItemOrAccessHandler,
+        chain: &NameAccessChain,
+    ) {
+        match &chain.value {
+            NameAccessChain_::Single(path_entry) => {
+                self.visit_tyargs(project_context, visitor, &path_entry.tyargs);
+            }
+            NameAccessChain_::Path(name_path) => {
+                self.visit_tyargs(project_context, visitor, &name_path.root.tyargs);
+                for path_entry in name_path.entries.iter() {
+                    self.visit_tyargs(project_context, visitor, &path_entry.tyargs);
+                }
+            }
+        }
+    }
+
     pub(crate) fn visit_friend(
         &self,
         friend_decl: &FriendDecl,
@@ -1190,6 +1250,7 @@ impl Project {
     ) {
         match &ty.value {
             Type_::Apply(chain) => {
+                self.visit_namechain_tyargs(project_context, visitor, chain);
                 let ty = project_context.resolve_type(ty, self);
                 let (_, module) = project_context.find_name_chain_item(chain, self);
                 let item = ItemOrAccess::Access(Access::ApplyType(

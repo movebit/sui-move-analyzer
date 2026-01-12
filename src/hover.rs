@@ -39,7 +39,7 @@
 //     let _ = match context.projects.get_project(&fpath) {
 //         Some(x) => x,
 //         None => {
-//             log::error!("project not found:{:?}", fpath.as_path());
+//             println!("project not found:{:?}", fpath.as_path());
 //             return Response {
 //                 id: "".to_string().into(),
 //                 result: Some(serde_json::json!({"msg": "No available project"})),

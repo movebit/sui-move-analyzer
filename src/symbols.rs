@@ -1060,7 +1060,7 @@
 //     let path_project = match context.projects.get_project(&fpath) {
 //         Some(x) => x,
 //         None => {
-//             log::error!("project not found:{:?}", fpath.as_path());
+//             println!("project not found:{:?}", fpath.as_path());
 //             return ;
 //         }
 //     };
@@ -1068,7 +1068,7 @@
 //     let (manifest_path, _) = match discover_manifest_and_kind(fpath.as_path()) {
 //         Some(x) => x,
 //         None => {
-//             log::error!("project not found:{:?}", fpath.as_path());
+//             println!("project not found:{:?}", fpath.as_path());
 //             return ;
 //         }
 //     };
@@ -1093,8 +1093,8 @@
 //                 let range = match path_project.loc_to_range(&def_module.loc) {
 //                     Some(x) => x,
 //                     None => {
-//                         log::error!("Could not covert Definition::Module({:?}).loc to range", def_module.name);
-//                         log::error!("Module Loc start = {:?}, end = {:?}", def_module.loc.start(), def_module.loc.end());
+//                         println!("Could not covert Definition::Module({:?}).loc to range", def_module.name);
+//                         println!("Module Loc start = {:?}, end = {:?}", def_module.loc.start(), def_module.loc.end());
 //                         return ;
 //                     }
 //                 };
@@ -1110,7 +1110,7 @@
 //                             let func_range = match path_project.loc_to_range(&x.loc) {
 //                                 Some(x) => x,
 //                                 None => {
-//                                     log::error!("Could not covert ModuleMember::Function({:?}).loc to range", x.name);
+//                                     println!("Could not covert ModuleMember::Function({:?}).loc to range", x.name);
 //                                     return ;
 //                                 }
 //                             };
@@ -1131,7 +1131,7 @@
 //                             let struct_range = match path_project.loc_to_range(&x.loc) {
 //                                 Some(x) => x,
 //                                 None => {
-//                                     log::error!("Could not covert ModuleMember::Struct({:?}).loc to range", x.name);
+//                                     println!("Could not covert ModuleMember::Struct({:?}).loc to range", x.name);
 //                                     return ;
 //                                 }
 //                             };
@@ -1153,7 +1153,7 @@
 //                             let const_range = match path_project.loc_to_range(&x.loc) {
 //                                 Some(x) => x,
 //                                 None => {
-//                                     log::error!("Could not covert ModuleMember::Const({:?}).loc to range", x.name);
+//                                     println!("Could not covert ModuleMember::Const({:?}).loc to range", x.name);
 //                                     return ;
 //                                 }
 //                             };
@@ -1218,7 +1218,7 @@
 //                 let file_range = match project.convert_loc_range(&spanned_type.loc) {
 //                     Some(x) => x,
 //                     None => {
-//                         log::error!("could not convert StructFields::Defined({:?}).loc to range", struct_field);
+//                         println!("could not convert StructFields::Defined({:?}).loc to range", struct_field);
 //                         return ;
 //                     }
 //                 };

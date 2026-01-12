@@ -134,7 +134,7 @@
 //     let _ = match context.projects.get_project(&fpath) {
 //         Some(x) => x,
 //         None => {
-//             log::error!("completion_request Could not find project");
+//             println!("completion_request Could not find project");
 //             return
 //         },
 //     }
