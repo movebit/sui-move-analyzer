@@ -4,13 +4,8 @@
 #[cfg(test)]
 mod tests {
     use lsp_server::{Connection, Request, Response};
-    use beta_2024::{
-        context::{Context, FileDiags, MultiProject},
-        goto_definition, symbols,
-        utils::*,
-        vfs::VirtualFileSystem,
-        sui_move_analyzer_beta_2024::*,
-    };
+    use sui_move_analyzer::{Context, FileDiags, MultiProject, goto_definition, symbols, utils::*, test_update_defs, discover_manifest_and_kind};
+    
     use serde_json::json;
     use std::{
         path::PathBuf,
@@ -27,7 +22,6 @@ mod tests {
         let mut mock_ctx = Context {
             projects: MultiProject::new(),
             connection: &connection,
-            files: VirtualFileSystem::default(),
             symbols,
             ref_caches: Default::default(),
             diag_version: FileDiags::new(),
@@ -35,7 +29,7 @@ mod tests {
 
         let fpath = path_concat(
             std::env::current_dir().unwrap().as_path(),
-            PathBuf::from("tests/symbols/sources/M1.move").as_path(),
+            PathBuf::from("tests/beta_2024/project1/sources/index_syntax.move").as_path(),
         );
 
         eprintln!("fpath = {:?}", fpath.to_str());
@@ -57,7 +51,7 @@ mod tests {
                 eprintln!("project '{:?}' not found try load.", fpath.as_path());
             }
         };
-        let p = match mock_ctx.projects.load_project(&mock_ctx.connection, &mani) {
+        let p = match mock_ctx.projects.load_project(&mock_ctx.connection, &mani, Default::default()) {
             anyhow::Result::Ok(x) => x,
             anyhow::Result::Err(e) => {
                 log::error!("load project failed,err:{:?}", e);
@@ -68,8 +62,8 @@ mod tests {
 
         let params_json = json!({
             "position": {
-                "line": 25,
-                "character": 27
+                "line": 53,  // 在main函数中s[i]处
+                "character": 22   // s[i]中的s位置
             },
             "textDocument": {
                 "uri": "file:///".to_string() + fpath.to_str().unwrap()
@@ -87,18 +81,15 @@ mod tests {
             json!([{
                 "range":{
                     "end":{
-                        "character":32,
-                        "line":6
+                        "character":17,
+                        "line":50
                     },
                     "start":{
-                        "character":15,
-                        "line":6
+                        "character":16,
+                        "line":50
                     }
                 },
-                "uri": ("file:///".to_string() + path_concat(
-                            std::env::current_dir().unwrap().as_path(),
-                            PathBuf::from("tests/symbols/sources/M2.move").as_path()).to_str().unwrap()
-                       ).replace('\\', "/")
+                "uri": ("file://".to_string() + fpath.to_str().unwrap()).replace('\\', "/")
             }]),
         );
         std::thread::sleep(Duration::new(1, 0));

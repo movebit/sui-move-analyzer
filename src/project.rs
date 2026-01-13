@@ -418,12 +418,12 @@ impl Project {
 
     pub(crate) fn name_to_addr_impl(&self, name: Symbol) -> AccountAddress {
         for x in self.manifests.iter() {
-            if let Some(ref x) = x.dev_address_assignments {
+            if let Some(x) = &x.dev_address_assignments {
                 if let Some(x) = x.get(&name) {
                     return *x;
                 }
             }
-            if let Some(ref x) = x.addresses {
+            if let Some(x) = &x.addresses {
                 if let Some(Some(x)) = x.get(&name) {
                     return *x;
                 }
@@ -579,7 +579,7 @@ impl Project {
                 });
                 let mut fun_type = fun_type.clone();
                 let mut types = HashMap::new();
-                if let Some(ref ts) = type_args {
+                if let Some(ts) = type_args {
                     for (para, args) in type_parameters.iter().zip(ts.iter()) {
                         types.insert(para.0.value, args.clone());
                     }
@@ -627,7 +627,7 @@ impl Project {
     //             });
     //             let mut fun_type = fun_type.clone();
     //             let mut types: HashMap<Symbol, ResolvedType> = HashMap::new();
-    //             if let Some(ref ts) = type_args {
+    //             if let Some(ts) = type_args {
     //                 for (para, args) in type_parameters.iter().zip(ts.iter()) {
     //                     types.insert(para.0.value, args.clone());
     //                 }
@@ -646,17 +646,19 @@ impl Project {
         project_context: &ProjectContext,
     ) -> ResolvedType {
         match &expr.value {
-            Exp_::Value(ref x) => match &x.value {
-                Value_::Address(_) => ResolvedType::new_build_in(BuildInType::Address),
-                Value_::Num(x) => {
-                    let b = BuildInType::num_types()
-                        .into_iter()
-                        .find(|b| x.as_str().ends_with(b.to_static_str()));
-                    ResolvedType::new_build_in(b.unwrap_or(BuildInType::NumType))
+            Exp_::Value(x) => {
+                match &x.value {
+                    Value_::Address(_) => ResolvedType::new_build_in(BuildInType::Address),
+                    Value_::Num(x) => {
+                        let b = BuildInType::num_types()
+                            .into_iter()
+                            .find(|b| x.as_str().ends_with(b.to_static_str()));
+                        ResolvedType::new_build_in(b.unwrap_or(BuildInType::NumType))
+                    }
+                    Value_::Bool(_) => ResolvedType::new_build_in(BuildInType::Bool),
+                    Value_::HexString(_) => ResolvedType::new_build_in(BuildInType::NumType),
+                    Value_::ByteString(_) => ResolvedType::new_build_in(BuildInType::String),
                 }
-                Value_::Bool(_) => ResolvedType::new_build_in(BuildInType::Bool),
-                Value_::HexString(_) => ResolvedType::new_build_in(BuildInType::NumType),
-                Value_::ByteString(_) => ResolvedType::new_build_in(BuildInType::String),
             },
             Exp_::Move(_, x) | Exp_::Copy(_, x) => self.get_expr_type(x, project_context),
             Exp_::Name(name) => {
@@ -1038,7 +1040,7 @@ impl Project {
 
 /// Check is option is Some and ResolvedType is not unknown and not a error.
 fn option_ty_is_valid(x: &Option<ResolvedType>) -> bool {
-    if let Some(ref x) = x {
+    if let Some(x) = x {
         !x.is_err()
     } else {
         false
@@ -1056,10 +1058,12 @@ pub(crate) const UNKNOWN_TYPE: ResolvedType = ResolvedType::UnKnown;
 
 pub(crate) fn get_name_from_value(v: &Value) -> Option<&Name> {
     match &v.value {
-        Value_::Address(ref x) => match &x.value {
-            LeadingNameAccess_::AnonymousAddress(_) => None,
-            LeadingNameAccess_::Name(ref name) | LeadingNameAccess_::GlobalAddress(ref name) => {
-                Some(name)
+        Value_::Address(x) => {
+            match &x.value {
+                LeadingNameAccess_::AnonymousAddress(_) => None,
+                LeadingNameAccess_::Name(name) | LeadingNameAccess_::GlobalAddress(name) => {
+                    Some(name)
+                }
             }
         },
         _ => None,

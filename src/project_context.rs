@@ -901,7 +901,7 @@ impl ProjectContext {
 
     pub(crate) fn resolve_type(&self, ty: &Type, name_to_addr: &impl Name2Addr) -> ResolvedType {
         let r = match &ty.value {
-            Type_::Apply(ref chain) => {
+            Type_::Apply(chain) => {
                 let mut types = Default::default();
                 if let NameAccessChain_::Single(path_entry) = &chain.value {
                     // Special handle for vector.
@@ -939,7 +939,7 @@ impl ProjectContext {
                 };
                 return chain_ty;
             }
-            Type_::Ref(m, ref b) => {
+            Type_::Ref(m, b) => {
                 ResolvedType::Ref(*m, Box::new(self.resolve_type(b.as_ref(), name_to_addr)))
             }
             Type_::Fun(args, ret_ty) => {
@@ -955,7 +955,7 @@ impl ProjectContext {
             }
 
             Type_::Unit => ResolvedType::Unit,
-            Type_::Multiple(ref types) => {
+            Type_::Multiple(types) => {
                 let types: Vec<_> = types
                     .iter()
                     .map(|v| self.resolve_type(v, name_to_addr))

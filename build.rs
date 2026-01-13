@@ -29,7 +29,9 @@ struct VersionEntry {
 
 /// 从远程拉取最新的system packages JSON并解析（假设按顺序排列，取最后一个）
 fn fetch_latest_system_packages() -> anyhow::Result<Option<(u32, VersionEntry)>> {
+    // ureq 库会自动从环境变量（如 HTTPS_PROXY、http_proxy 等）中读取代理设置
     let response = ureq::get(MANIFEST_JSON_URL).call()?;
+
     let status = response.status();
     if !(200..=299).contains(&status) {
         return Err(anyhow::anyhow!(format!(
@@ -57,7 +59,11 @@ fn fetch_latest_system_packages() -> anyhow::Result<Option<(u32, VersionEntry)>>
 fn generate_system_packages_version_table() -> anyhow::Result<()> {
     let (latest_version, latest_entry) = match fetch_latest_system_packages()? {
         Some(data) => data,
-        None => return Err(anyhow::anyhow!("fetch_latest_system_packages failed.")),
+        None => {
+            // 如果无法获取最新的系统包信息，使用默认的空表
+            println!("Warning: Could not fetch system packages, using empty table.");
+            return generate_empty_table();
+        },
     };
 
     let out_dir = env::var("OUT_DIR").unwrap();
@@ -95,6 +101,29 @@ fn generate_system_packages_version_table() -> anyhow::Result<()> {
     Ok(())
 }
 
+// 当网络请求失败时生成空表的辅助函数
+fn generate_empty_table() -> anyhow::Result<()> {
+    let out_dir = env::var("OUT_DIR").unwrap();
+    let dest_path = Path::new(&out_dir).join("system_packages_version_table.rs");
+    let mut file = BufWriter::new(File::create(&dest_path)?);
+
+    // 生成一个空的系统包表
+    writeln!(&mut file, "[")?;
+    writeln!(&mut file, "]")?;
+
+    println!("cargo::rerun-if-changed=build.rs");
+    println!("cargo:rustc-env=SUI_SYS_PKG_TABLE={}", dest_path.display());
+    Ok(())
+}
+
 fn main() {
-    generate_system_packages_version_table().unwrap();
+    // 捕获错误并在失败时生成空表
+    if let Err(e) = generate_system_packages_version_table() {
+        eprintln!("Error generating system packages version table: {}", e);
+        // 尝试生成空表作为备选方案
+        if let Err(e) = generate_empty_table() {
+            eprintln!("Error generating empty table fallback: {}", e);
+            panic!("Could not generate system packages table");
+        }
+    }
 }

@@ -33,7 +33,7 @@ use vfs::{
 };
 // use move_symbol_pool::Symbol;
 use url::Url;
-pub type DiagnosticsBeta2024 = move_compiler::diagnostics::Diagnostics;
+pub type Diagnostics = move_compiler::diagnostics::Diagnostics;
 
 use once_cell::sync::Lazy;
 use threadpool::ThreadPool;
@@ -97,7 +97,7 @@ pub fn on_response(_context: &Context, _response: &Response) {
     eprintln!("handle response from client");
 }
 
-type DiagSender = Arc<Mutex<Sender<(PathBuf, DiagnosticsBeta2024)>>>;
+type DiagSender = Arc<Mutex<Sender<(PathBuf, Diagnostics)>>>;
 
 pub fn on_notification(
     context: &mut Context,
@@ -119,7 +119,7 @@ pub fn on_notification(
                 is_dependency: false,
                 warning_filter: WarningFiltersBuilder::new_for_source(),
                 flavor: Flavor::default(),
-                edition: Edition::E2024_BETA,
+                edition: Edition::E2024,
             }),
             None,
         );
@@ -603,7 +603,7 @@ fn make_diag(
     file_to_diag: bool,
     implicit_deps: Dependencies,
 ) {
-    log::debug!("make_diag(beta) >>");
+    log::debug!("make_diag >>");
     let (mani, _) = match crate::utils::discover_manifest_and_kind(fpath.as_path()) {
         Some(x) => x,
         None => {
@@ -625,7 +625,7 @@ fn make_diag(
             implicit_deps,
         ) {
             Ok(x) => {
-                log::debug!("in worker, get(beta) diags success");
+                log::debug!("in worker, get diags success");
                 x
             }
             Err(err) => {
@@ -633,7 +633,7 @@ fn make_diag(
                 return;
             }
         };
-        // log::info!("in worker, send(beta) diags {:?}");
+        // log::info!("in worker, send diags {:?}");
         if let Err(e) = diag_sender.lock().unwrap().send((mani, x)) {
             log::info!("failed to send diag: {:?}", e);
         }
@@ -679,11 +679,11 @@ fn send_not_project_file_error(context: &mut Context, fpath: PathBuf, is_open: b
         .unwrap();
 }
 
-pub fn send_diag(context: &mut Context, mani: PathBuf, x: DiagnosticsBeta2024) {
-    log::trace!("bin send_diag(beta) >>");
+pub fn send_diag(context: &mut Context, mani: PathBuf, x: Diagnostics) {
+    log::trace!("bin send_diag >>");
     let mut result: HashMap<Url, Vec<lsp_types::Diagnostic>> = HashMap::new();
     log::trace!(
-        "bin send_diag(beta) x = {:?} <<",
+        "bin send_diag x = {:?} <<",
         x.clone().into_codespan_format()
     );
     for x in x.into_codespan_format() {
@@ -748,7 +748,7 @@ pub fn send_diag(context: &mut Context, mani: PathBuf, x: DiagnosticsBeta2024) {
     for (k, v) in result.into_iter() {
         let ds = lsp_types::PublishDiagnosticsParams::new(k.clone(), v, None);
         log::trace!(
-            "bin send_diag(beta) serde_json::to_value(ds) = {:?} <<",
+            "bin send_diag serde_json::to_value(ds) = {:?} <<",
             serde_json::to_value(ds.clone())
         );
         context
@@ -790,7 +790,7 @@ pub fn test_update_defs(context: &mut Context, fpath: PathBuf, content: &str) {
             is_dependency: false,
             warning_filter: WarningFiltersBuilder::new_for_source(),
             flavor: Flavor::default(),
-            edition: Edition::E2024_BETA,
+            edition: Edition::E2024,
         }),
         None,
     );

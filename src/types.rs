@@ -145,11 +145,11 @@ impl ResolvedType {
                     *self = x.clone();
                 }
             }
-            ResolvedType::Ref(_, ref mut b) => {
+            ResolvedType::Ref(_, b) => {
                 b.as_mut().bind_type_parameter(types);
             }
             ResolvedType::Unit => {}
-            ResolvedType::Multiple(ref mut xs) => {
+            ResolvedType::Multiple(xs) => {
                 for i in 0..xs.len() {
                     let t = xs.get_mut(i).unwrap();
                     t.bind_type_parameter(types);
@@ -163,7 +163,7 @@ impl ResolvedType {
                 }
                 x.ret_type.as_mut().bind_type_parameter(types);
             }
-            ResolvedType::Vec(ref mut b) => {
+            ResolvedType::Vec(b) => {
                 b.as_mut().bind_type_parameter(types);
             }
 

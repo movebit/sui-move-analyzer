@@ -13,28 +13,27 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use beta_2024::{
+use sui_move_analyzer::{
     context::{
-        Context as Context_beta_2024, FileDiags as FileDiags_beta_2024,
-        MultiProject as MultiProject_beta_2024,
+        Context, FileDiags,
+        MultiProject,
     },
-    symbols as symbols_beta_2024,
+    symbols,
 };
 
 use vfs::{VfsPath, impls::memory::MemoryFS};
 // use url::Url;
 
-use beta_2024::sui_move_analyzer_beta_2024::{
-    DiagnosticsBeta2024,
-    // on_response as on_response_beta_2024
-    on_notification as on_notification_beta_2024,
-    on_request as on_request_beta_2024,
-    send_diag as send_diag_beta_2024,
-    try_reload_projects as try_reload_projects_beta_2024,
+use sui_move_analyzer::sui_move_analyzer::{
+    Diagnostics,
+    on_notification,
+    on_request,
+    send_diag,
+    try_reload_projects,
 };
 
 pub(crate) struct ContextManager<'a> {
-    pub context_beta_2024: Context_beta_2024<'a>,
+    pub context: Context<'a>,
     pub connection: &'a lsp_server::Connection,
 }
 
@@ -62,19 +61,19 @@ pub fn init_log() {
         .unwrap()
 }
 
-fn init_context_manager(connection: &lsp_server::Connection) -> ContextManager {
-    let symbols_beta24 = Arc::new(Mutex::new(symbols_beta_2024::Symbolicator::empty_symbols()));
-    let context_beta_2024 = Context_beta_2024 {
-        projects: MultiProject_beta_2024::new(),
+fn init_context_manager(connection: &lsp_server::Connection) -> ContextManager<'_> {
+    let symbols = Arc::new(Mutex::new(symbols::Symbolicator::empty_symbols()));
+    let context = Context {
+        projects: MultiProject::new(),
         connection: &connection,
-        // files: VirtualFileSystem_beta_2024::default(),
-        symbols: symbols_beta24.clone(),
+        // files: VirtualFileSystem::default(),
+        symbols: symbols.clone(),
         ref_caches: Default::default(),
-        diag_version: FileDiags_beta_2024::new(),
+        diag_version: FileDiags::new(),
     };
 
     let context_manager = ContextManager {
-        context_beta_2024,
+        context,
         connection,
     };
     context_manager
@@ -119,31 +118,31 @@ fn main() {
         .expect("could not finish connection initialization");
     registere_did_change_watched_files(&context_manager);
 
-    let (diag_sender_beta2024, diag_receiver_beta_2024) =
-        bounded::<(PathBuf, DiagnosticsBeta2024)>(1);
+    let (diag_sender, diag_receiver) =
+        bounded::<(PathBuf, Diagnostics)>(1);
 
-    let diag_sender_beta2024 = Arc::new(Mutex::new(diag_sender_beta2024));
+    let diag_sender = Arc::new(Mutex::new(diag_sender));
 
-    let mut inlay_hints_config_beta_2024 = beta_2024::inlay_hints::InlayHintsConfig::default();
+    let mut inlay_hints_config = sui_move_analyzer::inlay_hints::InlayHintsConfig::default();
     let ide_files_root: VfsPath = MemoryFS::new().into();
 
-    let implicit_deps = beta_2024::implicit_deps();
+    let implicit_deps = sui_move_analyzer::implicit_deps();
     loop {
         select! {
-            recv(diag_receiver_beta_2024) -> message => {
+            recv(diag_receiver) -> message => {
                 match message {
                     Ok ((mani ,x)) => {
-                        send_diag_beta_2024(&mut context_manager.context_beta_2024, mani, x);
+                        send_diag(&mut context_manager.context, mani, x);
                     }
-                    Err(error) => log::error!("beta IDE diag message error: {:?}", error),
+                    Err(error) => log::error!("IDE diag message error: {:?}", error),
                 }
             },
             recv(context_manager.connection.receiver) -> message => {
 
                 match message {
                     Ok(Message::Request(request)) =>{
-                        try_reload_projects_beta_2024(&mut context_manager.context_beta_2024, implicit_deps.clone());
-                        on_request_beta_2024(&mut context_manager.context_beta_2024, &request, &mut inlay_hints_config_beta_2024);
+                        try_reload_projects(&mut context_manager.context, implicit_deps.clone());
+                        on_request(&mut context_manager.context, &request, &mut inlay_hints_config);
                     }
                     Ok(Message::Response(r)) => {eprintln!("Message::Response: {:?}", r);},
                     Ok(Message::Notification(notification)) => {
@@ -155,7 +154,7 @@ fn main() {
                                 // take a long time to respond to.
                             }
                             _ => {
-                                on_notification_beta_2024(&mut context_manager.context_beta_2024,ide_files_root.clone(), diag_sender_beta2024.clone(), &notification, implicit_deps.clone());
+                                on_notification(&mut context_manager.context,ide_files_root.clone(), diag_sender.clone(), &notification, implicit_deps.clone());
                             }
                         }
                     }
@@ -262,11 +261,11 @@ fn get_lsp_capabilities() -> lsp_types::ServerCapabilities {
             },
             completion_item: None,
         }),
-        definition_provider: Some(OneOf::Left(symbols_beta_2024::DEFS_AND_REFS_SUPPORT)),
+        definition_provider: Some(OneOf::Left(symbols::DEFS_AND_REFS_SUPPORT)),
         type_definition_provider: Some(TypeDefinitionProviderCapability::Simple(
-            symbols_beta_2024::DEFS_AND_REFS_SUPPORT,
+            symbols::DEFS_AND_REFS_SUPPORT,
         )),
-        references_provider: Some(OneOf::Left(symbols_beta_2024::DEFS_AND_REFS_SUPPORT)),
+        references_provider: Some(OneOf::Left(symbols::DEFS_AND_REFS_SUPPORT)),
         document_symbol_provider: Some(OneOf::Left(true)),
         workspace: Some(generate_workspace_server_capabilities()),
         ..Default::default()

@@ -647,7 +647,7 @@ impl Project {
                     return;
                 }
             }
-            if let Some(ref exp) = seq.3.as_ref() {
+            if let Some(exp) = seq.3.as_ref() {
                 self.visit_expr(exp, scopes, visitor);
             }
         });
@@ -770,7 +770,7 @@ impl Project {
         };
 
         match &exp.value {
-            Exp_::Value(ref v) => {
+            Exp_::Value(v) => {
                 if let Some(name) = get_name_from_value(v) {
                     let item = ItemOrAccess::Access(Access::ExprAddressName(*name));
                     visitor.handle_item_or_access(self, project_context, &item);
@@ -792,7 +792,7 @@ impl Project {
                 if visitor.finished() {}
             }
 
-            Exp_::Call(ref chain, ref exprs) => {
+            Exp_::Call(chain, exprs) => {
                 log::debug!(
                     "exp::call {:?}, {:?}",
                     chain,
@@ -810,8 +810,8 @@ impl Project {
                     NameAccessChain_::Path(_) => {}
                 }
 
-                let type_args = match chain.value {
-                    NameAccessChain_::Single(ref path_entry) => {
+                let type_args = match &chain.value {
+                    NameAccessChain_::Single(path_entry) => {
                         if let Some(x) = path_entry.clone().tyargs {
                             Some(x.value.clone())
                         } else {
@@ -931,7 +931,7 @@ impl Project {
                 }
             }
 
-            Exp_::Pack(ref chain, fields) => {
+            Exp_::Pack(chain, fields) => {
                 self.visit_type_apply(
                     &Spanned {
                         loc: chain.loc,
@@ -1003,7 +1003,7 @@ impl Project {
                 }
             }
 
-            Exp_::Vector(_loc, ref ty, ref exprs) => {
+            Exp_::Vector(_loc, ty, exprs) => {
                 if let Some(ty) = ty {
                     for t in ty.iter() {
                         self.visit_type_apply(t, project_context, visitor);
@@ -1258,9 +1258,9 @@ impl Project {
                 return;
             }
 
-            match function.body.value {
+            match &function.body.value {
                 FunctionBody_::Native => {}
-                FunctionBody_::Defined(ref seq) => self.visit_block(seq, project_context, visitor),
+                FunctionBody_::Defined(seq) => self.visit_block(&seq, project_context, visitor),
             }
         })
     }
@@ -1271,17 +1271,17 @@ impl Project {
         project_context: &ProjectContext,
         visitor: &mut dyn ItemOrAccessHandler,
     ) {
-        match seq.value {
-            SequenceItem_::Seq(ref e) => {
-                self.visit_expr(e, project_context, visitor);
+        match &seq.value {
+            SequenceItem_::Seq(e) => {
+                self.visit_expr(&e, project_context, visitor);
                 if visitor.finished() {}
             }
-            SequenceItem_::Declare(ref list, ref ty) => {
-                self.visit_bind_list(list, ty, None, project_context, visitor);
+            SequenceItem_::Declare(list, ty) => {
+                self.visit_bind_list(&list, &ty, None, project_context, visitor);
                 if visitor.finished() {}
             }
-            SequenceItem_::Bind(ref list, ref ty, ref expr) => {
-                self.visit_bind_list(list, ty, Some(expr), project_context, visitor);
+            SequenceItem_::Bind(list, ty, expr) => {
+                self.visit_bind_list(&list, &ty, Some(&expr), project_context, visitor);
                 if visitor.finished() {}
             }
         }
@@ -1301,7 +1301,7 @@ impl Project {
                 let (_, module) = project_context.find_name_chain_item(chain, self);
                 log::debug!(
                     "Type_::Apply module:{:?}",
-                    if let Some(ref module) = &module {
+                    if let Some(module) = &module {
                         log::debug!("loc {:?}", self.convert_loc_range(&module.name.loc()));
 
                         module.name.to_string()
