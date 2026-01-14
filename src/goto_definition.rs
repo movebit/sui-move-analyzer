@@ -1,4 +1,4 @@
-// Copyright (c) The Move Contributors
+// Copyright (c) The BitsLab.MoveBit Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 use super::{context::*, item::*, project::*, project_context::*, types::ResolvedType};

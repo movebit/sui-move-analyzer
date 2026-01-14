@@ -1,4 +1,5 @@
 // Copyright (c) The Move Contributors
+// Copyright (c) The BitsLab.MoveBit Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 //! This module is responsible for building symbolication information on top of compiler's typed

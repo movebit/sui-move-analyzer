@@ -1,3 +1,6 @@
+// Copyright (c) The BitsLab.MoveBit Contributors
+// SPDX-License-Identifier: Apache-2.0
+
 use move_package::resolution::resolution_graph::ResolvedGraph;
 use once_cell::sync::Lazy;
 use sha2::{Digest, Sha256};

@@ -1,3 +1,6 @@
+// Copyright (c) The BitsLab.MoveBit Contributors
+// SPDX-License-Identifier: Apache-2.0
+
 use super::move_generate_spec::FunSpecGenerator;
 use move_compiler::parser::ast::*;
 

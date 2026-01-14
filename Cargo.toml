@@ -1,9 +1,9 @@
 [package]
 name = "sui-move-analyzer"
-version = "1.4.0"
-authors = ["Diem Association <opensource@diem.com>"]
-description = "A language server for Move"
-repository = "https://github.com/move-language/move"
+version = "1.4.1"
+authors = ["BitsLab.MoveBit"]
+description = "A language server for Sui Move"
+repository = "https://github.com/movebit/sui-move-analyzer"
 license = "Apache-2.0"
 publish = false
 edition = "2024"

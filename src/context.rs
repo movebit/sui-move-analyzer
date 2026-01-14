@@ -1,5 +1,4 @@
-// Copyright (c) The Diem Core Contributors
-// Copyright (c) The Move Contributors
+// Copyright (c) The BitsLab.MoveBit Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 use super::utils::*;

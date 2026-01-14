@@ -1,3 +1,6 @@
+// Copyright (c) The BitsLab.MoveBit Contributors
+// SPDX-License-Identifier: Apache-2.0
+
 use std::{collections::HashMap, path::PathBuf, str::FromStr};
 
 use crate::project::{attributes_has_test, AstProvider};

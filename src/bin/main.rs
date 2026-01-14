@@ -1,3 +1,6 @@
+// Copyright (c) The BitsLab.MoveBit Contributors
+// SPDX-License-Identifier: Apache-2.0
+
 use clap::Parser;
 use crossbeam::channel::{bounded, select};
 use log::{Level, Metadata, Record};
