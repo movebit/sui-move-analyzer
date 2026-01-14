@@ -51,6 +51,9 @@ pub mod move_generate_spec_chen;
 pub mod move_generate_spec_file;
 pub mod move_generate_spec_sel;
 pub mod snap_cache;
+pub mod struct_dep_graph;
+pub mod call_flow_graph;
+pub mod graph_handler;
 pub mod sui_move_analyzer;
 
 use move_package::source_package::parsed_manifest::{

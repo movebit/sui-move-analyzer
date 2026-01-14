@@ -8,6 +8,11 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as childProcess from 'child_process';
 
+// 创建一个输出通道用于调试日志
+const outputChannel = vscode.window.createOutputChannel('Sui Move Analyzer Graph');
+
+
+
 /**
  * A logger for the VS Code extension.
  *
@@ -242,6 +247,18 @@ const Reg = {
 
         // Register handlers for VS Code commands that the user explicitly issues.
         context.registerCommand('serverVersion', serverVersion);
+        
+        // Register graph commands - these will be implemented separately
+        context.registerCommand('showStructDependencyGraph', () => {
+            // Defer implementation to a separate function to avoid circular imports
+            void showStructDependencyGraph(context);
+        });
+        
+        context.registerCommand('showCallFlowGraph', () => {
+            // Defer implementation to a separate function to avoid circular imports
+            void showCallFlowGraph(context);
+        });
+
         // Register test button
         context.registerCommand('test_ui', (_, ...args) => {
             const cwd = args[0] as string;
@@ -737,5 +754,423 @@ const Reg = {
     },
 
 };
+
+// Helper functions for graph display
+async function showStructDependencyGraph(context: Readonly<Context>) {
+    outputChannel.appendLine('[Graph Debug] Starting showStructDependencyGraph function...');
+    
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) {
+        const errorMsg = 'No active editor found';
+        outputChannel.appendLine(`[Graph Debug] Error: ${errorMsg}`);
+        vscode.window.showErrorMessage(errorMsg);
+        return;
+    }
+
+    outputChannel.appendLine(`[Graph Debug] Active document: ${editor.document.fileName}`);
+    
+    const document = editor.document;
+    if (document.languageId !== 'move') {
+        const errorMsg = 'Current file is not a Move file';
+        outputChannel.appendLine(`[Graph Debug] Error: ${errorMsg}`);
+        vscode.window.showErrorMessage(errorMsg);
+        return;
+    }
+    
+    outputChannel.appendLine(`[Graph Debug] Document language ID: ${document.languageId}`);
+
+    // Request graph data from the language server
+    const client = context.getClient();
+    if (!client) {
+        const errorMsg = 'No language server client available';
+        outputChannel.appendLine(`[Graph Debug] Error: ${errorMsg}`);
+        vscode.window.showErrorMessage(errorMsg);
+        return;
+    }
+    
+    outputChannel.appendLine('[Graph Debug] Language server client found, sending request...');
+
+    try {
+        outputChannel.appendLine('[Graph Debug] Sending move/struct_dependency/graph request...');
+        
+        const graphData = await client.sendRequest<any>(
+            'move/struct_dependency/graph',
+            {
+                textDocument: {
+                    uri: document.uri.toString()
+                },
+                graphType: 'struct_dependency'
+            }
+        );
+        
+        outputChannel.appendLine(`[Graph Debug] Received response from server: ${JSON.stringify(graphData, null, 2)}`);
+
+        if (graphData && graphData.graph_data) {
+            outputChannel.appendLine('[Graph Debug] Valid graph data received, creating webview panel...');
+            
+            // Create and show a webview panel to display the graph
+            const panel = vscode.window.createWebviewPanel(
+                'structDependencyGraph',
+                'Struct Dependency Graph',
+                vscode.ViewColumn.One,
+                {
+                    enableScripts: true,
+                    retainContextWhenHidden: true
+                }
+            );
+
+            // Generate HTML for the graph visualization
+            panel.webview.html = getGraphHtml(JSON.parse(graphData.graph_data), 'Struct Dependency', context);
+            
+            outputChannel.appendLine('[Graph Debug] Webview panel created and displayed successfully');
+        } else {
+            const errorMsg = 'No struct dependency graph data received';
+            outputChannel.appendLine(`[Graph Debug] Error: ${errorMsg}`);
+            outputChannel.appendLine(`[Graph Debug] Raw response: ${JSON.stringify(graphData)}`);
+            vscode.window.showErrorMessage(errorMsg);
+        }
+    } catch (error) {
+        const errorMsg = `Failed to get struct dependency graph: ${error}`;
+        outputChannel.appendLine(`[Graph Debug] Exception caught: ${errorMsg}`);
+        outputChannel.appendLine(`[Graph Debug] Error stack: ${(error as Error).stack || 'No stack trace'}`);
+        vscode.window.showErrorMessage(errorMsg);
+    }
+}
+
+async function showCallFlowGraph(context: Readonly<Context>) {
+    outputChannel.appendLine('[Graph Debug] Starting showCallFlowGraph function...');
+    
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) {
+        const errorMsg = 'No active editor found';
+        outputChannel.appendLine(`[Graph Debug] Error: ${errorMsg}`);
+        vscode.window.showErrorMessage(errorMsg);
+        return;
+    }
+
+    outputChannel.appendLine(`[Graph Debug] Active document: ${editor.document.fileName}`);
+    
+    const document = editor.document;
+    if (document.languageId !== 'move') {
+        const errorMsg = 'Current file is not a Move file';
+        outputChannel.appendLine(`[Graph Debug] Error: ${errorMsg}`);
+        vscode.window.showErrorMessage(errorMsg);
+        return;
+    }
+    
+    outputChannel.appendLine(`[Graph Debug] Document language ID: ${document.languageId}`);
+
+    // Request graph data from the language server
+    const client = context.getClient();
+    if (!client) {
+        const errorMsg = 'No language server client available';
+        outputChannel.appendLine(`[Graph Debug] Error: ${errorMsg}`);
+        vscode.window.showErrorMessage(errorMsg);
+        return;
+    }
+    
+    outputChannel.appendLine('[Graph Debug] Language server client found, sending request...');
+
+    try {
+        outputChannel.appendLine('[Graph Debug] Sending move/call_flow/graph request...');
+        
+        const graphData = await client.sendRequest<any>(
+            'move/call_flow/graph',
+            {
+                textDocument: {
+                    uri: document.uri.toString()
+                },
+                graphType: 'call_flow'
+            }
+        );
+        
+        outputChannel.appendLine(`[Graph Debug] Received response from server: ${JSON.stringify(graphData, null, 2)}`);
+
+        if (graphData && graphData.graph_data) {
+            outputChannel.appendLine('[Graph Debug] Valid graph data received, creating webview panel...');
+            
+            // Create and show a webview panel to display the graph
+            const panel = vscode.window.createWebviewPanel(
+                'callFlowGraph',
+                'Function Call Flow Graph',
+                vscode.ViewColumn.One,
+                {
+                    enableScripts: true,
+                    retainContextWhenHidden: true
+                }
+            );
+
+            // Generate HTML for the graph visualization
+            panel.webview.html = getGraphHtml(JSON.parse(graphData.graph_data), 'Function Call Flow', context);
+            
+            outputChannel.appendLine('[Graph Debug] Webview panel created and displayed successfully');
+        } else {
+            const errorMsg = 'No call flow graph data received';
+            outputChannel.appendLine(`[Graph Debug] Error: ${errorMsg}`);
+            outputChannel.appendLine(`[Graph Debug] Raw response: ${JSON.stringify(graphData)}`);
+            vscode.window.showErrorMessage(errorMsg);
+        }
+    } catch (error) {
+        const errorMsg = `Failed to get call flow graph: ${error}`;
+        outputChannel.appendLine(`[Graph Debug] Exception caught: ${errorMsg}`);
+        outputChannel.appendLine(`[Graph Debug] Error stack: ${(error as Error).stack || 'No stack trace'}`);
+        vscode.window.showErrorMessage(errorMsg);
+    }
+}
+
+function getGraphHtml(graphData: any, title: string, _context: Readonly<Context>): string {
+    outputChannel.appendLine(`[Graph Debug] Rendering graph HTML for ${title}`);
+    outputChannel.appendLine(`[Graph Debug] Graph data nodes count: ${graphData.nodes?.length || 0}`);
+    outputChannel.appendLine(`[Graph Debug] Graph data edges count: ${graphData.edges?.length || 0}`);
+    
+    // Return HTML that uses Vis.js for graph visualization
+    return `
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>${title}</title>
+            <style>
+                body {
+                    margin: 0;
+                    padding: 0;
+                    height: 100vh;
+                    overflow: hidden;
+                    background-color: #fff;
+                }
+                #graph-container {
+                    width: 100%;
+                    height: 100%;
+                    border: 1px solid #ccc;
+                }
+                .controls {
+                    position: absolute;
+                    top: 10px;
+                    right: 10px;
+                    z-index: 1000;
+                    background: white;
+                    padding: 10px;
+                    border-radius: 4px;
+                    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                }
+            </style>
+        </head>
+        <body>
+            <div id="graph-container"></div>
+            <div class="controls">
+                <button onclick="fitToScreen()">Fit to Screen</button>
+                <button onclick="centerView()">Center</button>
+            </div>
+            <script>
+                // Embed Vis.js library code directly
+                ${getVisJsLibrary()}
+                
+                // Add console logging for webview
+                console.log('Graph data loaded:', ${JSON.stringify(graphData)});
+                
+                const graphContainer = document.getElementById('graph-container');
+                let network = null;
+
+                function renderGraph() {
+                    console.log('Starting graph rendering...');
+                    // Prepare the data for Vis Network
+                    const nodes = new vis.DataSet(${JSON.stringify(graphData.nodes)});
+                    const edges = new vis.DataSet(${JSON.stringify(graphData.edges)});
+
+                    const container = document.getElementById('graph-container');
+                    const graphData = {
+                        nodes: nodes,
+                        edges: edges
+                    };
+
+                    console.log('Nodes:', nodes.get());
+                    console.log('Edges:', edges.get());
+
+                    const options = {
+                        nodes: {
+                            shape: 'box',
+                            font: {
+                                size: 14,
+                                face: 'Arial'
+                            },
+                            color: {
+                                background: '#e0f7fa',
+                                border: '#00838f',
+                                highlight: {
+                                    background: '#b2ebf2',
+                                    border: '#006064'
+                                }
+                            },
+                            borderWidth: 2
+                        },
+                        edges: {
+                            width: 2,
+                            color: {
+                                color: '#00838f',
+                                highlight: '#006064'
+                            },
+                            smooth: {
+                                type: 'curvedCW',
+                                roundness: 0.2
+                            },
+                            font: {
+                                size: 12,
+                                align: 'middle'
+                            }
+                        },
+                        physics: {
+                            enabled: true,
+                            stabilization: { iterations: 100 }
+                        },
+                        interaction: {
+                            tooltipDelay: 200,
+                            hideEdgesOnDrag: false
+                        }
+                    };
+
+                    network = new vis.Network(container, graphData, options);
+                    console.log('Network rendered successfully');
+                }
+
+                function fitToScreen() {
+                    if (network) {
+                        network.fit();
+                        console.log('Fitting to screen');
+                    }
+                }
+
+                function centerView() {
+                    if (network) {
+                        network.moveTo({position: {x: 0, y: 0}});
+                        console.log('Centering view');
+                    }
+                }
+
+                // Render the graph when the page loads
+                window.onload = renderGraph;
+            </script>
+        </body>
+        </html>
+    `;
+}
+
+function getVisJsLibrary(): string {
+    // Return a minimal but functional Vis.js implementation
+    // In a production environment, we would load this from a CDN
+    return `
+        // Minimal Vis.js implementation for demonstration
+        var vis = (function() {
+            function DataSet(data) {
+                this._data = Array.isArray(data) ? data : [];
+                this.get = function() { 
+                    return this._data; 
+                };
+                this.getIds = function() {
+                    return this._data.map(item => item.id);
+                };
+            }
+            
+            function Network(container, data, options) {
+                this.container = container;
+                this.data = data;
+                this.options = options || {};
+                
+                // Simple visualization logic
+                this.fit = function() { 
+                    console.log("Fit to screen called");
+                };
+                
+                this.moveTo = function(pos) { 
+                    console.log("Move to called with position:", pos);
+                };
+                
+                // Create a simple SVG representation of the graph
+                this.renderSimpleGraph = function() {
+                    const svgNS = "http://www.w3.org/2000/svg";
+                    const svg = document.createElementNS(svgNS, "svg");
+                    svg.setAttribute("width", "100%");
+                    svg.setAttribute("height", "100%");
+                    svg.style.backgroundColor = "#f0f0f0";
+                    
+                    // Draw edges
+                    if (data.edges && data.edges._data) {
+                        data.edges._data.forEach((edge, idx) => {
+                            const line = document.createElementNS(svgNS, "line");
+                            line.setAttribute("x1", (50 + (idx * 40) % 200) + "%");
+                            line.setAttribute("y1", (20 + (idx * 20) % 60) + "%");
+                            line.setAttribute("x2", (70 + ((idx + 1) * 40) % 200) + "%");
+                            line.setAttribute("y2", (40 + ((idx + 1) * 20) % 60) + "%");
+                            line.setAttribute("stroke", "#00838f");
+                            line.setAttribute("stroke-width", "2");
+                            line.setAttribute("marker-end", "url(#arrow)");
+                            
+                            svg.appendChild(line);
+                        });
+                    }
+                    
+                    // Draw nodes
+                    if (data.nodes && data.nodes._data) {
+                        data.nodes._data.forEach((node, idx) => {
+                            const circle = document.createElementNS(svgNS, "circle");
+                            circle.setAttribute("cx", (10 + (idx * 30) % 80) + "%");
+                            circle.setAttribute("cy", (10 + (idx * 20) % 80) + "%");
+                            circle.setAttribute("r", "15");
+                            circle.setAttribute("fill", "#e0f7fa");
+                            circle.setAttribute("stroke", "#00838f");
+                            circle.setAttribute("stroke-width", "2");
+                            
+                            const text = document.createElementNS(svgNS, "text");
+                            text.setAttribute("x", (10 + (idx * 30) % 80) + "%");
+                            text.setAttribute("y", (10 + (idx * 20) % 80) + "%");
+                            text.setAttribute("text-anchor", "middle");
+                            text.setAttribute("dy", "0.3em");
+                            text.setAttribute("font-size", "12");
+                            text.textContent = node.label || node.id;
+                            
+                            svg.appendChild(circle);
+                            svg.appendChild(text);
+                        });
+                    }
+                    
+                    // Add arrow marker for edges
+                    const defs = document.createElementNS(svgNS, "defs");
+                    const marker = document.createElementNS(svgNS, "marker");
+                    marker.setAttribute("id", "arrow");
+                    marker.setAttribute("viewBox", "0 0 10 10");
+                    marker.setAttribute("refX", "10");
+                    marker.setAttribute("refY", "5");
+                    marker.setAttribute("markerWidth", "6");
+                    marker.setAttribute("markerHeight", "6");
+                    marker.setAttribute("orient", "auto-start-reverse");
+                    
+                    const path = document.createElementNS(svgNS, "path");
+                    path.setAttribute("d", "M 0 0 L 10 5 L 0 10 z");
+                    path.setAttribute("fill", "#00838f");
+                    
+                    marker.appendChild(path);
+                    defs.appendChild(marker);
+                    svg.appendChild(defs);
+                    
+                    // Clear container and add SVG
+                    while (container.firstChild) {
+                        container.removeChild(container.firstChild);
+                    }
+                    container.appendChild(svg);
+                };
+                
+                // Initialize the graph
+                setTimeout(() => {
+                    this.renderSimpleGraph();
+                }, 100);
+            }
+            
+            return {
+                DataSet: DataSet,
+                Network: Network
+            };
+        })();
+    `;
+}
 
 export { Reg, WorkingDir };
