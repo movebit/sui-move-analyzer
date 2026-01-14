@@ -47,8 +47,6 @@ pub mod scope;
 pub mod symbols;
 pub mod types;
 pub mod utils;
-// pub mod vfs;
-// pub mod linter;
 pub mod move_generate_spec;
 pub mod move_generate_spec_chen;
 pub mod move_generate_spec_file;
@@ -149,7 +147,6 @@ fn latest_system_packages() -> SystemPackagesVersion {
         .clone()
 }
 
-// Re-export commonly used functions and types for tests
 pub use context::{Context, FileDiags, MultiProject};
 pub use sui_move_analyzer::test_update_defs;
 pub use utils::discover_manifest_and_kind;

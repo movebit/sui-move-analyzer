@@ -612,33 +612,6 @@ impl Project {
         }
     }
 
-    // pub fn initialize_dot_fun_call(&self, project_context: &ProjectContext, fun_type: Item) {
-    //     let fun_type = fun_type.to_type().unwrap_or_default();
-    //     match &fun_type {
-    //         ResolvedType::Lambda { .. } => Some(fun_type),
-    //         ResolvedType::Fun(x) => {
-    //             let type_parameters = &x.type_parameters;
-    //             let parameters = &x.parameters;
-    //             let type_args: Option<Vec<ResolvedType>> = type_args.as_ref().map(|type_args| {
-    //                 type_args
-    //                     .iter()
-    //                     .map(|x| project_context.resolve_type(x, self))
-    //                     .collect()
-    //             });
-    //             let mut fun_type = fun_type.clone();
-    //             let mut types: HashMap<Symbol, ResolvedType> = HashMap::new();
-    //             if let Some(ts) = type_args {
-    //                 for (para, args) in type_parameters.iter().zip(ts.iter()) {
-    //                     types.insert(para.0.value, args.clone());
-    //                 }
-    //             }
-    //             fun_type.bind_type_parameter(&types);
-    //             Some(fun_type)
-    //         }
-    //         _ => None,
-    //     }
-    // }
-
     /// Get A Type for exprme if possible otherwise Unknown is return.
     pub(crate) fn get_expr_type(
         &self,

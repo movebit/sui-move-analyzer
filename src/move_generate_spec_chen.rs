@@ -17,9 +17,6 @@ impl FunSpecGenerator {
     // 针对加法 减法 移位等运算可能会参数溢出等异常
     // 这个函数收集 e 中所有的加法减法等操作
     pub(crate) fn collect_spec_exp(e: &Exp) -> Vec<SpecExpItem> {
-        // const TYPE_OF: &str = "type_of";
-        // const TYPE_NAME: &str = "type_name";
-        // const TYPE_INFO: &str = "type_info";
         let mut ret = Vec::new();
         fn collect_spec_exp_(ret: &mut Vec<SpecExpItem>, e: &Exp) {
             match &e.value {

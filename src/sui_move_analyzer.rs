@@ -31,7 +31,6 @@ use vfs::{
     impls::{overlay::OverlayFS, physical::PhysicalFS},
     VfsPath,
 };
-// use move_symbol_pool::Symbol;
 use url::Url;
 pub type Diagnostics = move_compiler::diagnostics::Diagnostics;
 

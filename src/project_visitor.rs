@@ -18,7 +18,7 @@ impl Project {
     // /// Collect field name like a in  spec schema IncrementAborts {
     // ///                   a: address;
     // /// }
-    // pub(crate) fn collect_spec_schema_fields(
+
     //     &self,
     //     project_context: &ProjectContext,
     //     members: &[SpecBlockMember],
@@ -1522,11 +1522,3 @@ impl Project {
 }
 
 pub(crate) const SPEC_DOMAIN: &str = "$spec_domain";
-// fn get_spec_condition_type_parameters(x: &SpecConditionKind) -> Option<&Vec<(Name, Vec<Ability>)>> {
-//     match &x.value {
-//         SpecConditionKind_::Invariant(x)
-//         | SpecConditionKind_::InvariantUpdate(x)
-//         | SpecConditionKind_::Axiom(x) => Some(x),
-//         _ => None,
-//     }
-// }

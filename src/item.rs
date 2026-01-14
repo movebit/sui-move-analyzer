@@ -442,12 +442,7 @@ impl MacroCall {
         // }
         None
     }
-    // pub(crate) fn from_symbol(s: Symbol) -> Option<Self> {
-    //     match s.as_str() {
-    //         "assert" => Some(Self::Assert),
-    //         _ => None,
-    //     }
-    // }
+
     pub(crate) fn to_static_str(self) -> &'static str {
         match self {
             MacroCall::Assert => "assert",

@@ -56,7 +56,6 @@ use anyhow::{anyhow, Result};
 use codespan_reporting::files::SimpleFiles;
 use crossbeam::channel::Sender;
 use derivative::*;
-// use im::ordmap::OrdMap;
 use lsp_server::{Request, RequestId};
 use lsp_types::{
     request::GotoTypeDefinitionParams, Diagnostic, DocumentSymbol, DocumentSymbolParams,
@@ -83,7 +82,6 @@ use move_compiler::{
     shared::Identifier,
     PASS_TYPING,
 };
-// use move_ir_types::location::*;
 use move_package::compilation::build_plan::BuildPlan;
 use move_symbol_pool::Symbol;
 
@@ -194,18 +192,6 @@ pub struct ModuleDefs {
 
 /// Data used during symbolication
 pub struct Symbolicator {
-    // /// Outermost definitions in a module (structs, consts, functions)
-    // mod_outer_defs: BTreeMap<ModuleIdent_, ModuleDefs>,
-    // /// A mapping from file names to file content (used to obtain source file locations)
-    // files: SimpleFiles<Symbol, String>,
-    // /// A mapping from file hashes to file IDs (used to obtain source file locations)
-    // file_id_mapping: HashMap<FileHash, usize>,
-    // // A mapping from file IDs to a split vector of the lines in each file (used to build docstrings)
-    // file_id_to_lines: HashMap<usize, Vec<String>>,
-    // /// Contains type params where relevant (e.g. when processing function definition)
-    // type_params: BTreeMap<Symbol, DefLoc>,
-    // /// Current processed module (always set before module processing starts)
-    // current_mod: Option<ModuleIdent>,
 }
 
 /// Maps a line number to a list of use-def pairs on a given line (use-def set is sorted by
@@ -356,21 +342,7 @@ fn type_to_ide_string(sp!(_, t): &Type) -> String {
         Type_::UnresolvedError => "invalid type (unresolved)".to_string(),
     }
 }
-// pub enum Address {
-//     Numerical {
-//         name: Option<Name>,
-//         value: Spanned<NumericalAddress>,
-//         // set to true when the same name is used across multiple packages
-//         name_conflict: bool,
-//     },
-//     NamedUnassigned(Name),
-// }
 fn addr_to_ide_string(addr: &Address) -> String {
-    // match addr {
-    //     Address::Numerical(None, sp!(_, bytes), false) => format!("{}", bytes),
-    //     Address::Numerical(Some(name), ..) => format!("{}", name),
-    //     Address::NamedUnassigned(name) => format!("{}", name),
-    // }
     match addr {
         Address::Numerical {
             name: None,
@@ -584,31 +556,14 @@ impl PartialEq for UseDef {
 }
 
 impl UseDefMap {
-    // fn new() -> Self {
-    //     Self(BTreeMap::new())
-    // }
-
-    // fn insert(&mut self, key: u32, val: UseDef) {
-    //     self.0.entry(key).or_insert_with(BTreeSet::new).insert(val);
-    // }
 
     fn get(&self, key: u32) -> Option<BTreeSet<UseDef>> {
         self.0.get(&key).cloned()
     }
 
-    // fn elements(self) -> BTreeMap<u32, BTreeSet<UseDef>> {
-    //     self.0
-    // }
-
-    // fn extend(&mut self, use_defs: BTreeMap<u32, BTreeSet<UseDef>>) {
-    //     self.0.extend(use_defs);
-    // }
 }
 
 impl FunctionIdentTypeMap {
-    // fn new() -> Self {
-    //     Self(BTreeMap::new())
-    // }
 
     pub fn contains_key(self, key: &String) -> bool {
         self.0.contains_key(key)
@@ -759,67 +714,8 @@ impl Symbolicator {
         // for (pos, module_ident, module_def) in modules {
         //     eprintln!("pos = {:?}, module_name ={:?}", pos, module_ident.module);
         //     eprintln!(" module_name ={:?}",module_ident.module.clone().to_string());
-        // let (defs, symbols) = Self::get_mod_outer_defs(
-        //     &pos,
-        //     &sp(pos, *module_ident),
-        //     module_def,
-        //     &files,
-        //     &file_id_mapping,
-        // );
-
-        // let cloned_defs = defs.clone();
-        // let path = file_name_mapping.get(&cloned_defs.fhash.clone()).unwrap();
-        // file_mods
-        //     .entry(
-        //         dunce::canonicalize(path.as_str())
-        //             .unwrap_or_else(|_| PathBuf::from(path.as_str())),
-        //     )
-        //     .or_insert_with(BTreeSet::new)
-        //     .insert(cloned_defs);
-
-        // mod_outer_defs.insert(*module_ident, defs);
-        // mod_use_defs.insert(*module_ident, symbols);
-        // }
-
-        // eprintln!("get_symbols loaded file_mods length: {}", file_mods.len());
-
-        // let mut symbolicator = Symbolicator {
-        //     mod_outer_defs,
-        //     files,
-        //     file_id_mapping,
-        //     file_id_to_lines,
-        //     type_params: BTreeMap::new(),
-        //     current_mod: None,
-        // };
-
         let references = BTreeMap::new();
         let file_use_defs = BTreeMap::new();
-        // let function_ident_type = FunctionIdentTypeMap::new();
-
-        // for (pos, module_ident, module_def) in modules {
-        //     let mut use_defs = mod_use_defs.remove(module_ident).unwrap();
-        //     symbolicator.current_mod = Some(sp(pos, *module_ident));
-        //     symbolicator.mod_symbols(
-        //         module_def,
-        //         &mut references,
-        //         &mut use_defs,
-        //         &mut function_ident_type,
-        //     );
-
-        //     let fpath = match source_files.get(&pos.file_hash()) {
-        //         Some((p, _)) => p,
-        //         None => continue,
-        //     };
-
-        //     let fpath_buffer = dunce::canonicalize(fpath.as_str())
-        //         .unwrap_or_else(|_| PathBuf::from(fpath.as_str()));
-
-        //     file_use_defs
-        //         .entry(fpath_buffer)
-        //         .or_insert_with(UseDefMap::new)
-        //         .extend(use_defs.elements());
-        // }
-
         let symbols = Symbols {
             references,
             file_use_defs,

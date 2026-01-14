@@ -402,7 +402,7 @@ impl ResolvedType {
         }
     }
 
-    // pub(crate) fn get_generic_liternal_str(&self) {
+
     //     match self {
     //         ResolvedType::Vec(ty) => ty.
     //     }

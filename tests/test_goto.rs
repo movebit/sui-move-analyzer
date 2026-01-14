@@ -12,7 +12,6 @@ mod tests {
         sync::{Arc, Mutex},
         time::Duration,
     };
-    // pub use url::Url;
 
     #[test]
     fn test_on_go_to_def_request_001() {
@@ -63,7 +62,7 @@ mod tests {
         let params_json = json!({
             "position": {
                 "line": 53,  // 在main函数中s[i]处
-                "character": 22   // s[i]中的s位置
+                "character": 22   // s[i]中的i位置
             },
             "textDocument": {
                 "uri": "file:///".to_string() + fpath.to_str().unwrap()

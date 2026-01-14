@@ -2,10 +2,8 @@ use super::move_generate_spec_chen::*;
 use crate::item::MacroCall;
 use crate::project::Project;
 use crate::types::ResolvedType;
-// use crate::ast_debug::*;
 use move_compiler::shared::Identifier;
 use move_compiler::{parser::ast::*, shared::ast_debug::*};
-// use move_compiler::parser::ast::*;
 use move_ir_types::location::Loc;
 use move_symbol_pool::Symbol;
 use std::collections::{HashMap, HashSet};
@@ -562,7 +560,7 @@ pub(crate) fn format_xxx<T>(
 where
     T: AstDebug,
 {
-    // use move_compiler::shared::ast_debug::AstWriter;
+
     let mut w = AstWriter::new(false);
     e.ast_debug(&mut w);
     let x = w.to_string();

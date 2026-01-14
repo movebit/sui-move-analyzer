@@ -843,31 +843,7 @@ impl ProjectContext {
                     module_scope = x;
                 }
             },
-            // NameAccessChain_::Three(chain_two, member) => self.visit_address(|top| {
-            //     let modules = top.address.get(&match &chain_two.value.0.value {
-            //         LeadingNameAccess_::AnonymousAddress(x) => x.into_inner(),
-            //         LeadingNameAccess_::Name(name) => name_to_addr.name_2_addr(name.value),
-            //     });
-            //     if modules.is_none() {
-            //         return;
-            //     }
-            //     let modules = modules.unwrap();
-            //     let module = modules.modules.get(&chain_two.value.1.value);
-            //     if module.is_none() {
-            //         return;
-            //     }
-            //     let module = module.unwrap();
-            //     module_scope = Some(module.as_ref().borrow().name_and_addr.clone());
-            //     if let Some(item) = module.as_ref().borrow().module.items.get(&member.value) {
-            //         if let Some(t) = item.to_type() {
-            //             item_ret = Some(t);
-            //         }
-            //     } else if let Some(item) = module.as_ref().borrow().spec.items.get(&member.value) {
-            //         if let Some(t) = item.to_type() {
-            //             item_ret = Some(t);
-            //         }
-            //     }
-            // }),
+
         }
         (item_ret, module_scope)
     }

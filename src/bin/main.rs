@@ -1,4 +1,3 @@
-// use anyhow::Result;
 use clap::Parser;
 use crossbeam::channel::{bounded, select};
 use log::{Level, Metadata, Record};
@@ -22,7 +21,6 @@ use sui_move_analyzer::{
 };
 
 use vfs::{VfsPath, impls::memory::MemoryFS};
-// use url::Url;
 
 use sui_move_analyzer::sui_move_analyzer::{
     Diagnostics,
