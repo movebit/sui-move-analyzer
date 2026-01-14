@@ -1,0 +1,12 @@
+[package]
+name = "Import"
+edition = "2024.beta"
+
+[dependencies]
+# Note: in an older version of this test, the package `SamePkgAddr` had the
+# same address as this package; in the new system this isn't allowed, so the
+# addresses are now different
+SamePkgAddr = { local = "../same-pkg-addr/" }
+
+[addresses]
+Import = "0xCAFE2"
