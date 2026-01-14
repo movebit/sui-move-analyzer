@@ -1,0 +1,7 @@
+[package]
+name = "MoveStdlib"
+edition = "2024.beta"
+
+[addresses]
+std = "0x1"
+

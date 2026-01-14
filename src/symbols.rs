@@ -77,7 +77,7 @@ use url::Url;
 use move_command_line_common::files::FileHash;
 use move_compiler::{
     expansion::ast::{Address, ModuleIdent_},
-    naming::ast::{Type, TypeName_, Type_},
+    naming::ast::{Type, TypeName_, TypeInner},
     parser::ast::{Definition, ModuleMember, StructDefinition, StructFields},
     shared::Identifier,
     PASS_TYPING,
@@ -263,8 +263,12 @@ impl fmt::Display for IdentType {
                     "".to_string()
                 };
                 let ret_str = match ret {
-                    sp!(_, Type_::Unit) => "".to_string(),
-                    _ => format!(": {}", type_to_ide_string(ret)),
+                    sp!(_, t) => {
+                        match &(*t.0) {
+                            TypeInner::Unit => "".to_string(),
+                            _ => format!(": {}", type_to_ide_string(ret)),
+                        }
+                    }
                 };
 
                 write!(
@@ -293,13 +297,13 @@ fn arg_list_to_ide_string(names: &[Symbol], types: &[Type]) -> String {
 }
 
 fn type_to_ide_string(sp!(_, t): &Type) -> String {
-    match t {
-        Type_::Unit => "()".to_string(),
-        Type_::Ref(m, r) => format!("&{} {}", if *m { "mut" } else { "" }, type_to_ide_string(r)),
-        Type_::Param(tp) => {
+    match &(*t.0) {
+        TypeInner::Unit => "()".to_string(),
+        TypeInner::Ref(m, r) => format!("&{} {}", if *m { "mut" } else { "" }, type_to_ide_string(r)),
+        TypeInner::Param(tp) => {
             format!("{}", tp.user_specified_name)
         }
-        Type_::Apply(_, sp!(_, type_name), ss) => match type_name {
+        TypeInner::Apply(_, sp!(_, type_name), ss) => match type_name {
             TypeName_::Multiple(_) => {
                 format!("({})", type_list_to_ide_string(ss))
             }
@@ -325,7 +329,7 @@ fn type_to_ide_string(sp!(_, t): &Type) -> String {
                 )
             }
         },
-        Type_::Fun(vec_ty, box_ty) => {
+        TypeInner::Fun(vec_ty, box_ty) => {
             let mut result_string = String::new();
             for ty in vec_ty.iter() {
                 result_string = format!("{} + {}", result_string, type_to_ide_string(ty));
@@ -333,13 +337,14 @@ fn type_to_ide_string(sp!(_, t): &Type) -> String {
             result_string = format!(
                 "{} + {}",
                 result_string,
-                type_to_ide_string(box_ty.as_ref())
+                type_to_ide_string(box_ty)
             );
             result_string
         }
-        Type_::Anything => "_".to_string(),
-        Type_::Var(_) => "invalid type (var)".to_string(),
-        Type_::UnresolvedError => "invalid type (unresolved)".to_string(),
+        TypeInner::Anything => "_".to_string(),
+        TypeInner::Void => "()".to_string(),
+        TypeInner::Var(_) => "invalid type (var)".to_string(),
+        TypeInner::UnresolvedError => "invalid type (unresolved)".to_string(),
     }
 }
 fn addr_to_ide_string(addr: &Address) -> String {

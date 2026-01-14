@@ -631,6 +631,7 @@ impl Project {
                     Value_::Bool(_) => ResolvedType::new_build_in(BuildInType::Bool),
                     Value_::HexString(_) => ResolvedType::new_build_in(BuildInType::NumType),
                     Value_::ByteString(_) => ResolvedType::new_build_in(BuildInType::String),
+                    Value_::String(_) => ResolvedType::new_build_in(BuildInType::String),
                 }
             },
             Exp_::Move(_, x) | Exp_::Copy(_, x) => self.get_expr_type(x, project_context),

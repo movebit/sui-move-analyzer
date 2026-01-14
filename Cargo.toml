@@ -46,12 +46,12 @@ threadpool = "1.8"
 
 
 # different version of sui compliler
-move-command-line-common = { git = "https://github.com/movebit/sui_for_analyzer_2025.git", branch = "analyzer", package = "move-command-line-common" }
-move-ir-types = { git = "https://github.com/movebit/sui_for_analyzer_2025.git", branch = "analyzer", package = "move-ir-types" }
-move-compiler = { git = "https://github.com/movebit/sui_for_analyzer_2025.git", branch = "analyzer", package = "move-compiler" }
-move-package = { git = "https://github.com/movebit/sui_for_analyzer_2025.git", branch = "analyzer", package = "move-package" }
-move-symbol-pool = { git = "https://github.com/movebit/sui_for_analyzer_2025.git", branch = "analyzer", package = "move-symbol-pool" }
-move-core-types = { git = "https://github.com/movebit/sui_for_analyzer_2025.git", branch = "analyzer", package = "move-core-types" }
+move-command-line-common = { path = "external-crates/move/crates/move-command-line-common" }
+move-ir-types = { path = "external-crates/move/crates/move-ir-types" }
+move-compiler = { path = "external-crates/move/crates/move-compiler" }
+move-package = { path = "external-crates/move/crates/move-package" }
+move-symbol-pool = { path = "external-crates/move/crates/move-symbol-pool" }
+move-core-types = { path = "external-crates/move/crates/move-core-types" }
 
 [build-dependencies]
 ureq = "2.6"
