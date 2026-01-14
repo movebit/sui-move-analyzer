@@ -1331,7 +1331,7 @@ impl Drop for ScopesGuarder {
 }
 
 fn is_member_function_of_type(ty: &ResolvedType, item: Option<Item>) -> Option<ItemFun> {
-    if let Some(Item::Fun(mut f)) = item {
+    if let Some(Item::Fun(f)) = item {
         log::debug!("visit_fn 2:{}", f);
         if let Some(first_para) = f.parameters.get(0) {
             log::debug!("first_para {}, pre_ty {}", first_para.1, ty);
@@ -1344,9 +1344,9 @@ fn is_member_function_of_type(ty: &ResolvedType, item: Option<Item>) -> Option<I
 }
 
 fn get_ty_with_generic_type(ty: &ResolvedType, item: Option<Item>) -> Option<Item> {
-    use std::collections::HashMap;
 
-    let Some(mut fun) = is_member_function_of_type(ty, item) else {
+
+    let Some(fun) = is_member_function_of_type(ty, item) else {
         return None;
     };
 
