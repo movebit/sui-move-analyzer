@@ -61,8 +61,8 @@ mod tests {
 
         let params_json = json!({
             "position": {
-                "line": 53,  // 在main函数中s[i]处
-                "character": 22   // s[i]中的i位置
+                "line": 53,  // In the main function at s[i]
+                "character": 22   // The position of i in s[i]
             },
             "textDocument": {
                 "uri": "file:///".to_string() + fpath.to_str().unwrap()

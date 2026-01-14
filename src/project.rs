@@ -437,7 +437,7 @@ impl Project {
         project_context: &ProjectContext,
         b: SpecBuildInFun,
         type_args: &Option<Vec<Type>>,
-        exprs: &Spanned<Vec<Exp>>, // TODO need use _expr.
+        exprs: &Spanned<Vec<Exp>>, // TODO need to use _expr.
     ) -> ResolvedType {
         let exprs_types: Vec<_> = exprs
             .value
@@ -520,7 +520,7 @@ impl Project {
         project_context: &ProjectContext,
         b: MoveBuildInFun,
         type_args: &Option<Vec<Type>>,
-        _exprs: &Spanned<Vec<Exp>>, // TODO need use _expr.
+        _exprs: &Spanned<Vec<Exp>>, // TODO need to use _expr.
     ) -> ResolvedType {
         match b {
             MoveBuildInFun::MoveTo => ResolvedType::new_unit(),
@@ -1084,7 +1084,7 @@ pub(crate) fn infer_type_parameter_on_expression(
                     }
                 }
             }
-            //  function is not expression
+            // function is not expression
             ResolvedType::Fun(_) => {}
             ResolvedType::Vec(x) => {
                 if let ResolvedType::Vec(y) = expr_type {
@@ -1157,7 +1157,7 @@ pub trait ItemOrAccessHandler: std::fmt::Display {
         false
     }
 
-    // current vistor handler is inlay_hints ?
+    // current visitor handler is inlay_hints ?
     fn current_vistor_handler_is_inlay_hints(&self) -> bool {
         false
     }
@@ -1550,7 +1550,7 @@ fn merge_implicit_deps_to_manifest(
 ) -> Dependencies {
     let mut merged = manifest.dev_dependencies.clone();
     for (k, v) in manifest.dependencies.iter() {
-        merged.entry(*k).or_insert(v.clone()); // 如果 key 已经存在，不覆盖
+        merged.entry(*k).or_insert(v.clone()); // If the key already exists, do not overwrite
     }
 
     let mut implicit_version_in_mani_dep = None;

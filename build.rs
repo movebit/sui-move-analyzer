@@ -13,7 +13,7 @@ use std::{
 const MANIFEST_JSON_URL: &str =
     "https://github.com/MystenLabs/sui/raw/mainnet/crates/sui-framework-snapshot/manifest.json";
 
-// 定义与JSON结构匹配的数据模型
+// Define data model that matches the JSON structure
 #[derive(Debug, Deserialize)]
 struct Package {
     name: String,
@@ -27,9 +27,9 @@ struct VersionEntry {
     packages: Vec<Package>,
 }
 
-/// 从远程拉取最新的system packages JSON并解析（假设按顺序排列，取最后一个）
+/// Fetch the latest system packages JSON from remote and parse it (assuming they are arranged in order, taking the last one)
 fn fetch_latest_system_packages() -> anyhow::Result<Option<(u32, VersionEntry)>> {
-    // ureq 库会自动从环境变量（如 HTTPS_PROXY、http_proxy 等）中读取代理设置
+    // The ureq library automatically reads proxy settings from environment variables (such as HTTPS_PROXY, http_proxy, etc.)
     let response = ureq::get(MANIFEST_JSON_URL).call()?;
 
     let status = response.status();
@@ -60,7 +60,7 @@ fn generate_system_packages_version_table() -> anyhow::Result<()> {
     let (latest_version, latest_entry) = match fetch_latest_system_packages()? {
         Some(data) => data,
         None => {
-            // 如果无法获取最新的系统包信息，使用默认的空表
+            // If unable to fetch the latest system packages information, use a default empty table
             println!("Warning: Could not fetch system packages, using empty table.");
             return generate_empty_table();
         },
@@ -101,13 +101,13 @@ fn generate_system_packages_version_table() -> anyhow::Result<()> {
     Ok(())
 }
 
-// 当网络请求失败时生成空表的辅助函数
+// Helper function to generate an empty table when network request fails
 fn generate_empty_table() -> anyhow::Result<()> {
     let out_dir = env::var("OUT_DIR").unwrap();
     let dest_path = Path::new(&out_dir).join("system_packages_version_table.rs");
     let mut file = BufWriter::new(File::create(&dest_path)?);
 
-    // 生成一个空的系统包表
+    // Generate an empty system packages table
     writeln!(&mut file, "[")?;
     writeln!(&mut file, "]")?;
 
@@ -117,10 +117,10 @@ fn generate_empty_table() -> anyhow::Result<()> {
 }
 
 fn main() {
-    // 捕获错误并在失败时生成空表
+    // Capture errors and generate an empty table on failure
     if let Err(e) = generate_system_packages_version_table() {
         eprintln!("Error generating system packages version table: {}", e);
-        // 尝试生成空表作为备选方案
+        // Try to generate an empty table as a fallback
         if let Err(e) = generate_empty_table() {
             eprintln!("Error generating empty table fallback: {}", e);
             panic!("Could not generate system packages table");

@@ -205,7 +205,7 @@ fn get_lsp_capabilities() -> lsp_types::ServerCapabilities {
         lsp_types::WorkspaceServerCapabilities {
             workspace_folders: Some(lsp_types::WorkspaceFoldersServerCapabilities {
                 supported: Some(true),
-                change_notifications: Some(OneOf::Left(true)), // 也可以用字符串 ID
+                change_notifications: Some(OneOf::Left(true)), // Can also use string ID
             }),
             file_operations: Some(WorkspaceFileOperationsServerCapabilities {
                 did_create: Some(did_create),

@@ -14,8 +14,8 @@ use move_compiler::parser::ast::*;
 
 */
 impl FunSpecGenerator {
-    // 针对加法 减法 移位等运算可能会参数溢出等异常
-    // 这个函数收集 e 中所有的加法减法等操作
+    // For arithmetic operations like addition, subtraction, shift that may cause overflow exceptions
+    // This function collects all addition/subtraction operations in e
     pub(crate) fn collect_spec_exp(e: &Exp) -> Vec<SpecExpItem> {
         let mut ret = Vec::new();
         fn collect_spec_exp_(ret: &mut Vec<SpecExpItem>, e: &Exp) {
@@ -108,7 +108,7 @@ pub(crate) enum SpecExpItem {
     },
 }
 
-/// 这个枚举代表操作符错误类型
+/// This enum represents operator error types
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum BinOPReason {
     OverFlowADD,
@@ -119,7 +119,7 @@ pub(crate) enum BinOPReason {
 }
 
 impl BinOPReason {
-    /// 匹配可能有问题的错误类型
+    /// Match potentially problematic error types
     fn cause_exception(op: BinOp_) -> Option<Self> {
         match op {
             BinOp_::Add => Some(Self::OverFlowADD),
