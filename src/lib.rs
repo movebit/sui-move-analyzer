@@ -75,6 +75,7 @@ use serde_json::Value;
 
 use crate::{
     context::{Context, FileDiags, MultiProject},
+    hover::on_hover_request,
     references::on_references_request,
     sui_move_analyzer_beta_2024::try_reload_projects,
     utils::{discover_manifest_and_kind, get_default_usedecl},
@@ -341,12 +342,30 @@ fn handle_reference<'a>(
     let params = match serde_json::from_value::<ReferenceParams>(request.params) {
         Ok(p) => p,
         Err(e) => {
-            println!("GotoDefinitionParams from value failed: {:?}", e);
+            println!("ReferenceParams from value failed: {:?}", e);
             return serde_json::Value::Null;
         }
     };
     let fpath = PathBuf::from_str(params.url.as_str()).unwrap();
     on_references_request(context, fpath, params.pos, params.include_declaration)
+}
+
+fn handle_hover<'a>(context: &'a mut Context, request: lsp_server::Request) -> serde_json::Value {
+    #[derive(Deserialize, Debug)]
+    struct HoverParams {
+        pub url: String,
+        pub pos: lsp_types::Position,
+    };
+
+    let params = match serde_json::from_value::<HoverParams>(request.params) {
+        Ok(p) => p,
+        Err(e) => {
+            println!("HoverParams from value failed: {:?}", e);
+            return serde_json::Value::Null;
+        }
+    };
+    let fpath = PathBuf::from_str(params.url.as_str()).unwrap();
+    on_hover_request(context, fpath, params.pos)
 }
 
 fn handle_projects_clear(context: &mut Context, _request: lsp_server::Request) {
@@ -390,6 +409,11 @@ pub extern "C" fn process_message(ptr: *const u8, len: usize) -> *mut u8 {
         "Reference" => {
             println!("Reference");
             let result = with_context(|ctx, request| handle_reference(ctx, request), request);
+            return serialize_with_length_prefix(result);
+        }
+        "Hover" => {
+            println!("Hover");
+            let result = with_context(|ctx, request| handle_hover(ctx, request), request);
             return serialize_with_length_prefix(result);
         }
         _ => {
