@@ -266,10 +266,6 @@ impl Project {
                 Dependency::Internal(x) => local_path(&x.kind),
             };
             let p = path_concat(manifest_path.as_path(), &de_path);
-            println!(
-                "load dependency for '{:?}' dep_name '{}'",
-                &manifest_path, dep_name
-            );
             self.load_project(&p, multi, report_err.clone(), false, dependents_paths)?;
         }
         Ok(())

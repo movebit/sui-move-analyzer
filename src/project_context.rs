@@ -666,7 +666,7 @@ impl ProjectContext {
         item_name: &move_compiler::shared::Name,
     ) -> Option<Item> {
         let struct_ty = project.get_expr_type(pre_expr, self);
-        println!("pre expr type: {} ", struct_ty);
+        // println!("pre expr type: {} ", struct_ty);
         let struct_ty = match &struct_ty {
             ResolvedType::Ref(_, ty) => ty.as_ref(),
             _ => &struct_ty,
@@ -1339,9 +1339,9 @@ impl Drop for ScopesGuarder {
 fn is_member_function_of_type(ty: &ResolvedType, item: Option<Item>) -> Option<ItemFun> {
     if let Some(Item::Fun(mut f)) = item {
         if let Some(first_para) = f.parameters.get(0) {
-            println!("first_para: {}, pre ty:{}", first_para.1, ty);
+            // println!("first_para: {}, pre ty:{}", first_para.1, ty);
             if &first_para.1 == ty {
-                println!("get one fun: {}", f);
+                // println!("get one fun: {}", f);
                 return Some(f.clone());
             }
         }
