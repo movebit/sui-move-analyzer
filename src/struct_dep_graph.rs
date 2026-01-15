@@ -33,13 +33,13 @@ impl StructDepGraph {
             edges: Vec::new(),
         }
     }
-
+    
     /// Generate struct dependency graph for a project
     pub fn generate_for_project(_project: &Project) -> Self {
         eprintln!("Generating struct dependency graph for project...");
         
         // For now, we'll return an example graph with hardcoded data
-        // to demonstrate the frontend visualization
+        // to demonstrate the frontend visualization until we properly integrate with Move AST
         let mut graph = StructDepGraph::new();
         
         // Add example nodes
@@ -75,26 +75,26 @@ impl StructDepGraph {
         
         // Add example edges
         graph.edges.push(StructEdge {
-            from: "Coin".to_string(),
-            to: "Balance".to_string(),
+            from: "coin.Coin".to_string(),
+            to: "balance.Balance".to_string(),
             field_name: "value".to_string(),
         });
         
         graph.edges.push(StructEdge {
-            from: "TreasuryCap".to_string(),
-            to: "Coin".to_string(),
+            from: "coin.TreasuryCap".to_string(),
+            to: "coin.Coin".to_string(),
             field_name: "dummy_field".to_string(),
         });
         
         graph.edges.push(StructEdge {
-            from: "UID".to_string(),
-            to: "ID".to_string(),
+            from: "object.UID".to_string(),
+            to: "object.ID".to_string(),
             field_name: "id".to_string(),
         });
         
         graph.edges.push(StructEdge {
-            from: "Coin".to_string(),
-            to: "UID".to_string(),
+            from: "coin.Coin".to_string(),
+            to: "object.UID".to_string(),
             field_name: "id".to_string(),
         });
         
@@ -116,13 +116,9 @@ impl StructDepGraph {
         }).collect();
 
         let edges_json: Vec<Value> = self.edges.iter().map(|edge| {
-            // Fix the edge IDs to match the node ID format
-            let from_node_id = self.nodes.iter().find(|n| n.name == edge.from).map(|n| format!("{}.{}", n.module, n.name)).unwrap_or_else(|| edge.from.clone());
-            let to_node_id = self.nodes.iter().find(|n| n.name == edge.to).map(|n| format!("{}.{}", n.module, n.name)).unwrap_or_else(|| edge.to.clone());
-            
             json!({
-                "from": from_node_id,
-                "to": to_node_id,
+                "from": edge.from.clone(),
+                "to": edge.to.clone(),
                 "label": edge.field_name,
                 "arrows": "to"
             })
@@ -133,4 +129,5 @@ impl StructDepGraph {
             "edges": edges_json
         }).to_string()
     }
+
 }

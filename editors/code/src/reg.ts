@@ -799,7 +799,8 @@ async function showStructDependencyGraph(context: Readonly<Context>) {
                 textDocument: {
                     uri: document.uri.toString()
                 },
-                graphType: 'struct_dependency'
+                graphType: 'struct_dependency',
+                format: 'dot'  // Request DOT format for better visualization
             }
         );
         
@@ -880,7 +881,8 @@ async function showCallFlowGraph(context: Readonly<Context>) {
                 textDocument: {
                     uri: document.uri.toString()
                 },
-                graphType: 'call_flow'
+                graphType: 'call_flow',
+                format: 'dot'  // Request DOT format for better visualization
             }
         );
         
@@ -919,258 +921,160 @@ async function showCallFlowGraph(context: Readonly<Context>) {
 }
 
 function getGraphHtml(graphData: any, title: string, _context: Readonly<Context>): string {
-    outputChannel.appendLine(`[Graph Debug] Rendering graph HTML for ${title}`);
-    outputChannel.appendLine(`[Graph Debug] Graph data nodes count: ${graphData.nodes?.length || 0}`);
-    outputChannel.appendLine(`[Graph Debug] Graph data edges count: ${graphData.edges?.length || 0}`);
+    outputChannel.appendLine(`[Graph Debug] Rendering high-quality graph HTML for ${title}`);
     
-    // Return HTML that uses Vis.js for graph visualization
+    // 1. 数据预处理
+    let parsedData = graphData;
+    if (typeof graphData === 'string') {
+        try {
+            parsedData = JSON.parse(graphData);
+        } catch (e) {
+            outputChannel.appendLine('[Graph Debug] Parse Error: ' + e);
+            return `<h1>Error parsing graph data</h1>`;
+        }
+    }
+
+    // 2. 将数据转换为 Cytoscape 元素格式
+    const nodes = parsedData.nodes.map((node: any) => ({
+        group: 'nodes',
+        data: {
+            id: node.id,
+            label: node.label || node.id,
+            module: node.module,
+            address: node.address,
+            // 增加父节点 ID，用于按 Module 分组（Compound Nodes）
+            parent: node.module 
+        }
+    }));
+
+    // 创建 Module 父节点，实现“容器”效果
+    const modules = [...new Set(parsedData.nodes.map((n: any) => n.module))].map(mod => ({
+        group: 'nodes',
+        data: { id: mod, label: `Module: ${mod}` }
+    }));
+
+    const edges = parsedData.edges.map((edge: any) => ({
+        group: 'edges',
+        data: {
+            id: `${edge.from}-${edge.to}`,
+            source: edge.from,
+            target: edge.to,
+            label: edge.label || ''
+        }
+    }));
+
+    const allElements = [...modules, ...nodes, ...edges];
+
+    // 3. 返回完整的 HTML
     return `
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>${title}</title>
-            <style>
-                body {
-                    margin: 0;
-                    padding: 0;
-                    height: 100vh;
-                    overflow: hidden;
-                    background-color: #fff;
-                }
-                #graph-container {
-                    width: 100%;
-                    height: 100%;
-                    border: 1px solid #ccc;
-                }
-                .controls {
-                    position: absolute;
-                    top: 10px;
-                    right: 10px;
-                    z-index: 1000;
-                    background: white;
-                    padding: 10px;
-                    border-radius: 4px;
-                    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-                }
-            </style>
-        </head>
-        <body>
-            <div id="graph-container"></div>
-            <div class="controls">
-                <button onclick="fitToScreen()">Fit to Screen</button>
-                <button onclick="centerView()">Center</button>
-            </div>
-            <script>
-                // Embed Vis.js library code directly
-                ${getVisJsLibrary()}
-                
-                // Add console logging for webview
-                console.log('Graph data loaded:', ${JSON.stringify(graphData)});
-                
-                const graphContainer = document.getElementById('graph-container');
-                let network = null;
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <style>
+            body { margin: 0; padding: 0; background-color: #1e1e1e; color: white; font-family: sans-serif; overflow: hidden; }
+            #cy { width: 100vw; height: 100vh; display: block; }
+            .controls { position: absolute; top: 15px; left: 15px; z-index: 10; display: flex; gap: 8px; }
+            button { 
+                background: #333; color: white; border: 1px solid #555; padding: 5px 12px; 
+                cursor: pointer; font-size: 12px; border-radius: 3px; 
+            }
+            button:hover { background: #444; }
+            .info-panel {
+                position: absolute; bottom: 15px; right: 15px; background: rgba(30,30,30,0.8);
+                padding: 10px; border: 1px solid #444; font-size: 11px; pointer-events: none;
+            }
+        </style>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.26.0/cytoscape.min.js"></script>
+        <script src="https://unpkg.com/dagre@0.7.4/dist/dagre.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/cytoscape-dagre@2.5.0/cytoscape-dagre.min.js"></script>
+    </head>
+    <body>
+        <div class="controls">
+            <button onclick="window.runLayout('dagre')">Hierarchical (Dagre)</button>
+            <button onclick="window.runLayout('cose')">Force Directed</button>
+            <button onclick="window.cy.fit()">Fit All</button>
+        </div>
+        <div id="cy"></div>
+        <div class="info-panel">
+            <b>Sui Move Struct Graph</b><br/>
+            Nodes: ${nodes.length} | Edges: ${edges.length}
+        </div>
+        <script>
+            // 注册布局插件
+            if (typeof cytoscapeDagre !== 'undefined') {
+                cytoscape.use(cytoscapeDagre);
+            }
 
-                function renderGraph() {
-                    console.log('Starting graph rendering...');
-                    // Prepare the data for Vis Network
-                    const nodes = new vis.DataSet(${JSON.stringify(graphData.nodes)});
-                    const edges = new vis.DataSet(${JSON.stringify(graphData.edges)});
-
-                    const container = document.getElementById('graph-container');
-                    const graphData = {
-                        nodes: nodes,
-                        edges: edges
-                    };
-
-                    console.log('Nodes:', nodes.get());
-                    console.log('Edges:', edges.get());
-
-                    const options = {
-                        nodes: {
-                            shape: 'box',
-                            font: {
-                                size: 14,
-                                face: 'Arial'
-                            },
-                            color: {
-                                background: '#e0f7fa',
-                                border: '#00838f',
-                                highlight: {
-                                    background: '#b2ebf2',
-                                    border: '#006064'
-                                }
-                            },
-                            borderWidth: 2
-                        },
-                        edges: {
-                            width: 2,
-                            color: {
-                                color: '#00838f',
-                                highlight: '#006064'
-                            },
-                            smooth: {
-                                type: 'curvedCW',
-                                roundness: 0.2
-                            },
-                            font: {
-                                size: 12,
-                                align: 'middle'
-                            }
-                        },
-                        physics: {
-                            enabled: true,
-                            stabilization: { iterations: 100 }
-                        },
-                        interaction: {
-                            tooltipDelay: 200,
-                            hideEdgesOnDrag: false
+            const cy = cytoscape({
+                container: document.getElementById('cy'),
+                elements: ${JSON.stringify(allElements)},
+                style: [
+                    {
+                        selector: 'node',
+                        style: {
+                            'background-color': '#007acc',
+                            'label': 'data(label)',
+                            'color': '#fff',
+                            'text-valign': 'center',
+                            'font-size': '12px',
+                            'width': 'label',
+                            'padding': '10px',
+                            'shape': 'round-rectangle'
                         }
-                    };
-
-                    network = new vis.Network(container, graphData, options);
-                    console.log('Network rendered successfully');
-                }
-
-                function fitToScreen() {
-                    if (network) {
-                        network.fit();
-                        console.log('Fitting to screen');
+                    },
+                    {
+                        selector: 'node:parent', // Module 容器样式
+                        style: {
+                            'background-opacity': 0.1,
+                            'background-color': '#fff',
+                            'label': 'data(label)',
+                            'text-valign': 'top',
+                            'text-halign': 'center',
+                            'font-weight': 'bold',
+                            'border-width': 1,
+                            'border-color': '#555',
+                            'color': '#aaa'
+                        }
+                    },
+                    {
+                        selector: 'edge',
+                        style: {
+                            'width': 2,
+                            'line-color': '#666',
+                            'target-arrow-color': '#666',
+                            'target-arrow-shape': 'triangle',
+                            'curve-style': 'bezier',
+                            'label': 'data(label)',
+                            'font-size': '10px',
+                            'color': '#999',
+                            'text-background-opacity': 1,
+                            'text-background-color': '#1e1e1e',
+                            'edge-text-rotation': 'autorotate'
+                        }
+                    },
+                    {
+                        selector: ':selected',
+                        style: {
+                            'background-color': '#ffcc00',
+                            'line-color': '#ffcc00',
+                            'target-arrow-color': '#ffcc00',
+                            'color': '#000'
+                        }
                     }
-                }
+                ],
+                layout: { name: 'dagre', rankDir: 'LR', nodeSep: 50 }
+            });
 
-                function centerView() {
-                    if (network) {
-                        network.moveTo({position: {x: 0, y: 0}});
-                        console.log('Centering view');
-                    }
-                }
-
-                // Render the graph when the page loads
-                window.onload = renderGraph;
-            </script>
-        </body>
-        </html>
-    `;
-}
-
-function getVisJsLibrary(): string {
-    // Return a minimal but functional Vis.js implementation
-    // In a production environment, we would load this from a CDN
-    return `
-        // Minimal Vis.js implementation for demonstration
-        var vis = (function() {
-            function DataSet(data) {
-                this._data = Array.isArray(data) ? data : [];
-                this.get = function() { 
-                    return this._data; 
-                };
-                this.getIds = function() {
-                    return this._data.map(item => item.id);
-                };
-            }
-            
-            function Network(container, data, options) {
-                this.container = container;
-                this.data = data;
-                this.options = options || {};
-                
-                // Simple visualization logic
-                this.fit = function() { 
-                    console.log("Fit to screen called");
-                };
-                
-                this.moveTo = function(pos) { 
-                    console.log("Move to called with position:", pos);
-                };
-                
-                // Create a simple SVG representation of the graph
-                this.renderSimpleGraph = function() {
-                    const svgNS = "http://www.w3.org/2000/svg";
-                    const svg = document.createElementNS(svgNS, "svg");
-                    svg.setAttribute("width", "100%");
-                    svg.setAttribute("height", "100%");
-                    svg.style.backgroundColor = "#f0f0f0";
-                    
-                    // Draw edges
-                    if (data.edges && data.edges._data) {
-                        data.edges._data.forEach((edge, idx) => {
-                            const line = document.createElementNS(svgNS, "line");
-                            line.setAttribute("x1", (50 + (idx * 40) % 200) + "%");
-                            line.setAttribute("y1", (20 + (idx * 20) % 60) + "%");
-                            line.setAttribute("x2", (70 + ((idx + 1) * 40) % 200) + "%");
-                            line.setAttribute("y2", (40 + ((idx + 1) * 20) % 60) + "%");
-                            line.setAttribute("stroke", "#00838f");
-                            line.setAttribute("stroke-width", "2");
-                            line.setAttribute("marker-end", "url(#arrow)");
-                            
-                            svg.appendChild(line);
-                        });
-                    }
-                    
-                    // Draw nodes
-                    if (data.nodes && data.nodes._data) {
-                        data.nodes._data.forEach((node, idx) => {
-                            const circle = document.createElementNS(svgNS, "circle");
-                            circle.setAttribute("cx", (10 + (idx * 30) % 80) + "%");
-                            circle.setAttribute("cy", (10 + (idx * 20) % 80) + "%");
-                            circle.setAttribute("r", "15");
-                            circle.setAttribute("fill", "#e0f7fa");
-                            circle.setAttribute("stroke", "#00838f");
-                            circle.setAttribute("stroke-width", "2");
-                            
-                            const text = document.createElementNS(svgNS, "text");
-                            text.setAttribute("x", (10 + (idx * 30) % 80) + "%");
-                            text.setAttribute("y", (10 + (idx * 20) % 80) + "%");
-                            text.setAttribute("text-anchor", "middle");
-                            text.setAttribute("dy", "0.3em");
-                            text.setAttribute("font-size", "12");
-                            text.textContent = node.label || node.id;
-                            
-                            svg.appendChild(circle);
-                            svg.appendChild(text);
-                        });
-                    }
-                    
-                    // Add arrow marker for edges
-                    const defs = document.createElementNS(svgNS, "defs");
-                    const marker = document.createElementNS(svgNS, "marker");
-                    marker.setAttribute("id", "arrow");
-                    marker.setAttribute("viewBox", "0 0 10 10");
-                    marker.setAttribute("refX", "10");
-                    marker.setAttribute("refY", "5");
-                    marker.setAttribute("markerWidth", "6");
-                    marker.setAttribute("markerHeight", "6");
-                    marker.setAttribute("orient", "auto-start-reverse");
-                    
-                    const path = document.createElementNS(svgNS, "path");
-                    path.setAttribute("d", "M 0 0 L 10 5 L 0 10 z");
-                    path.setAttribute("fill", "#00838f");
-                    
-                    marker.appendChild(path);
-                    defs.appendChild(marker);
-                    svg.appendChild(defs);
-                    
-                    // Clear container and add SVG
-                    while (container.firstChild) {
-                        container.removeChild(container.firstChild);
-                    }
-                    container.appendChild(svg);
-                };
-                
-                // Initialize the graph
-                setTimeout(() => {
-                    this.renderSimpleGraph();
-                }, 100);
-            }
-            
-            return {
-                DataSet: DataSet,
-                Network: Network
+            window.cy = cy;
+            window.runLayout = (name) => {
+                cy.layout({ name: name, animate: true, padding: 50 }).run();
             };
-        })();
+        </script>
+    </body>
+    </html>
     `;
 }
+
 
 export { Reg, WorkingDir };

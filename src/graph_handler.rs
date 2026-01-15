@@ -31,35 +31,8 @@ pub fn on_struct_dependency_request(context: &Context, request: &Request) {
 }
 
 pub fn on_call_flow_request(context: &Context, request: &Request) {
-    // Temporarily disabled until implementation is complete
-    let _params: GraphParams = match serde_json::from_value(request.params.clone()) {
-        Ok(params) => params,
-        Err(e) => {
-            let response = Response::new_err(
-                request.id.clone(),
-                lsp_server::ErrorCode::InvalidParams as i32,
-                format!("Failed to parse parameters: {}", e),
-            );
-            if let Err(e) = context.connection.sender.send(lsp_server::Message::Response(response)) {
-                eprintln!("Error sending call flow request error response: {}", e);
-            }
-            return;
-        }
-    };
-
-    let response = GraphResponse {
-        graph_data: serde_json::json!({
-            "nodes": [],
-            "edges": [],
-            "message": "Function call graph feature is not yet implemented"
-        }).to_string(),
-        error: Some("Function call graph feature is not yet implemented".to_string()),
-    };
-
-    let response = Response::new_ok(request.id.clone(), serde_json::to_value(response).unwrap());
-    if let Err(e) = context.connection.sender.send(lsp_server::Message::Response(response)) {
-        eprintln!("Error sending call flow response: {}", e);
-    }
+    eprintln!("Handling call flow request");
+    handle_graph_request(context, request, "call_flow");
 }
 
 fn handle_graph_request(
@@ -136,9 +109,9 @@ fn handle_graph_request(
             graph.to_json()
         },
         "call_flow" => {
-            // Return empty graph for now since implementation is disabled
-            eprintln!("Call flow graph is temporarily disabled");
-            return on_call_flow_request(context, request);
+            eprintln!("Generating call flow graph for project...");
+            let graph = crate::call_flow_graph::CallFlowGraph::generate_for_project(project);
+            graph.to_json()
         },
         unsupported => {
             eprintln!("Unsupported graph type requested: {}", unsupported);

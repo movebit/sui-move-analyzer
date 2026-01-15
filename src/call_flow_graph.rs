@@ -22,7 +22,8 @@ impl CallFlowGraph {
         use serde_json::json;
         json!({
             "nodes": [],
-            "edges": []
+            "edges": [],
+            "message": "Function call graph feature is not yet implemented"
         }).to_string()
     }
 }
