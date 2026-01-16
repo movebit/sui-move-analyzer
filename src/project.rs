@@ -154,7 +154,7 @@ impl Project {
     ) -> Result<()> {
         let manifest_path = normal_path(manifest_path);
         if self.modules.get(&manifest_path).is_some() {
-            println!("manifest '{:?}' loaded before skipped.", &manifest_path);
+            // println!("manifest '{:?}' loaded before skipped.", &manifest_path);
             return Ok(());
         }
         self.manifest_paths.push(manifest_path.clone());
@@ -209,7 +209,7 @@ impl Project {
             crate::lastest_implicit_deps::implicit_deps::merge_implicit_deps_to_manifest(&manifest);
 
         for (dep_name, de) in all_deps.iter() {
-            println!("dep_name{}, dep: {:?}", dep_name, de);
+            // println!("dep_name{}, dep: {:?}", dep_name, de);
             let move_home = "/workspace/.move";
 
             let repository_path = |kind: &DependencyKind| -> PathBuf {

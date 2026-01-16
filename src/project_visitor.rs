@@ -826,7 +826,7 @@ impl Project {
 
             Exp_::DotCall(pre_expr, _, fun_name, _, type_args, call_paren_exp) => {
                 self.visit_expr(pre_expr, project_context, visitor);
-                println!("dot call loc: {:?}", self.convert_loc_range(&pre_expr.loc));
+                // println!("dot call loc: {:?}", self.convert_loc_range(&pre_expr.loc));
                 let opt_item =
                     project_context.find_name_corresponding_item(self, pre_expr, fun_name);
                 let opt_item = if opt_item.is_some() {
@@ -975,7 +975,7 @@ impl Project {
             Exp_::Lambda(_, _, _) => {
                 // TODO have lambda expression in ast structure.
                 // But I don't find in msl spec.
-                println!("lambda expression in ast.");
+                // println!("lambda expression in ast.");
             }
 
             Exp_::Quant(_, binds, bodies, where_, result) => {

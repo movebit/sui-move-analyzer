@@ -60,7 +60,7 @@ pub mod utils;
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{path::PathBuf, str::FromStr};
+use std::{path::PathBuf, str::FromStr, time};
 
 use move_command_line_common::files::FileHash;
 use move_compiler::{
@@ -376,7 +376,7 @@ fn handle_projects_clear(context: &mut Context, _request: lsp_server::Request) {
 pub extern "C" fn process_message(ptr: *const u8, len: usize) -> *mut u8 {
     // 读取输入
     let data = unsafe { std::slice::from_raw_parts(ptr, len) };
-
+    let start_time = time::Instant::now();
     let request: lsp_server::Request = match serde_json::from_slice(data) {
         Ok(r) => r,
         Err(e) => {
@@ -392,23 +392,28 @@ pub extern "C" fn process_message(ptr: *const u8, len: usize) -> *mut u8 {
         "DidOpenTextDocument" => {
             println!("DidOpenTextDocument");
             with_context(|ctx, request| handle_open_document(ctx, request), request);
+            println!("{}ms", start_time.elapsed().as_millis());
         }
         "DidChangeTextDocument" => {
             println!("DidChangeTextDocument");
             with_context(|ctx, request| handle_did_change(ctx, request), request);
+            println!("{}ms", start_time.elapsed().as_millis());
         }
         "GotoDefinition" => {
             println!("GotoDefinition");
             let result = with_context(|ctx, request| handle_goto_definition(ctx, request), request);
+            println!("{}ms", start_time.elapsed().as_millis());
             return serialize_with_length_prefix(result);
         }
         "FetchDependencies" => {
             println!("FetchDependencies");
             with_context(|ctx, request| handle_projects_clear(ctx, request), request);
+            println!("{}ms", start_time.elapsed().as_millis());
         }
         "Reference" => {
             println!("Reference");
             let result = with_context(|ctx, request| handle_reference(ctx, request), request);
+            println!("{}ms", start_time.elapsed().as_millis());
             return serialize_with_length_prefix(result);
         }
         "Hover" => {
