@@ -82,6 +82,7 @@ use crate::{
 };
 
 use crate::goto_definition::{on_go_to_def_request, on_go_to_type_def_request};
+use crate::inlay_hints::on_inlay_hints;
 // use crate::sui_move_analyzer_beta_2024::make_diag;
 use once_cell::unsync::OnceCell;
 use std::cell::RefCell;
@@ -368,6 +369,27 @@ fn handle_hover<'a>(context: &'a mut Context, request: lsp_server::Request) -> s
     on_hover_request(context, fpath, params.pos)
 }
 
+fn handle_inlay_hint<'a>(
+    context: &'a mut Context,
+    request: lsp_server::Request,
+) -> serde_json::Value {
+    #[derive(Deserialize, Debug)]
+    struct InlayHintParams {
+        pub url: String,
+        pub range: lsp_types::Range,
+    };
+
+    let params = match serde_json::from_value::<InlayHintParams>(request.params) {
+        Ok(p) => p,
+        Err(e) => {
+            println!("InlayHintParams from value failed: {:?}", e);
+            return serde_json::Value::Null;
+        }
+    };
+    let fpath = PathBuf::from_str(params.url.as_str()).unwrap();
+    on_inlay_hints(context, fpath, params.range)
+}
+
 fn handle_projects_clear(context: &mut Context, _request: lsp_server::Request) {
     context.projects.clear();
 }
@@ -419,6 +441,11 @@ pub extern "C" fn process_message(ptr: *const u8, len: usize) -> *mut u8 {
         "Hover" => {
             println!("Hover");
             let result = with_context(|ctx, request| handle_hover(ctx, request), request);
+            return serialize_with_length_prefix(result);
+        }
+        "InlayHints" => {
+            println!("InlayHints");
+            let result = with_context(|ctx, request| handle_inlay_hint(ctx, request), request);
             return serialize_with_length_prefix(result);
         }
         _ => {
