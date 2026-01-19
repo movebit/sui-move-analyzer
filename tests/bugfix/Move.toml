@@ -1,0 +1,10 @@
+[package]
+name = "Bugfix"
+version = "0.0.1"
+edition = "2024.beta"
+
+[dependencies]
+
+[addresses]
+a = "0x1"
+b = "0x2"

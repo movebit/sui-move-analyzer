@@ -30,31 +30,31 @@ macro_rules! impl_convert_loc {
     };
 }
 
+pub mod call_flow_graph;
 pub mod code_lens;
 pub mod completion;
 pub mod context;
 pub mod diagnostics;
 pub mod goto_definition;
+pub mod graph_handler;
 pub mod hover;
 pub mod inlay_hints;
 pub mod item;
+pub mod move_generate_spec;
+pub mod move_generate_spec_chen;
+pub mod move_generate_spec_file;
+pub mod move_generate_spec_sel;
 pub mod project;
 pub mod project_context;
 pub mod project_visitor;
 pub mod references;
 pub mod scope;
+pub mod snap_cache;
+pub mod struct_dep_graph;
+pub mod sui_move_analyzer;
 pub mod symbols;
 pub mod types;
 pub mod utils;
-pub mod move_generate_spec;
-pub mod move_generate_spec_chen;
-pub mod move_generate_spec_file;
-pub mod move_generate_spec_sel;
-pub mod snap_cache;
-pub mod struct_dep_graph;
-pub mod call_flow_graph;
-pub mod graph_handler;
-pub mod sui_move_analyzer;
 
 use move_package::source_package::parsed_manifest::{
     Dependencies, Dependency, DependencyKind, GitInfo, InternalDependency,
@@ -125,7 +125,7 @@ pub fn implicit_deps() -> Dependencies {
                 Dependency::Internal(InternalDependency {
                     kind: DependencyKind::Git(GitInfo {
                         git_url: SYSTEM_GIT_REPO.into(),
-                        git_rev: packages.git_revision.clone().into(),
+                        git_rev: "mainnet".into(),
                         subdir: package.repo_path.clone().into(),
                     }),
                     subst: None,

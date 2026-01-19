@@ -30,6 +30,7 @@ struct VersionEntry {
 /// Fetch the latest system packages JSON from remote and parse it (assuming they are arranged in order, taking the last one)
 fn fetch_latest_system_packages() -> anyhow::Result<Option<(u32, VersionEntry)>> {
     // The ureq library automatically reads proxy settings from environment variables (such as HTTPS_PROXY, http_proxy, etc.)
+    println!("fetch_latest_system_packages");
     let response = ureq::get(MANIFEST_JSON_URL).call()?;
 
     let status = response.status();
@@ -44,12 +45,17 @@ fn fetch_latest_system_packages() -> anyhow::Result<Option<(u32, VersionEntry)>>
     let json_data: Value = serde_json::from_reader(response.into_reader())?;
     println!("{:?}", json_data);
     if let Value::Object(map) = json_data {
-        let mut entries: Vec<(String, Value)> = map.into_iter().collect();
-        if let Some((last_key, last_value)) = entries.pop() {
-            if let Ok(version) = last_key.parse::<u32>() {
-                let entry: VersionEntry = serde_json::from_value(last_value)?;
-                return Ok(Some((version, entry)));
-            }
+        // 1. 过滤 + 解析成 u32
+        let numeric_entries: Vec<(u32, Value)> = map
+            .into_iter()
+            .filter_map(|(k, v)| k.parse::<u32>().ok().map(|ver| (ver, v)))
+            .collect();
+
+        // 2. 按数值取最大的那条
+        if let Some((version, last_value)) = numeric_entries.into_iter().max_by_key(|(ver, _)| *ver)
+        {
+            let entry: VersionEntry = serde_json::from_value(last_value)?;
+            return Ok(Some((version, entry)));
         }
     }
 
@@ -63,7 +69,7 @@ fn generate_system_packages_version_table() -> anyhow::Result<()> {
             // If unable to fetch the latest system packages information, use a default empty table
             println!("Warning: Could not fetch system packages, using empty table.");
             return generate_empty_table();
-        },
+        }
     };
 
     let out_dir = env::var("OUT_DIR").unwrap();
@@ -86,9 +92,7 @@ fn generate_system_packages_version_table() -> anyhow::Result<()> {
         writeln!(
             &mut file,
             "          SystemPackage {{ package_name: \"{}\".into(), repo_path: \"{}\".into(), id: \"{}\".into() }},",
-            package.name,
-            package.path,
-            package.id
+            package.name, package.path, package.id
         )?;
     }
 
@@ -117,6 +121,9 @@ fn generate_empty_table() -> anyhow::Result<()> {
 }
 
 fn main() {
+    println!("cargo:rerun-if-changed=build.rs");
+    // println!("cargo:rerun-if-changed=src/bin/main.rs");
+    println!("cargo:rerun-if-env-changed=SUI_SYS_PKG_TABLE");
     // Capture errors and generate an empty table on failure
     if let Err(e) = generate_system_packages_version_table() {
         eprintln!("Error generating system packages version table: {}", e);

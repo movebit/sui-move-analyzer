@@ -5,7 +5,7 @@ use super::utils::*;
 use crate::{project::*, references::ReferencesCache, symbols::Symbols};
 use im::HashSet;
 use lsp_server::Connection;
-use lsp_types::{notification::Notification, MessageType};
+use lsp_types::{MessageType, notification::Notification};
 use move_command_line_common::files::FileHash;
 use move_compiler::parser::ast::Definition;
 use move_ir_types::location::Loc;
@@ -86,7 +86,10 @@ impl MultiProject {
                 send_show_message(
                     sender,
                     lsp_types::MessageType::ERROR,
-                    format!("project at {:?} can't fetch deps.\nMaybe you need execute 'sui move build --fetch-deps-only --skip-fetch-latest-git-deps' yourself.", mani.as_path()),
+                    format!(
+                        "project at {:?} can't fetch deps.\nMaybe you need execute 'sui move build --fetch-deps-only --skip-fetch-latest-git-deps' yourself.",
+                        mani.as_path()
+                    ),
                 );
                 return anyhow::Result::Err(anyhow::anyhow!("fetch deps failed"));
             }
@@ -202,8 +205,26 @@ impl FileDiags {
 static LOAD_DEPS: bool = false;
 
 impl MultiProject {
+    /// Try to reload projects that need updating.
+    ///
+    /// # Reload Triggers:
+    /// 1. **Missing manifests now exist**: Dependencies that were missing during initial load
+    ///    - These were added to `manifest_not_exists` by `load_project`
+    ///    - If they now exist (e.g., downloaded by `get_package_compile_diagnostics`), reload
+    ///
+    /// 2. **Move.toml was modified**: Detected by comparing file modification times
+    ///    - Stored in `manifest_mod_time` during `load_project`
+    ///    - Checked by `manifest_beed_modified()`
+    ///
+    /// # How Dependencies Get Loaded:
+    /// - Initial load with empty `implicit_deps` → dependencies missing → added to `manifest_not_exists`
+    /// - Background thread downloads deps to `~/.move/`
+    /// - Next `try_reload_projects` call → checks `manifest_not_exists` → paths now exist → reload!
+    /// - Reload with correct `implicit_deps` → dependencies loaded successfully
     pub fn try_reload_projects(&mut self, connection: &Connection, implicit_deps: Dependencies) {
         let mut all = Vec::new();
+
+        // STEP 1: Check for previously missing manifests that now exist
         let not_founds = {
             let mut x = Vec::new();
             for (k, v) in self.projects.iter() {
@@ -217,6 +238,8 @@ impl MultiProject {
             }
             x
         };
+
+        // STEP 2: Check for modified Move.toml files
         let mut modifies = Vec::new();
         for (k, p) in self.projects.iter() {
             if p.manifest_beed_modified() {
@@ -226,6 +249,8 @@ impl MultiProject {
                 }
             }
         }
+
+        // STEP 3: Reload projects with previously missing manifests that now exist
         for (k, not_founds, root_manifest) in not_founds.into_iter() {
             let mut exists_now = false;
             for v in not_founds.iter() {
@@ -237,28 +262,42 @@ impl MultiProject {
                 }
             }
             if !exists_now {
+                eprintln!("[try_reload_projects]   Still missing, skipping reload");
                 continue;
             }
-            eprintln!("reload  {:?}", root_manifest.as_path());
+            let mut multi = MultiProject::default();
             let x = match Project::new(
                 root_manifest,
-                self,
+                &mut multi,
                 |msg| send_show_message(connection, MessageType::ERROR, msg),
                 implicit_deps.clone(),
             ) {
-                Ok(x) => x,
+                Ok(x) => {
+                    eprintln!("[try_reload_projects]   ✓ Reload successful");
+                    x
+                }
                 Err(_) => {
                     log::error!("reload project failed");
+                    eprintln!("[try_reload_projects]   ✗ Reload failed");
                     return;
                 }
             };
+            for (k, v) in multi.asts {
+                self.asts.insert(k, v);
+            }
             all.push((k, x));
         }
+
+        // STEP 4: Reload modified projects
         for (k, root_manifest) in modifies.into_iter() {
             send_show_message(
                 connection,
                 MessageType::INFO,
                 format!("trying reload {:?}.", root_manifest.as_path()),
+            );
+            eprintln!(
+                "[try_reload_projects]   Reloading modified: {:?}",
+                root_manifest.as_path()
             );
             let x = match Project::new(
                 root_manifest,
@@ -268,18 +307,24 @@ impl MultiProject {
                 },
                 implicit_deps.clone(),
             ) {
-                Ok(x) => x,
+                Ok(x) => {
+                    eprintln!("[try_reload_projects]   ✓ Reload successful");
+                    x
+                }
                 Err(err) => {
                     send_show_message(
                         connection,
                         MessageType::ERROR,
                         format!("reload project failed,err:{:?}", err),
                     );
+                    eprintln!("[try_reload_projects]   ✗ Reload failed: {:?}", err);
                     continue;
                 }
             };
             all.push((k, x));
         }
+
+        // STEP 5: Replace old projects with reloaded ones
         for (k, v) in all.into_iter() {
             self.projects.remove(&k);
             self.insert_project(v);
