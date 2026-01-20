@@ -662,6 +662,54 @@ impl ProjectContext {
                             }
                             false
                         });
+                        // fixbug >> https://github.com/movebit/sui-move-analyzer/issues/17
+                        // EN: Fallback lookup for chain names when only the module is `use`d but no members.
+                        //     Example:
+                        //         use std::vector;           // only brought the module into scope
+                        //         let v = vector::empty();   // chain name `vector::empty` is not in local tables
+                        //
+                        //     If the earlier local/use search returned None, we treat the first segment
+                        //     (`vector`) as a module symbol, resolve it to an address via
+                        //     `project.name_to_addr_impl`, then keep traversing the remaining segments
+                        //     inside the top-level module table.  On success we set:
+                        //         - `module_scope` to the found module's AddrAndModuleName
+                        //         - `item_ret` to the requested Item
+                        //
+                        //     This completes the chain lookup for the "module-import only" case.
+                        if item_ret.is_none() {
+                            let addr = project.name_to_addr_impl(name.value);
+                            if addr != AccountAddress::ZERO {
+                                self.visit_address(|top| -> Option<()> {
+                                    let x = top.address.get(&addr)?;
+                                    for entry in name_path.entries.iter() {
+                                        let member = entry.name.value;
+                                        if let Some(m) = x.modules.get(&member) {
+                                            module_scope =
+                                                Some(m.as_ref().borrow().name_and_addr.clone());
+                                            continue;
+                                        }
+                                        if let Some(ms) = &module_scope {
+                                            if let Some(x) = top
+                                                .address
+                                                .get(&ms.addr)
+                                                .unwrap()
+                                                .modules
+                                                .get(&ms.name.0.value)
+                                            {
+                                                if let Some(item) =
+                                                    x.as_ref().borrow().module.items.get(&member)
+                                                {
+                                                    item_ret = Some(item.clone());
+                                                    return Some(());
+                                                }
+                                            }
+                                        }
+                                    }
+                                    None
+                                });
+                            }
+                        }
+                        // fixbug <<
                     }
                     LeadingNameAccess_::AnonymousAddress(addr) => {
                         let x = self.visit_address(|x| -> Option<AddrAndModuleName> {
@@ -843,7 +891,6 @@ impl ProjectContext {
                     module_scope = x;
                 }
             },
-
         }
         (item_ret, module_scope)
     }
@@ -1344,8 +1391,6 @@ fn is_member_function_of_type(ty: &ResolvedType, item: Option<Item>) -> Option<I
 }
 
 fn get_ty_with_generic_type(ty: &ResolvedType, item: Option<Item>) -> Option<Item> {
-
-
     let Some(fun) = is_member_function_of_type(ty, item) else {
         return None;
     };

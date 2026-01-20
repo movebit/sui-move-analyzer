@@ -164,6 +164,16 @@
 				"command": "sui-move-analyzer.move.generate.spec.sel",
 				"title": "Generate Move Spec",
 				"category": "Move Analyzer"
+			},
+			{
+				"command": "sui-move-analyzer.showStructDependencyGraph",
+				"title": "Show Struct Dependency Graph",
+				"category": "Move Analyzer"
+			},
+			{
+				"command": "sui-move-analyzer.showCallFlowGraph",
+				"title": "Show Function Call Flow Graph",
+				"category": "Move Analyzer"
 			}
 		],
 		"configuration": {
@@ -242,6 +252,11 @@
 					"when": "resourceLangId == move",
 					"command": "sui-move-analyzer.move.generate.spec.sel",
 					"group": "5_cutcopypaste"
+				},
+				{
+					"when": "resourceLangId == move",
+					"command": "sui-move-analyzer.showStructDependencyGraph",
+					"group": "navigation"
 				}
 			]
 		}

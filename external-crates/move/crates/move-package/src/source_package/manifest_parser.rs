@@ -543,18 +543,18 @@ fn warn_if_unknown_field_names(table: &toml::map::Map<String, TV>, known_names: 
         }
     }
 
-    if !unknown_names.is_empty() {
-        eprintln!(
-            "Warning: unknown field name{} found. Expected one of [{}], but found {}",
-            if unknown_names.len() > 1 { "s" } else { "" },
-            known_names.join(", "),
-            unknown_names
-                .into_iter()
-                .map(|x| format!("'{}'", x))
-                .collect::<Vec<_>>()
-                .join(", ")
-        );
-    }
+    // if !unknown_names.is_empty() {
+    //     eprintln!(
+    //         "Warning: unknown field name{} found. Expected one of [{}], but found {}",
+    //         if unknown_names.len() > 1 { "s" } else { "" },
+    //         known_names.join(", "),
+    //         unknown_names
+    //             .into_iter()
+    //             .map(|x| format!("'{}'", x))
+    //             .collect::<Vec<_>>()
+    //             .join(", ")
+    //     );
+    // }
 }
 
 fn check_for_required_field_names(

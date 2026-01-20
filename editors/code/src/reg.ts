@@ -8,6 +8,11 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as childProcess from 'child_process';
 
+// 创建一个输出通道用于调试日志
+const outputChannel = vscode.window.createOutputChannel('Sui Move Analyzer Graph');
+
+
+
 /**
  * A logger for the VS Code extension.
  *
@@ -242,6 +247,18 @@ const Reg = {
 
         // Register handlers for VS Code commands that the user explicitly issues.
         context.registerCommand('serverVersion', serverVersion);
+        
+        // Register graph commands - these will be implemented separately
+        context.registerCommand('showStructDependencyGraph', () => {
+            // Defer implementation to a separate function to avoid circular imports
+            void showStructDependencyGraph(context);
+        });
+        
+        context.registerCommand('showCallFlowGraph', () => {
+            // Defer implementation to a separate function to avoid circular imports
+            void showCallFlowGraph(context);
+        });
+
         // Register test button
         context.registerCommand('test_ui', (_, ...args) => {
             const cwd = args[0] as string;
@@ -737,5 +754,327 @@ const Reg = {
     },
 
 };
+
+// Helper functions for graph display
+async function showStructDependencyGraph(context: Readonly<Context>) {
+    outputChannel.appendLine('[Graph Debug] Starting showStructDependencyGraph function...');
+    
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) {
+        const errorMsg = 'No active editor found';
+        outputChannel.appendLine(`[Graph Debug] Error: ${errorMsg}`);
+        vscode.window.showErrorMessage(errorMsg);
+        return;
+    }
+
+    outputChannel.appendLine(`[Graph Debug] Active document: ${editor.document.fileName}`);
+    
+    const document = editor.document;
+    if (document.languageId !== 'move') {
+        const errorMsg = 'Current file is not a Move file';
+        outputChannel.appendLine(`[Graph Debug] Error: ${errorMsg}`);
+        vscode.window.showErrorMessage(errorMsg);
+        return;
+    }
+    
+    outputChannel.appendLine(`[Graph Debug] Document language ID: ${document.languageId}`);
+
+    // Request graph data from the language server
+    const client = context.getClient();
+    if (!client) {
+        const errorMsg = 'No language server client available';
+        outputChannel.appendLine(`[Graph Debug] Error: ${errorMsg}`);
+        vscode.window.showErrorMessage(errorMsg);
+        return;
+    }
+    
+    outputChannel.appendLine('[Graph Debug] Language server client found, sending request...');
+
+    try {
+        outputChannel.appendLine('[Graph Debug] Sending move/struct_dependency/graph request...');
+        
+        const graphData = await client.sendRequest<any>(
+            'move/struct_dependency/graph',
+            {
+                textDocument: {
+                    uri: document.uri.toString()
+                },
+                graphType: 'struct_dependency',
+                format: 'dot'  // Request DOT format for better visualization
+            }
+        );
+        
+        outputChannel.appendLine(`[Graph Debug] Received response from server: ${JSON.stringify(graphData, null, 2)}`);
+
+        if (graphData && graphData.graph_data) {
+            outputChannel.appendLine('[Graph Debug] Valid graph data received, creating webview panel...');
+            
+            // Create and show a webview panel to display the graph
+            const panel = vscode.window.createWebviewPanel(
+                'structDependencyGraph',
+                'Struct Dependency Graph',
+                vscode.ViewColumn.One,
+                {
+                    enableScripts: true,
+                    retainContextWhenHidden: true
+                }
+            );
+
+            // Generate HTML for the graph visualization
+            panel.webview.html = getGraphHtml(JSON.parse(graphData.graph_data), 'Struct Dependency', context);
+            
+            outputChannel.appendLine('[Graph Debug] Webview panel created and displayed successfully');
+        } else {
+            const errorMsg = 'No struct dependency graph data received';
+            outputChannel.appendLine(`[Graph Debug] Error: ${errorMsg}`);
+            outputChannel.appendLine(`[Graph Debug] Raw response: ${JSON.stringify(graphData)}`);
+            vscode.window.showErrorMessage(errorMsg);
+        }
+    } catch (error) {
+        const errorMsg = `Failed to get struct dependency graph: ${error}`;
+        outputChannel.appendLine(`[Graph Debug] Exception caught: ${errorMsg}`);
+        outputChannel.appendLine(`[Graph Debug] Error stack: ${(error as Error).stack || 'No stack trace'}`);
+        vscode.window.showErrorMessage(errorMsg);
+    }
+}
+
+async function showCallFlowGraph(context: Readonly<Context>) {
+    outputChannel.appendLine('[Graph Debug] Starting showCallFlowGraph function...');
+    
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) {
+        const errorMsg = 'No active editor found';
+        outputChannel.appendLine(`[Graph Debug] Error: ${errorMsg}`);
+        vscode.window.showErrorMessage(errorMsg);
+        return;
+    }
+
+    outputChannel.appendLine(`[Graph Debug] Active document: ${editor.document.fileName}`);
+    
+    const document = editor.document;
+    if (document.languageId !== 'move') {
+        const errorMsg = 'Current file is not a Move file';
+        outputChannel.appendLine(`[Graph Debug] Error: ${errorMsg}`);
+        vscode.window.showErrorMessage(errorMsg);
+        return;
+    }
+    
+    outputChannel.appendLine(`[Graph Debug] Document language ID: ${document.languageId}`);
+
+    // Request graph data from the language server
+    const client = context.getClient();
+    if (!client) {
+        const errorMsg = 'No language server client available';
+        outputChannel.appendLine(`[Graph Debug] Error: ${errorMsg}`);
+        vscode.window.showErrorMessage(errorMsg);
+        return;
+    }
+    
+    outputChannel.appendLine('[Graph Debug] Language server client found, sending request...');
+
+    try {
+        outputChannel.appendLine('[Graph Debug] Sending move/call_flow/graph request...');
+        
+        const graphData = await client.sendRequest<any>(
+            'move/call_flow/graph',
+            {
+                textDocument: {
+                    uri: document.uri.toString()
+                },
+                graphType: 'call_flow',
+                format: 'dot'  // Request DOT format for better visualization
+            }
+        );
+        
+        outputChannel.appendLine(`[Graph Debug] Received response from server: ${JSON.stringify(graphData, null, 2)}`);
+
+        if (graphData && graphData.graph_data) {
+            outputChannel.appendLine('[Graph Debug] Valid graph data received, creating webview panel...');
+            
+            // Create and show a webview panel to display the graph
+            const panel = vscode.window.createWebviewPanel(
+                'callFlowGraph',
+                'Function Call Flow Graph',
+                vscode.ViewColumn.One,
+                {
+                    enableScripts: true,
+                    retainContextWhenHidden: true
+                }
+            );
+
+            // Generate HTML for the graph visualization
+            panel.webview.html = getGraphHtml(JSON.parse(graphData.graph_data), 'Function Call Flow', context);
+            
+            outputChannel.appendLine('[Graph Debug] Webview panel created and displayed successfully');
+        } else {
+            const errorMsg = 'No call flow graph data received';
+            outputChannel.appendLine(`[Graph Debug] Error: ${errorMsg}`);
+            outputChannel.appendLine(`[Graph Debug] Raw response: ${JSON.stringify(graphData)}`);
+            vscode.window.showErrorMessage(errorMsg);
+        }
+    } catch (error) {
+        const errorMsg = `Failed to get call flow graph: ${error}`;
+        outputChannel.appendLine(`[Graph Debug] Exception caught: ${errorMsg}`);
+        outputChannel.appendLine(`[Graph Debug] Error stack: ${(error as Error).stack || 'No stack trace'}`);
+        vscode.window.showErrorMessage(errorMsg);
+    }
+}
+
+function getGraphHtml(graphData: any, title: string, _context: Readonly<Context>): string {
+    outputChannel.appendLine(`[Graph Debug] Rendering high-quality graph HTML for ${title}`);
+    
+    // 1. 数据预处理
+    let parsedData = graphData;
+    if (typeof graphData === 'string') {
+        try {
+            parsedData = JSON.parse(graphData);
+        } catch (e) {
+            outputChannel.appendLine('[Graph Debug] Parse Error: ' + e);
+            return `<h1>Error parsing graph data</h1>`;
+        }
+    }
+
+    // 2. 将数据转换为 Cytoscape 元素格式
+    const nodes = parsedData.nodes.map((node: any) => ({
+        group: 'nodes',
+        data: {
+            id: node.id,
+            label: node.label || node.id,
+            module: node.module,
+            address: node.address,
+            // 增加父节点 ID，用于按 Module 分组（Compound Nodes）
+            parent: node.module 
+        }
+    }));
+
+    // 创建 Module 父节点，实现“容器”效果
+    const modules = [...new Set(parsedData.nodes.map((n: any) => n.module))].map(mod => ({
+        group: 'nodes',
+        data: { id: mod, label: `Module: ${mod}` }
+    }));
+
+    const edges = parsedData.edges.map((edge: any) => ({
+        group: 'edges',
+        data: {
+            id: `${edge.from}-${edge.to}`,
+            source: edge.from,
+            target: edge.to,
+            label: edge.label || ''
+        }
+    }));
+
+    const allElements = [...modules, ...nodes, ...edges];
+
+    // 3. 返回完整的 HTML
+    return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <style>
+            body { margin: 0; padding: 0; background-color: #1e1e1e; color: white; font-family: sans-serif; overflow: hidden; }
+            #cy { width: 100vw; height: 100vh; display: block; }
+            .controls { position: absolute; top: 15px; left: 15px; z-index: 10; display: flex; gap: 8px; }
+            button { 
+                background: #333; color: white; border: 1px solid #555; padding: 5px 12px; 
+                cursor: pointer; font-size: 12px; border-radius: 3px; 
+            }
+            button:hover { background: #444; }
+            .info-panel {
+                position: absolute; bottom: 15px; right: 15px; background: rgba(30,30,30,0.8);
+                padding: 10px; border: 1px solid #444; font-size: 11px; pointer-events: none;
+            }
+        </style>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.26.0/cytoscape.min.js"></script>
+        <script src="https://unpkg.com/dagre@0.7.4/dist/dagre.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/cytoscape-dagre@2.5.0/cytoscape-dagre.min.js"></script>
+    </head>
+    <body>
+        <div class="controls">
+            <button onclick="window.runLayout('dagre')">Hierarchical (Dagre)</button>
+            <button onclick="window.runLayout('cose')">Force Directed</button>
+            <button onclick="window.cy.fit()">Fit All</button>
+        </div>
+        <div id="cy"></div>
+        <div class="info-panel">
+            <b>Sui Move Struct Graph</b><br/>
+            Nodes: ${nodes.length} | Edges: ${edges.length}
+        </div>
+        <script>
+            // 注册布局插件
+            if (typeof cytoscapeDagre !== 'undefined') {
+                cytoscape.use(cytoscapeDagre);
+            }
+
+            const cy = cytoscape({
+                container: document.getElementById('cy'),
+                elements: ${JSON.stringify(allElements)},
+                style: [
+                    {
+                        selector: 'node',
+                        style: {
+                            'background-color': '#007acc',
+                            'label': 'data(label)',
+                            'color': '#fff',
+                            'text-valign': 'center',
+                            'font-size': '12px',
+                            'width': 'label',
+                            'padding': '10px',
+                            'shape': 'round-rectangle'
+                        }
+                    },
+                    {
+                        selector: 'node:parent', // Module 容器样式
+                        style: {
+                            'background-opacity': 0.1,
+                            'background-color': '#fff',
+                            'label': 'data(label)',
+                            'text-valign': 'top',
+                            'text-halign': 'center',
+                            'font-weight': 'bold',
+                            'border-width': 1,
+                            'border-color': '#555',
+                            'color': '#aaa'
+                        }
+                    },
+                    {
+                        selector: 'edge',
+                        style: {
+                            'width': 2,
+                            'line-color': '#666',
+                            'target-arrow-color': '#666',
+                            'target-arrow-shape': 'triangle',
+                            'curve-style': 'bezier',
+                            'label': 'data(label)',
+                            'font-size': '10px',
+                            'color': '#999',
+                            'text-background-opacity': 1,
+                            'text-background-color': '#1e1e1e',
+                            'edge-text-rotation': 'autorotate'
+                        }
+                    },
+                    {
+                        selector: ':selected',
+                        style: {
+                            'background-color': '#ffcc00',
+                            'line-color': '#ffcc00',
+                            'target-arrow-color': '#ffcc00',
+                            'color': '#000'
+                        }
+                    }
+                ],
+                layout: { name: 'dagre', rankDir: 'LR', nodeSep: 50 }
+            });
+
+            window.cy = cy;
+            window.runLayout = (name) => {
+                cy.layout({ name: name, animate: true, padding: 50 }).run();
+            };
+        </script>
+    </body>
+    </html>
+    `;
+}
+
 
 export { Reg, WorkingDir };

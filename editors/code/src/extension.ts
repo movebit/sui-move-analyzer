@@ -2,7 +2,7 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-import * as assert from 'assert';
+import assert from 'assert';
 import * as vscode from 'vscode';
 
 /** Information related to this extension itself, such as its identifier and version. */

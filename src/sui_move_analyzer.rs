@@ -6,7 +6,7 @@ use crate::{
     code_lens, completion::on_completion_request, context::Context, goto_definition, hover,
     inlay_hints, inlay_hints::*, move_generate_spec_file::on_generate_spec_file,
     move_generate_spec_sel::on_generate_spec_sel, project::ConvertLoc, references, snap_cache,
-    symbols, utils::*,
+    symbols, utils::*, graph_handler,
 };
 use anyhow::{anyhow, Result};
 use crossbeam::channel::Sender;
@@ -78,6 +78,12 @@ pub fn on_request(
         }
         "move/generate/spec/sel" => {
             on_generate_spec_sel(context, request);
+        }
+        "move/struct_dependency/graph" => {
+            graph_handler::on_struct_dependency_request(context, request);
+        }
+        "move/call_flow/graph" => {
+            graph_handler::on_call_flow_request(context, request);
         }
         "move/lsp/client/inlay_hints/config" => {
             let parameters = serde_json::from_value::<InlayHintsConfig>(request.params.clone())

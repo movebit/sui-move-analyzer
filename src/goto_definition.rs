@@ -3,7 +3,7 @@
 
 use super::{context::*, item::*, project::*, project_context::*, types::ResolvedType};
 
-use crate::utils::{path_concat, FileRange, GetPosition, GetPositionStruct};
+use crate::utils::{FileRange, GetPosition, GetPositionStruct, path_concat};
 use lsp_server::*;
 
 use lsp_types::*;

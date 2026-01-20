@@ -12,7 +12,7 @@ use once_cell::sync::Lazy;
 use move_command_line_common::files::FileHash;
 use move_compiler::{
     parser::ast::{Definition, *},
-    shared::{files::MappedFiles, Identifier, *},
+    shared::{Identifier, files::MappedFiles, *},
 };
 use move_core_types::account_address::*;
 
@@ -152,7 +152,21 @@ impl Project {
         let _ = self.run_visitor_for_file(&mut dummy, file_path, true);
     }
 
-    /// Load a Move.toml project.
+    /// Load a Move.toml project and all its dependencies recursively.
+    ///
+    /// # Key Mechanism for Dependency Loading:
+    /// 1. If a dependency path exists: Load it normally
+    /// 2. If a dependency path does NOT exist: Add to `manifest_not_exists`
+    /// 3. Later, `try_reload_projects` will check if paths in `manifest_not_exists` now exist
+    /// 4. If they exist, the project will be reloaded to pick up the new dependencies
+    ///
+    /// # Parameters:
+    /// - `manifest_path`: Path to the directory containing Move.toml
+    /// - `multi`: Shared MultiProject state
+    /// - `report_err`: Error reporting callback
+    /// - `is_main_source`: Whether this is the main project (not a dependency)
+    /// - `dependents_paths`: Accumulator for dependent source paths
+    /// - `implicit_deps`: System dependencies (e.g., stdlib) to merge with manifest deps
     pub(crate) fn load_project(
         &mut self,
         manifest_path: &Path,
@@ -163,11 +177,20 @@ impl Project {
         implicit_deps: Dependencies,
     ) -> Result<()> {
         let manifest_path = normal_path(manifest_path);
+
+        // Skip if already loaded
         if self.modules.get(&manifest_path).is_some() {
             return Ok(());
         }
+
+        log::debug!("Loading project at: {:?}", manifest_path);
+        log::debug!("is_main_source: {}", is_main_source);
+        log::debug!("implicit_deps count: {}", implicit_deps.len());
+
         self.manifest_paths.push(manifest_path.clone());
         log::debug!("load manifest file at {:?}", &manifest_path);
+
+        // Initialize or reuse AST storage
         if let Some(x) = multi.asts.get(&manifest_path) {
             self.modules.insert(manifest_path.clone(), x.clone());
         } else {
@@ -175,6 +198,7 @@ impl Project {
             self.modules.insert(manifest_path.clone(), d.clone());
             multi.asts.insert(manifest_path.clone(), d);
 
+            // Load source files
             let source_paths =
                 self.load_layout_files(&manifest_path, SourcePackageLayout::Sources)?;
             if !is_main_source {
@@ -185,10 +209,16 @@ impl Project {
             let _ = self.load_layout_files(&manifest_path, SourcePackageLayout::Scripts);
         }
 
+        // CRITICAL: Check if manifest directory exists
+        // If not, add to manifest_not_exists for later reload when it appears
         if !manifest_path.exists() {
+            log::warn!("Manifest path does NOT exist: {:?}", manifest_path);
+            log::warn!("Adding to manifest_not_exists for later reload");
             self.manifest_not_exists.insert(manifest_path);
             return anyhow::Result::Ok(());
         }
+
+        // Record Move.toml modification time for change detection
         {
             let mut file = manifest_path.clone();
             file.push(PROJECT_FILE_NAME);
@@ -197,13 +227,13 @@ impl Project {
                 .insert(file.clone(), file_modify_time(file.as_path()));
         }
 
+        // Parse Move.toml
         let manifest = match parse_move_manifest_from_file(&manifest_path) {
             std::result::Result::Ok(x) => x,
             std::result::Result::Err(err) => {
                 report_err(format!(
                     "parse manifest '{:?} 'failed.\n addr must exactly 32 length or start with '0x' like '0x2'\n{:?}",
-                    manifest_path,
-                    err
+                    manifest_path, err
                 ));
                 log::error!("parse_move_manifest_from_file failed,err:{:?}", err);
                 self.manifest_load_failures.insert(manifest_path.clone());
@@ -212,10 +242,18 @@ impl Project {
         };
         self.manifests.push(manifest.clone());
 
+        // Merge implicit_deps (system libs) with manifest dependencies
         let all_deps = merge_implicit_deps_to_manifest(&manifest, implicit_deps.clone());
+        log::debug!(
+            "Total dependencies (manifest + implicit): {}",
+            all_deps.len()
+        );
 
-        // load depends.
+        // CRITICAL: Recursively load all dependencies
+        // This is where stdlib and other deps get loaded!
         for (dep_name, de) in all_deps.iter() {
+            log::debug!("Processing dependency: {}", dep_name);
+
             let move_home = Lazy::new(|| {
                 std::env::var("MOVE_HOME").unwrap_or_else(|_| {
                     format!(
@@ -241,7 +279,7 @@ impl Project {
                         &*move_home,
                         &format!(
                             "{}_{}",
-                            regex::Regex::new(r"/|:|\.|@")
+                            regex::Regex::new(r"/|:|\.| @")
                                 .unwrap()
                                 .replace_all(git_url.as_str(), "_"),
                             git_rev.replace('/', "__"),
@@ -253,7 +291,7 @@ impl Project {
                     // Downloaded packages are of the form <id>
                     DependencyKind::OnChain(OnChainInfo { id }) => [
                         &*move_home,
-                        &regex::Regex::new(r"/|:|\.|@")
+                        &regex::Regex::new(r"/|:|\.| @")
                             .unwrap()
                             .replace_all(id.as_str(), "_")
                             .to_string(),
@@ -276,26 +314,40 @@ impl Project {
             use move_package::source_package::parsed_manifest::Dependency;
             let de_path = match &de {
                 Dependency::External(_) => {
-                    // TODO
+                    log::debug!("Skipping external dependency: {}", dep_name);
                     continue;
                 }
                 Dependency::Internal(x) => local_path(&x.kind),
             };
+
             let p = path_concat(manifest_path.as_path(), &de_path);
+
+            log::debug!("Dependency path: {:?}", p);
+            log::debug!("Path exists: {}", p.exists());
+
             log::debug!(
                 "load dependency for '{:?}' dep_name '{}'",
                 &manifest_path,
                 dep_name
             );
+
+            // Recursive call to load dependency
+            // IMPORTANT: Pass empty implicit_deps here because:
+            // 1. Each dependency package should declare its own dependencies in Move.toml
+            // 2. implicit_deps are system libraries for the TOP-LEVEL project only
+            // 3. Passing implicit_deps recursively would cause redundant merging
+            // 4. Dependencies are self-contained (e.g., Sui declares MoveStdlib in its Move.toml)
             self.load_project(
                 &p,
                 multi,
                 report_err.clone(),
                 false,
                 dependents_paths,
-                implicit_deps.clone(),
+                Default::default(), // Empty deps - let dependency's Move.toml define its deps
             )?;
         }
+
+        log::debug!("✓ Finished loading: {:?}", manifest_path);
         Ok(())
     }
 
@@ -618,20 +670,18 @@ impl Project {
         project_context: &ProjectContext,
     ) -> ResolvedType {
         match &expr.value {
-            Exp_::Value(x) => {
-                match &x.value {
-                    Value_::Address(_) => ResolvedType::new_build_in(BuildInType::Address),
-                    Value_::Num(x) => {
-                        let b = BuildInType::num_types()
-                            .into_iter()
-                            .find(|b| x.as_str().ends_with(b.to_static_str()));
-                        ResolvedType::new_build_in(b.unwrap_or(BuildInType::NumType))
-                    }
-                    Value_::Bool(_) => ResolvedType::new_build_in(BuildInType::Bool),
-                    Value_::HexString(_) => ResolvedType::new_build_in(BuildInType::NumType),
-                    Value_::ByteString(_) => ResolvedType::new_build_in(BuildInType::String),
-                    Value_::String(_) => ResolvedType::new_build_in(BuildInType::String),
+            Exp_::Value(x) => match &x.value {
+                Value_::Address(_) => ResolvedType::new_build_in(BuildInType::Address),
+                Value_::Num(x) => {
+                    let b = BuildInType::num_types()
+                        .into_iter()
+                        .find(|b| x.as_str().ends_with(b.to_static_str()));
+                    ResolvedType::new_build_in(b.unwrap_or(BuildInType::NumType))
                 }
+                Value_::Bool(_) => ResolvedType::new_build_in(BuildInType::Bool),
+                Value_::HexString(_) => ResolvedType::new_build_in(BuildInType::NumType),
+                Value_::ByteString(_) => ResolvedType::new_build_in(BuildInType::String),
+                Value_::String(_) => ResolvedType::new_build_in(BuildInType::String),
             },
             Exp_::Move(_, x) | Exp_::Copy(_, x) => self.get_expr_type(x, project_context),
             Exp_::Name(name) => {
@@ -679,7 +729,7 @@ impl Project {
                             b,
                             &type_args,
                             exprs,
-                        )
+                        );
                     }
                     Item::MoveBuildInFun(b) => {
                         return self.get_move_build_in_call_type(
@@ -687,7 +737,7 @@ impl Project {
                             b,
                             &type_args,
                             exprs,
-                        )
+                        );
                     }
                     _ => {}
                 }
@@ -1013,11 +1063,7 @@ impl Project {
 
 /// Check is option is Some and ResolvedType is not unknown and not a error.
 fn option_ty_is_valid(x: &Option<ResolvedType>) -> bool {
-    if let Some(x) = x {
-        !x.is_err()
-    } else {
-        false
-    }
+    if let Some(x) = x { !x.is_err() } else { false }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -1031,13 +1077,9 @@ pub(crate) const UNKNOWN_TYPE: ResolvedType = ResolvedType::UnKnown;
 
 pub(crate) fn get_name_from_value(v: &Value) -> Option<&Name> {
     match &v.value {
-        Value_::Address(x) => {
-            match &x.value {
-                LeadingNameAccess_::AnonymousAddress(_) => None,
-                LeadingNameAccess_::Name(name) | LeadingNameAccess_::GlobalAddress(name) => {
-                    Some(name)
-                }
-            }
+        Value_::Address(x) => match &x.value {
+            LeadingNameAccess_::AnonymousAddress(_) => None,
+            LeadingNameAccess_::Name(name) | LeadingNameAccess_::GlobalAddress(name) => Some(name),
         },
         _ => None,
     }

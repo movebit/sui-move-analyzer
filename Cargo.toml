@@ -42,9 +42,6 @@ strsim = "0.11.1"
 sha2 = "0.9.3"
 threadpool = "1.8"   
 
- 
-
-
 # different version of sui compliler
 move-command-line-common = { path = "external-crates/move/crates/move-command-line-common" }
 move-ir-types = { path = "external-crates/move/crates/move-ir-types" }
@@ -62,6 +59,3 @@ anyhow = "1.0.52"
 [[bin]]
 name = "sui-move-analyzer"
 path = "src/bin/main.rs"
-
-[build]
-target = "x86_64-pc-windows-gnu"
