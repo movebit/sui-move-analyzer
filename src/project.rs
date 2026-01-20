@@ -343,7 +343,7 @@ impl Project {
                 report_err.clone(),
                 false,
                 dependents_paths,
-                implicit_deps.clone(),
+                Default::default(), // Empty deps - let dependency's Move.toml define its deps
             )?;
         }
 
