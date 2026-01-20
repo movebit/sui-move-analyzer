@@ -1,6 +1,6 @@
 [package]
 name = "sui-move-analyzer"
-version = "1.4.1"
+version = "1.4.2"
 authors = ["BitsLab.MoveBit"]
 description = "A language server for Sui Move"
 repository = "https://github.com/movebit/sui-move-analyzer"
