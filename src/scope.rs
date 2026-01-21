@@ -22,6 +22,8 @@ pub struct Scope {
     pub(crate) uses: HashMap<Symbol, Item>,
     /// Type parameter go into this map.
     pub(crate) types: HashMap<Symbol, Item>,
+    /// Use fun. Mapping from Type Name -> (Method Name -> Function Item)
+    pub(crate) methods: HashMap<Symbol, HashMap<Symbol, Item>>,
 }
 
 #[derive(Clone)]
@@ -92,6 +94,12 @@ impl Scope {
     pub(crate) fn enter_types(&mut self, s: Symbol, item: impl Into<Item>) {
         let item = item.into();
         self.types.insert(s, item);
+    }
+    pub(crate) fn enter_use_fun(&mut self, type_name: Symbol, method_name: Symbol, item: Item) {
+        self.methods
+            .entry(type_name)
+            .or_default()
+            .insert(method_name, item);
     }
     fn enter_spec_build_in(&mut self) {
         BuildInType::num_types().iter().for_each(|ty| {

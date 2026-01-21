@@ -191,6 +191,14 @@ impl ResolvedType {
             _ => {}
         }
     }
+
+    pub(crate) fn struct_name(&self) -> Option<Symbol> {
+        match self {
+            ResolvedType::Struct(s, _) => Some(s.name.value()),
+            ResolvedType::Ref(_, ty) => ty.struct_name(),
+            _ => None,
+        }
+    }
 }
 
 impl ResolvedType {
@@ -401,7 +409,6 @@ impl ResolvedType {
             },
         }
     }
-
 
     //     match self {
     //         ResolvedType::Vec(ty) => ty.

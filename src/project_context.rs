@@ -307,6 +307,21 @@ impl ProjectContext {
             .enter_use_item(name, item);
     }
 
+    pub(crate) fn enter_use_fun(&self, type_name: Symbol, method_name: Symbol, item: Item) {
+        log::trace!(
+            "enter scope use fun type:{:?} method:{:?} item:{}",
+            type_name,
+            method_name,
+            item
+        );
+        self.scopes
+            .as_ref()
+            .borrow_mut()
+            .last_mut()
+            .unwrap()
+            .enter_use_fun(type_name, method_name, item);
+    }
+
     pub(crate) fn enter_types(
         &self,
         convert_loc: &dyn ConvertLoc,
@@ -414,7 +429,6 @@ impl ProjectContext {
                 .unwrap()
                 .as_ref()
                 .borrow_mut()
-                .borrow_mut()
                 .spec
                 .enter_use_item(item_name, item);
         } else {
@@ -428,9 +442,45 @@ impl ProjectContext {
                 .unwrap()
                 .as_ref()
                 .borrow_mut()
-                .borrow_mut()
                 .module
                 .enter_use_item(item_name, item);
+        }
+    }
+
+    pub(crate) fn enter_top_use_fun(
+        &self,
+        addr: AccountAddress,
+        module_name: Symbol,
+        type_name: Symbol,
+        method_name: Symbol,
+        item: Item,
+        is_spec_module: bool,
+    ) {
+        log::trace!(
+            "enter top use fun :{:?}::{:?} : {:?} -> {:?} -> {:?}",
+            addr,
+            module_name,
+            type_name,
+            method_name,
+            item
+        );
+        let mut addresses = self.addresses.borrow_mut();
+        if let Some(address) = addresses.address.get_mut(&addr) {
+            if let Some(module) = address.modules.get_mut(&module_name) {
+                if is_spec_module {
+                    module
+                        .as_ref()
+                        .borrow_mut()
+                        .spec
+                        .enter_use_fun(type_name, method_name, item);
+                } else {
+                    module
+                        .as_ref()
+                        .borrow_mut()
+                        .module
+                        .enter_use_fun(type_name, method_name, item);
+                }
+            }
         }
     }
 
@@ -763,6 +813,15 @@ impl ProjectContext {
             None
         };
         self.inner_first_visit(|s| {
+            if let Some(struct_name) = struct_ty.struct_name() {
+                if let Some(method_map) = s.methods.get(&struct_name) {
+                    if let Some(item) = method_map.get(&item_name.value) {
+                        item_ret = Some(item.clone());
+                        return true;
+                    }
+                }
+            }
+
             let found_item = visit_fn(s.clone());
             if let Some(item) = get_ty_with_generic_type(struct_ty, found_item) {
                 item_ret = Some(item);
@@ -773,6 +832,16 @@ impl ProjectContext {
                     for x in item_use_vec {
                         match x {
                             ItemUse::Module(ItemUseModule { members, .. }) => {
+                                if let Some(struct_name) = struct_ty.struct_name() {
+                                    if let Some(method_map) =
+                                        members.as_ref().borrow().module.methods.get(&struct_name)
+                                    {
+                                        if let Some(item) = method_map.get(&item_name.value) {
+                                            item_ret = Some(item.clone());
+                                            return true;
+                                        }
+                                    }
+                                }
                                 let item = members
                                     .as_ref()
                                     .borrow()
@@ -786,6 +855,16 @@ impl ProjectContext {
                                 }
                             }
                             ItemUse::Item(ItemUseItem { members, .. }) => {
+                                if let Some(struct_name) = struct_ty.struct_name() {
+                                    if let Some(method_map) =
+                                        members.as_ref().borrow().module.methods.get(&struct_name)
+                                    {
+                                        if let Some(item) = method_map.get(&item_name.value) {
+                                            item_ret = Some(item.clone());
+                                            return true;
+                                        }
+                                    }
+                                }
                                 let item = members
                                     .as_ref()
                                     .borrow()

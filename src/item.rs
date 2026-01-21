@@ -35,18 +35,18 @@ impl ItemStruct {
     }
     pub(crate) fn find_filed_by_name(&self, name: Symbol) -> Option<&(Field, ResolvedType)> {
         for f in self.fields.iter() {
-            if f.0 .0.value.as_str() == name.as_str() {
+            if f.0.0.value.as_str() == name.as_str() {
                 return Some(f);
             }
         }
         self.fields
             .iter()
-            .find(|&f| f.0 .0.value.as_str() == name.as_str())
+            .find(|&f| f.0.0.value.as_str() == name.as_str())
     }
     pub(crate) fn all_fields(&self) -> HashMap<Symbol, (Name, ResolvedType)> {
         let mut m = HashMap::new();
         self.fields.iter().for_each(|f| {
-            m.insert(f.0 .0.value, (f.0 .0, f.1.clone()));
+            m.insert(f.0.0.value, (f.0.0, f.1.clone()));
         });
         m
     }
@@ -141,7 +141,7 @@ impl std::fmt::Debug for Item {
             Item::Struct(_) => "Struct(ItemStruct)",
             Item::StructNameRef(_) => "StructNameRef(ItemStructNameRef)",
             Item::Fun(func) => {
-                return write!(f, "item::Func[{}])", func);
+                return write!(f, "item::Func[{}]", func);
             }
             Item::MoveBuildInFun(_) => "MoveBuildInFun(MoveBuildInFun)",
             Item::SpecBuildInFun(_) => "SpecBuildInFun(SpecBuildInFun)",
@@ -209,7 +209,7 @@ impl Item {
     }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq)]
 pub struct ItemStructNameRef {
     pub(crate) addr: AccountAddress,
     pub(crate) module_name: Symbol,
@@ -217,6 +217,21 @@ pub struct ItemStructNameRef {
     pub(crate) type_parameters: Vec<DatatypeTypeParameter>,
     // pub(crate) type_parameters_ins: Vec<ResolvedType>,
     pub(crate) is_test: bool,
+}
+
+impl PartialEq for ItemStructNameRef {
+    fn eq(&self, other: &Self) -> bool {
+        self.addr == other.addr
+            && self.module_name == other.module_name
+            && self.name.value() == other.name.value()
+            && self.is_test == other.is_test
+            && self.type_parameters.len() == other.type_parameters.len()
+            && self
+                .type_parameters
+                .iter()
+                .zip(other.type_parameters.iter())
+                .all(|(a, b)| a.name.value == b.name.value)
+    }
 }
 
 #[derive(Clone)]
