@@ -730,7 +730,6 @@ impl ProjectContext {
                             let addr = project.name_to_addr_impl(name.value);
                             self.visit_address(|top| -> Option<()> {
                                 let x = top.address.get(&addr)?;
-                                eprintln!("for entry in name_path.entries.iter() ");
                                 for entry in name_path.entries.iter() {
                                     let member = entry.name.value;
                                     if let Some(m) = x.modules.get(&member) {
@@ -853,7 +852,12 @@ impl ProjectContext {
                                     return true;
                                 }
                             }
-                            ItemUse::Item(ItemUseItem { members, .. }) => {
+                            ItemUse::Item(ItemUseItem {
+                                members,
+                                name,
+                                alias,
+                                ..
+                            }) => {
                                 if let Some(struct_name) = struct_ty.struct_name() {
                                     if let Some(method_map) =
                                         members.as_ref().borrow().module.methods.get(&struct_name)
@@ -861,6 +865,19 @@ impl ProjectContext {
                                         if let Some(item) = method_map.get(&item_name.value) {
                                             item_ret = Some(item.clone());
                                             return true;
+                                        }
+                                        let alias_name = alias.as_ref().map(|x| x.value);
+                                        if alias_name.is_some()
+                                            && alias_name.unwrap() == item_name.value
+                                        {
+                                            for (_, item) in method_map {
+                                                if let Item::Fun(fun) = item {
+                                                    if fun.name.value() == name.value {
+                                                        item_ret = Some(item.clone());
+                                                        return true;
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
                                 }
