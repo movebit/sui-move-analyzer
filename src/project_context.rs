@@ -728,36 +728,35 @@ impl ProjectContext {
                         //     This completes the chain lookup for the "module-import only" case.
                         if item_ret.is_none() {
                             let addr = project.name_to_addr_impl(name.value);
-                            if addr != AccountAddress::ZERO {
-                                self.visit_address(|top| -> Option<()> {
-                                    let x = top.address.get(&addr)?;
-                                    for entry in name_path.entries.iter() {
-                                        let member = entry.name.value;
-                                        if let Some(m) = x.modules.get(&member) {
-                                            module_scope =
-                                                Some(m.as_ref().borrow().name_and_addr.clone());
-                                            continue;
-                                        }
-                                        if let Some(ms) = &module_scope {
-                                            if let Some(x) = top
-                                                .address
-                                                .get(&ms.addr)
-                                                .unwrap()
-                                                .modules
-                                                .get(&ms.name.0.value)
+                            self.visit_address(|top| -> Option<()> {
+                                let x = top.address.get(&addr)?;
+                                eprintln!("for entry in name_path.entries.iter() ");
+                                for entry in name_path.entries.iter() {
+                                    let member = entry.name.value;
+                                    if let Some(m) = x.modules.get(&member) {
+                                        module_scope =
+                                            Some(m.as_ref().borrow().name_and_addr.clone());
+                                        continue;
+                                    }
+                                    if let Some(ms) = &module_scope {
+                                        if let Some(x) = top
+                                            .address
+                                            .get(&ms.addr)
+                                            .unwrap()
+                                            .modules
+                                            .get(&ms.name.0.value)
+                                        {
+                                            if let Some(item) =
+                                                x.as_ref().borrow().module.items.get(&member)
                                             {
-                                                if let Some(item) =
-                                                    x.as_ref().borrow().module.items.get(&member)
-                                                {
-                                                    item_ret = Some(item.clone());
-                                                    return Some(());
-                                                }
+                                                item_ret = Some(item.clone());
+                                                return Some(());
                                             }
                                         }
                                     }
-                                    None
-                                });
-                            }
+                                }
+                                None
+                            });
                         }
                         // fixbug <<
                     }
