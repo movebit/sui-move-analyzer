@@ -169,6 +169,15 @@ pub enum ItemUse {
     Item(ItemUseItem),
 }
 
+impl std::fmt::Display for ItemUse {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ItemUse::Module(module) => write!(f, "{}", module.module_ident),
+            ItemUse::Item(item) => write!(f, "{}::{}", item.module_ident, item.name),
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct ItemUseModule {
     pub(crate) module_ident: ModuleIdent,         // 0x111::xxxx
