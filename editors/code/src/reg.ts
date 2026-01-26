@@ -247,13 +247,13 @@ const Reg = {
 
         // Register handlers for VS Code commands that the user explicitly issues.
         context.registerCommand('serverVersion', serverVersion);
-        
+
         // Register graph commands - these will be implemented separately
         context.registerCommand('showStructDependencyGraph', () => {
             // Defer implementation to a separate function to avoid circular imports
             void showStructDependencyGraph(context);
         });
-        
+
         context.registerCommand('showCallFlowGraph', () => {
             // Defer implementation to a separate function to avoid circular imports
             void showCallFlowGraph(context);
@@ -758,7 +758,7 @@ const Reg = {
 // Helper functions for graph display
 async function showStructDependencyGraph(context: Readonly<Context>) {
     outputChannel.appendLine('[Graph Debug] Starting showStructDependencyGraph function...');
-    
+
     const editor = vscode.window.activeTextEditor;
     if (!editor) {
         const errorMsg = 'No active editor found';
@@ -768,7 +768,7 @@ async function showStructDependencyGraph(context: Readonly<Context>) {
     }
 
     outputChannel.appendLine(`[Graph Debug] Active document: ${editor.document.fileName}`);
-    
+
     const document = editor.document;
     if (document.languageId !== 'move') {
         const errorMsg = 'Current file is not a Move file';
@@ -776,7 +776,7 @@ async function showStructDependencyGraph(context: Readonly<Context>) {
         vscode.window.showErrorMessage(errorMsg);
         return;
     }
-    
+
     outputChannel.appendLine(`[Graph Debug] Document language ID: ${document.languageId}`);
 
     // Request graph data from the language server
@@ -787,12 +787,12 @@ async function showStructDependencyGraph(context: Readonly<Context>) {
         vscode.window.showErrorMessage(errorMsg);
         return;
     }
-    
+
     outputChannel.appendLine('[Graph Debug] Language server client found, sending request...');
 
     try {
         outputChannel.appendLine('[Graph Debug] Sending move/struct_dependency/graph request...');
-        
+
         const graphData = await client.sendRequest<any>(
             'move/struct_dependency/graph',
             {
@@ -803,12 +803,12 @@ async function showStructDependencyGraph(context: Readonly<Context>) {
                 format: 'dot'  // Request DOT format for better visualization
             }
         );
-        
+
         outputChannel.appendLine(`[Graph Debug] Received response from server: ${JSON.stringify(graphData, null, 2)}`);
 
         if (graphData && graphData.graph_data) {
             outputChannel.appendLine('[Graph Debug] Valid graph data received, creating webview panel...');
-            
+
             // Create and show a webview panel to display the graph
             const panel = vscode.window.createWebviewPanel(
                 'structDependencyGraph',
@@ -822,7 +822,20 @@ async function showStructDependencyGraph(context: Readonly<Context>) {
 
             // Generate HTML for the graph visualization
             panel.webview.html = getGraphHtml(JSON.parse(graphData.graph_data), 'Struct Dependency', context);
-            
+
+            // Handle messages from the webview
+            panel.webview.onDidReceiveMessage(
+                async (message) => {
+                    switch (message.command) {
+                        case 'openLocation':
+                            await openLocation(message.filepath, message.line, message.col);
+                            break;
+                    }
+                },
+                undefined,
+                []
+            );
+
             outputChannel.appendLine('[Graph Debug] Webview panel created and displayed successfully');
         } else {
             const errorMsg = 'No struct dependency graph data received';
@@ -840,7 +853,7 @@ async function showStructDependencyGraph(context: Readonly<Context>) {
 
 async function showCallFlowGraph(context: Readonly<Context>) {
     outputChannel.appendLine('[Graph Debug] Starting showCallFlowGraph function...');
-    
+
     const editor = vscode.window.activeTextEditor;
     if (!editor) {
         const errorMsg = 'No active editor found';
@@ -850,7 +863,7 @@ async function showCallFlowGraph(context: Readonly<Context>) {
     }
 
     outputChannel.appendLine(`[Graph Debug] Active document: ${editor.document.fileName}`);
-    
+
     const document = editor.document;
     if (document.languageId !== 'move') {
         const errorMsg = 'Current file is not a Move file';
@@ -858,7 +871,7 @@ async function showCallFlowGraph(context: Readonly<Context>) {
         vscode.window.showErrorMessage(errorMsg);
         return;
     }
-    
+
     outputChannel.appendLine(`[Graph Debug] Document language ID: ${document.languageId}`);
 
     // Request graph data from the language server
@@ -869,12 +882,12 @@ async function showCallFlowGraph(context: Readonly<Context>) {
         vscode.window.showErrorMessage(errorMsg);
         return;
     }
-    
+
     outputChannel.appendLine('[Graph Debug] Language server client found, sending request...');
 
     try {
         outputChannel.appendLine('[Graph Debug] Sending move/call_flow/graph request...');
-        
+
         const graphData = await client.sendRequest<any>(
             'move/call_flow/graph',
             {
@@ -885,12 +898,12 @@ async function showCallFlowGraph(context: Readonly<Context>) {
                 format: 'dot'  // Request DOT format for better visualization
             }
         );
-        
+
         outputChannel.appendLine(`[Graph Debug] Received response from server: ${JSON.stringify(graphData, null, 2)}`);
 
         if (graphData && graphData.graph_data) {
             outputChannel.appendLine('[Graph Debug] Valid graph data received, creating webview panel...');
-            
+
             // Create and show a webview panel to display the graph
             const panel = vscode.window.createWebviewPanel(
                 'callFlowGraph',
@@ -904,7 +917,20 @@ async function showCallFlowGraph(context: Readonly<Context>) {
 
             // Generate HTML for the graph visualization
             panel.webview.html = getGraphHtml(JSON.parse(graphData.graph_data), 'Function Call Flow', context);
-            
+
+            // Handle messages from the webview
+            panel.webview.onDidReceiveMessage(
+                async (message) => {
+                    switch (message.command) {
+                        case 'openLocation':
+                            await openLocation(message.filepath, message.line, message.col);
+                            break;
+                    }
+                },
+                undefined,
+                []
+            );
+
             outputChannel.appendLine('[Graph Debug] Webview panel created and displayed successfully');
         } else {
             const errorMsg = 'No call flow graph data received';
@@ -920,9 +946,38 @@ async function showCallFlowGraph(context: Readonly<Context>) {
     }
 }
 
+async function openLocation(filepath: string, line?: number, col?: number) {
+    if (!filepath) {
+        return;
+    }
+
+    const uri = filepath.startsWith('file://')
+        ? vscode.Uri.parse(filepath)
+        : vscode.Uri.file(filepath);
+
+    try {
+        const document = await vscode.workspace.openTextDocument(uri);
+        const editor = await vscode.window.showTextDocument(document, {
+            viewColumn: vscode.ViewColumn.One,
+            preserveFocus: false
+        });
+
+        if (line !== undefined && col !== undefined) {
+            const position = new vscode.Position(line, col);
+            editor.selection = new vscode.Selection(position, position);
+            editor.revealRange(
+                new vscode.Range(position, position),
+                vscode.TextEditorRevealType.InCenter
+            );
+        }
+    } catch (error) {
+        vscode.window.showErrorMessage(`Failed to open file ${filepath}: ${error}`);
+    }
+}
+
 function getGraphHtml(graphData: any, title: string, _context: Readonly<Context>): string {
     outputChannel.appendLine(`[Graph Debug] Rendering high-quality graph HTML for ${title}`);
-    
+
     // 1. 数据预处理
     let parsedData = graphData;
     if (typeof graphData === 'string') {
@@ -943,7 +998,10 @@ function getGraphHtml(graphData: any, title: string, _context: Readonly<Context>
             module: node.module,
             address: node.address,
             // 增加父节点 ID，用于按 Module 分组（Compound Nodes）
-            parent: node.module 
+            parent: node.module,
+            filepath: node.filepath,
+            line: node.line,
+            col: node.col
         }
     }));
 
@@ -1001,6 +1059,7 @@ function getGraphHtml(graphData: any, title: string, _context: Readonly<Context>
             Nodes: ${nodes.length} | Edges: ${edges.length}
         </div>
         <script>
+            const vscode = acquireVsCodeApi();
             // 注册布局插件
             if (typeof cytoscapeDagre !== 'undefined') {
                 cytoscape.use(cytoscapeDagre);
@@ -1009,6 +1068,7 @@ function getGraphHtml(graphData: any, title: string, _context: Readonly<Context>
             const cy = cytoscape({
                 container: document.getElementById('cy'),
                 elements: ${JSON.stringify(allElements)},
+                wheelSensitivity: 0.02,
                 style: [
                     {
                         selector: 'node',
@@ -1064,6 +1124,22 @@ function getGraphHtml(graphData: any, title: string, _context: Readonly<Context>
                     }
                 ],
                 layout: { name: 'dagre', rankDir: 'LR', nodeSep: 50 }
+            });
+
+            // 双击节点跳转到源码
+            cy.on('dblclick', 'node', function(evt) {
+                const node = evt.target;
+                if (!node.isParent()) {
+                    const data = node.data();
+                    if (data.filepath) {
+                        vscode.postMessage({
+                            command: 'openLocation',
+                            filepath: data.filepath,
+                            line: data.line,
+                            col: data.col
+                        });
+                    }
+                }
             });
 
             window.cy = cy;

@@ -7,12 +7,31 @@ use move_compiler::shared::Identifier;
 use std::collections::{HashMap, HashSet};
 
 /// Represents a node in the struct dependency graph
-#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct StructNode {
     pub name: String,
     pub module: String,
     pub address: String,
+    pub filepath: Option<String>,
+    pub line: Option<u32>,
+    pub col: Option<u32>,
 }
+
+impl std::hash::Hash for StructNode {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.name.hash(state);
+        self.module.hash(state);
+        self.address.hash(state);
+    }
+}
+
+impl PartialEq for StructNode {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name && self.module == other.module && self.address == other.address
+    }
+}
+
+impl Eq for StructNode {}
 
 /// Represents an edge in the struct dependency graph
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
@@ -29,22 +48,34 @@ pub struct StructDepGraph {
     pub edges: Vec<StructEdge>,
 }
 
-struct StructDependencyVisitor {
-    nodes: HashSet<StructNode>,
+struct StructDependencyVisitor<'a> {
+    project: &'a Project,
+    nodes: HashMap<String, StructNode>, // key: address.module.name
     // key: (from, to), value: Set of field names to ensure uniqueness per edge
     edges: HashMap<(String, String), HashSet<String>>,
 }
 
-impl StructDependencyVisitor {
-    fn new() -> Self {
+impl<'a> StructDependencyVisitor<'a> {
+    fn new(project: &'a Project) -> Self {
         Self {
-            nodes: HashSet::new(),
+            project,
+            nodes: HashMap::new(),
             edges: HashMap::new(),
         }
     }
 
     fn add_node(&mut self, node: StructNode) {
-        self.nodes.insert(node);
+        let id = format!("{}.{}.{}", node.address, node.module, node.name);
+        if let Some(existing) = self.nodes.get_mut(&id) {
+            // Only update if the new node has location info
+            if node.filepath.is_some() {
+                existing.filepath = node.filepath;
+                existing.line = node.line;
+                existing.col = node.col;
+            }
+        } else {
+            self.nodes.insert(id, node);
+        }
     }
 
     fn add_edge(&mut self, from: String, to: String, field_name: String) {
@@ -59,8 +90,11 @@ impl StructDependencyVisitor {
                     name: struct_ref.name.value().to_string(),
                     module: struct_ref.module_name.to_string(),
                     address: struct_ref.addr.to_hex_literal(),
+                    filepath: None,
+                    line: None,
+                    col: None,
                 };
-                let to_node_id = format!("{}.{}", to_node.module, to_node.name);
+                let to_node_id = format!("{}.{}.{}", to_node.address, to_node.module, to_node.name);
 
                 // Avoid self-loops if desired, or keep them. keeping them for now.
                 // Also avoid adding edge if we don't know the struct (e.g. error/unknown) - though StructRef usually implies it exists or is at least named.
@@ -90,13 +124,13 @@ impl StructDependencyVisitor {
     }
 }
 
-impl std::fmt::Display for StructDependencyVisitor {
+impl std::fmt::Display for StructDependencyVisitor<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "StructDependencyVisitor")
     }
 }
 
-impl ItemOrAccessHandler for StructDependencyVisitor {
+impl ItemOrAccessHandler for StructDependencyVisitor<'_> {
     fn handle_item_or_access(
         &mut self,
         _services: &dyn crate::project::HandleItemService,
@@ -108,14 +142,23 @@ impl ItemOrAccessHandler for StructDependencyVisitor {
                 return;
             }
 
+            use crate::project::ConvertLoc;
+            let loc = struct_item.name.loc();
+            let file_range = self.project.convert_loc_range(&loc);
+
             let node = StructNode {
                 name: struct_item.name.value().to_string(),
                 module: struct_item.module_name.to_string(),
                 address: struct_item.addr.to_hex_literal(),
+                filepath: file_range
+                    .as_ref()
+                    .map(|r| r.path.to_string_lossy().to_string()),
+                line: file_range.as_ref().map(|r| r.line_start),
+                col: file_range.as_ref().map(|r| r.col_start),
             };
             self.add_node(node.clone());
 
-            let from_node_id = format!("{}.{}", node.module, node.name);
+            let from_node_id = format!("{}.{}.{}", node.address, node.module, node.name);
 
             // Access fields potentially directly or resolve them if they are in the definition
             // The visitor hits the definition, so fields should be available if parsed.
@@ -157,7 +200,7 @@ impl StructDepGraph {
 
         eprintln!("Generating struct dependency graph for project...");
 
-        let mut visitor = StructDependencyVisitor::new();
+        let mut visitor = StructDependencyVisitor::new(project);
         project.project_context.clear_scopes_and_addresses();
 
         // Iterate dependencies first (rev)
@@ -200,8 +243,8 @@ impl StructDepGraph {
             }
         }
 
-        // Convert HashSet to Vec
-        let nodes = visitor.nodes.into_iter().collect();
+        // Convert HashMap values to Vec
+        let nodes = visitor.nodes.into_values().collect();
 
         // Convert HashMap to Vec for Edges
         let edges = visitor
@@ -237,10 +280,13 @@ impl StructDepGraph {
             .iter()
             .map(|node| {
                 json!({
-                    "id": format!("{}.{}", node.module, node.name),
+                    "id": format!("{}.{}.{}", node.address, node.module, node.name),
                     "label": node.name,
                     "module": node.module,
-                    "address": node.address
+                    "address": node.address,
+                    "filepath": node.filepath,
+                    "line": node.line,
+                    "col": node.col
                 })
             })
             .collect();
