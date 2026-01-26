@@ -16,21 +16,14 @@ use std::{
 };
 
 use sui_move_analyzer::{
-    context::{
-        Context, FileDiags,
-        MultiProject,
-    },
+    context::{Context, FileDiags, MultiProject},
     symbols,
 };
 
 use vfs::{VfsPath, impls::memory::MemoryFS};
 
 use sui_move_analyzer::sui_move_analyzer::{
-    Diagnostics,
-    on_notification,
-    on_request,
-    send_diag,
-    try_reload_projects,
+    Diagnostics, on_notification, on_request, send_diag, try_reload_projects,
 };
 
 pub(crate) struct ContextManager<'a> {
@@ -119,8 +112,7 @@ fn main() {
         .expect("could not finish connection initialization");
     registere_did_change_watched_files(&context_manager);
 
-    let (diag_sender, diag_receiver) =
-        bounded::<(PathBuf, Diagnostics)>(1);
+    let (diag_sender, diag_receiver) = bounded::<(PathBuf, Diagnostics)>(1);
 
     let diag_sender = Arc::new(Mutex::new(diag_sender));
 

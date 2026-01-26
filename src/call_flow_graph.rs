@@ -24,6 +24,7 @@ impl CallFlowGraph {
             "nodes": [],
             "edges": [],
             "message": "Function call graph feature is not yet implemented"
-        }).to_string()
+        })
+        .to_string()
     }
 }

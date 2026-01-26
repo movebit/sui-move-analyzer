@@ -3,15 +3,15 @@
 
 use super::move_generate_spec::*;
 use crate::project::ConvertLoc;
-use crate::project::{attributes_has_test, AstProvider};
+use crate::project::{AstProvider, attributes_has_test};
 
+use crate::context::Context;
 use crate::utils::GetPosition;
 use lsp_server::*;
 use move_compiler::parser::ast::*;
 use move_ir_types::location::Loc;
 use serde::Deserialize;
 use std::{path::PathBuf, str::FromStr};
-use crate::context::Context;
 
 pub fn on_generate_spec_sel(context: &Context, request: &Request) {
     log::info!("on_generate_spec_sel request = {:?}", request);

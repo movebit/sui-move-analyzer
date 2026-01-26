@@ -802,7 +802,7 @@ fn item_to_completion_item(item: &Item) -> Option<CompletionItem> {
                                 }())
                             },
                             ..Default::default()
-                        })
+                        });
                     }
                 }
             }

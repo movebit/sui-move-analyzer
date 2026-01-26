@@ -14,10 +14,7 @@ pub fn move_get_test_code_lens(context: &Context, request: &lsp_server::Request)
     let parameters = serde_json::from_value::<CodeLensParams>(request.params.clone())
         .expect("could not deserialize  CodeLensParams request");
     let fpath = parameters.text_document.uri.to_file_path().unwrap();
-    let fpath = path_concat(
-        std::env::current_dir().unwrap().as_path(),
-        fpath.as_path(),
-    );
+    let fpath = path_concat(std::env::current_dir().unwrap().as_path(), fpath.as_path());
     let _send_err = |msg: String| {
         let r = Response::new_err(request.id.clone(), ErrorCode::UnknownErrorCode as i32, msg);
         context

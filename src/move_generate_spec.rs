@@ -563,7 +563,6 @@ pub(crate) fn format_xxx<T>(
 where
     T: AstDebug,
 {
-
     let mut w = AstWriter::new(false);
     e.ast_debug(&mut w);
     let x = w.to_string();

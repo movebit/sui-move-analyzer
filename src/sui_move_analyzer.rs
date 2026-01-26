@@ -3,16 +3,16 @@
 
 use crate::utils::path_concat;
 use crate::{
-    code_lens, completion::on_completion_request, context::Context, goto_definition, hover,
-    inlay_hints, inlay_hints::*, move_generate_spec_file::on_generate_spec_file,
+    code_lens, completion::on_completion_request, context::Context, goto_definition, graph_handler,
+    hover, inlay_hints, inlay_hints::*, move_generate_spec_file::on_generate_spec_file,
     move_generate_spec_sel::on_generate_spec_sel, project::ConvertLoc, references, snap_cache,
-    symbols, utils::*, graph_handler,
+    symbols, utils::*,
 };
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use crossbeam::channel::Sender;
 use lsp_server::{Notification, Request, Response};
-use lsp_types::{notification::Notification as _, request::Request as _};
 use lsp_types::{FileChangeType, FileEvent};
+use lsp_types::{notification::Notification as _, request::Request as _};
 use move_command_line_common::files::FileHash;
 use move_compiler::{
     diagnostics::warning_filters::WarningFiltersBuilder,
@@ -26,11 +26,11 @@ use std::{
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
-use vfs::{
-    impls::{overlay::OverlayFS, physical::PhysicalFS},
-    VfsPath,
-};
 use url::Url;
+use vfs::{
+    VfsPath,
+    impls::{overlay::OverlayFS, physical::PhysicalFS},
+};
 pub type Diagnostics = move_compiler::diagnostics::Diagnostics;
 
 use once_cell::sync::Lazy;
@@ -510,7 +510,7 @@ fn get_package_compile_diagnostics(
     implicit_deps: Dependencies,
 ) -> Result<move_compiler::diagnostics::Diagnostics> {
     use anyhow::*;
-    use move_compiler::{diagnostics::Diagnostics, PASS_CFGIR, PASS_PARSER, PASS_TYPING};
+    use move_compiler::{PASS_CFGIR, PASS_PARSER, PASS_TYPING, diagnostics::Diagnostics};
     use move_package::compilation::build_plan::BuildPlan;
     use tempfile::tempdir;
     let build_config = move_package::BuildConfig {

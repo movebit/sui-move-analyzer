@@ -3,7 +3,7 @@
 
 use std::{collections::HashMap, path::PathBuf, str::FromStr};
 
-use crate::project::{attributes_has_test, AstProvider};
+use crate::project::{AstProvider, attributes_has_test};
 
 use super::context::*;
 use super::move_generate_spec::*;
@@ -63,7 +63,9 @@ pub fn on_generate_spec_file(context: &Context, request: &Request) {
                 }
                 let addr = match x.address.unwrap().value {
                     LeadingNameAccess_::AnonymousAddress(x) => AddressSpace::Addr(x.into_inner()),
-                    LeadingNameAccess_::Name(name) | LeadingNameAccess_::GlobalAddress(name) => AddressSpace::Name(name.value),
+                    LeadingNameAccess_::Name(name) | LeadingNameAccess_::GlobalAddress(name) => {
+                        AddressSpace::Name(name.value)
+                    }
                 };
                 let module_name = x.name.value();
                 for m in x.members.iter() {
@@ -76,7 +78,9 @@ pub fn on_generate_spec_file(context: &Context, request: &Request) {
                 }
                 let addr = match x.addr.value {
                     LeadingNameAccess_::AnonymousAddress(x) => AddressSpace::Addr(x.into_inner()),
-                    LeadingNameAccess_::Name(name) | LeadingNameAccess_::GlobalAddress(name) => AddressSpace::Name(name.value),
+                    LeadingNameAccess_::Name(name) | LeadingNameAccess_::GlobalAddress(name) => {
+                        AddressSpace::Name(name.value)
+                    }
                 };
 
                 for m in x.modules.iter() {

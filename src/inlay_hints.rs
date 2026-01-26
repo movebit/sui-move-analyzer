@@ -9,7 +9,7 @@ use super::project_context::*;
 use super::types::ResolvedType;
 
 use crate::utils::{
-    path_concat, FileRange, GetPosition, GetPositionStruct, MoveAnalyzerClientCommands,
+    FileRange, GetPosition, GetPositionStruct, MoveAnalyzerClientCommands, path_concat,
 };
 use lsp_server::*;
 

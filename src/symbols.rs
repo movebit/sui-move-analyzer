@@ -53,15 +53,15 @@ use crate::{
     diagnostics::{lsp_diagnostics, lsp_empty_diagnostics},
     project::{ConvertLoc, Project},
 };
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use codespan_reporting::files::SimpleFiles;
 use crossbeam::channel::Sender;
 use derivative::*;
 use lsp_server::{Request, RequestId};
 use lsp_types::{
-    request::GotoTypeDefinitionParams, Diagnostic, DocumentSymbol, DocumentSymbolParams,
-    GotoDefinitionParams, Hover, HoverContents, HoverParams, LanguageString, Location,
-    MarkedString, Position, Range, ReferenceParams, SymbolKind,
+    Diagnostic, DocumentSymbol, DocumentSymbolParams, GotoDefinitionParams, Hover, HoverContents,
+    HoverParams, LanguageString, Location, MarkedString, Position, Range, ReferenceParams,
+    SymbolKind, request::GotoTypeDefinitionParams,
 };
 
 use std::{
@@ -77,11 +77,11 @@ use url::Url;
 
 use move_command_line_common::files::FileHash;
 use move_compiler::{
+    PASS_TYPING,
     expansion::ast::{Address, ModuleIdent_},
-    naming::ast::{Type, TypeName_, TypeInner},
+    naming::ast::{Type, TypeInner, TypeName_},
     parser::ast::{Definition, ModuleMember, StructDefinition, StructFields},
     shared::Identifier,
-    PASS_TYPING,
 };
 use move_package::compilation::build_plan::BuildPlan;
 use move_symbol_pool::Symbol;
@@ -192,8 +192,7 @@ pub struct ModuleDefs {
 }
 
 /// Data used during symbolication
-pub struct Symbolicator {
-}
+pub struct Symbolicator {}
 
 /// Maps a line number to a list of use-def pairs on a given line (use-def set is sorted by
 /// col_start)
@@ -264,12 +263,10 @@ impl fmt::Display for IdentType {
                     "".to_string()
                 };
                 let ret_str = match ret {
-                    sp!(_, t) => {
-                        match &(*t.0) {
-                            TypeInner::Unit => "".to_string(),
-                            _ => format!(": {}", type_to_ide_string(ret)),
-                        }
-                    }
+                    sp!(_, t) => match &(*t.0) {
+                        TypeInner::Unit => "".to_string(),
+                        _ => format!(": {}", type_to_ide_string(ret)),
+                    },
                 };
 
                 write!(
@@ -300,7 +297,9 @@ fn arg_list_to_ide_string(names: &[Symbol], types: &[Type]) -> String {
 fn type_to_ide_string(sp!(_, t): &Type) -> String {
     match &(*t.0) {
         TypeInner::Unit => "()".to_string(),
-        TypeInner::Ref(m, r) => format!("&{} {}", if *m { "mut" } else { "" }, type_to_ide_string(r)),
+        TypeInner::Ref(m, r) => {
+            format!("&{} {}", if *m { "mut" } else { "" }, type_to_ide_string(r))
+        }
         TypeInner::Param(tp) => {
             format!("{}", tp.user_specified_name)
         }
@@ -335,11 +334,7 @@ fn type_to_ide_string(sp!(_, t): &Type) -> String {
             for ty in vec_ty.iter() {
                 result_string = format!("{} + {}", result_string, type_to_ide_string(ty));
             }
-            result_string = format!(
-                "{} + {}",
-                result_string,
-                type_to_ide_string(box_ty)
-            );
+            result_string = format!("{} + {}", result_string, type_to_ide_string(box_ty));
             result_string
         }
         TypeInner::Anything => "_".to_string(),
@@ -562,15 +557,12 @@ impl PartialEq for UseDef {
 }
 
 impl UseDefMap {
-
     fn get(&self, key: u32) -> Option<BTreeSet<UseDef>> {
         self.0.get(&key).cloned()
     }
-
 }
 
 impl FunctionIdentTypeMap {
-
     pub fn contains_key(self, key: &String) -> bool {
         self.0.contains_key(key)
     }
@@ -1028,7 +1020,10 @@ pub fn on_document_symbol_request(context: &Context, request: &Request, _symbols
                             let func_range = match path_project.loc_to_range(&x.loc) {
                                 Some(x) => x,
                                 None => {
-                                    log::error!("Could not covert ModuleMember::Function({:?}).loc to range", x.name);
+                                    log::error!(
+                                        "Could not covert ModuleMember::Function({:?}).loc to range",
+                                        x.name
+                                    );
                                     return;
                                 }
                             };

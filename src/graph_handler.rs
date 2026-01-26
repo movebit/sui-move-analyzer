@@ -35,18 +35,20 @@ pub fn on_call_flow_request(context: &Context, request: &Request) {
     handle_graph_request(context, request, "call_flow");
 }
 
-fn handle_graph_request(
-    context: &Context, 
-    request: &Request, 
-    graph_type: &str
-) {
-    eprintln!("Entering handle_graph_request with graph_type: {}", graph_type);
-    
+fn handle_graph_request(context: &Context, request: &Request, graph_type: &str) {
+    eprintln!(
+        "Entering handle_graph_request with graph_type: {}",
+        graph_type
+    );
+
     let params: GraphParams = match serde_json::from_value::<GraphParams>(request.params.clone()) {
         Ok(params) => {
-            eprintln!("Successfully parsed parameters: graph_type={}", params.graph_type);
+            eprintln!(
+                "Successfully parsed parameters: graph_type={}",
+                params.graph_type
+            );
             params
-        },
+        }
         Err(e) => {
             eprintln!("Failed to parse parameters: {}", e);
             let response = Response::new_err(
@@ -54,7 +56,11 @@ fn handle_graph_request(
                 lsp_server::ErrorCode::InvalidParams as i32,
                 format!("Failed to parse parameters: {}", e),
             );
-            if let Err(e) = context.connection.sender.send(lsp_server::Message::Response(response)) {
+            if let Err(e) = context
+                .connection
+                .sender
+                .send(lsp_server::Message::Response(response))
+            {
                 eprintln!("Error sending error response: {}", e);
             }
             return;
@@ -65,15 +71,22 @@ fn handle_graph_request(
         Ok(path) => {
             eprintln!("Successfully converted URI to file path: {:?}", path);
             path
-        },
+        }
         Err(_) => {
-            eprintln!("Failed to convert URI to file path: {}", params.text_document.uri);
+            eprintln!(
+                "Failed to convert URI to file path: {}",
+                params.text_document.uri
+            );
             let response = Response::new_err(
                 request.id.clone(),
                 lsp_server::ErrorCode::InvalidParams as i32,
                 "Could not convert URI to file path".to_string(),
             );
-            if let Err(e) = context.connection.sender.send(lsp_server::Message::Response(response)) {
+            if let Err(e) = context
+                .connection
+                .sender
+                .send(lsp_server::Message::Response(response))
+            {
                 eprintln!("Error sending file path conversion error response: {}", e);
             }
             return;
@@ -85,7 +98,7 @@ fn handle_graph_request(
         Some(proj) => {
             eprintln!("Successfully found project for file: {:?}", file_path);
             proj
-        },
+        }
         None => {
             eprintln!("Could not find project for file: {:?}", file_path);
             let response = Response::new_err(
@@ -93,7 +106,11 @@ fn handle_graph_request(
                 lsp_server::ErrorCode::InvalidRequest as i32,
                 "Could not find project for file".to_string(),
             );
-            if let Err(e) = context.connection.sender.send(lsp_server::Message::Response(response)) {
+            if let Err(e) = context
+                .connection
+                .sender
+                .send(lsp_server::Message::Response(response))
+            {
                 eprintln!("Error sending project not found response: {}", e);
             }
             return;
@@ -105,14 +122,18 @@ fn handle_graph_request(
         "struct_dependency" => {
             eprintln!("Generating struct dependency graph for project...");
             let graph = StructDepGraph::generate_for_project(project);
-            eprintln!("Generated struct dependency graph with {} nodes and {} edges", graph.nodes.len(), graph.edges.len());
+            eprintln!(
+                "Generated struct dependency graph with {} nodes and {} edges",
+                graph.nodes.len(),
+                graph.edges.len()
+            );
             graph.to_json()
-        },
+        }
         "call_flow" => {
             eprintln!("Generating call flow graph for project...");
             let graph = crate::call_flow_graph::CallFlowGraph::generate_for_project(project);
             graph.to_json()
-        },
+        }
         unsupported => {
             eprintln!("Unsupported graph type requested: {}", unsupported);
             let response = Response::new_err(
@@ -120,7 +141,11 @@ fn handle_graph_request(
                 lsp_server::ErrorCode::InvalidParams as i32,
                 format!("Unsupported graph type: {}", graph_type),
             );
-            if let Err(e) = context.connection.sender.send(lsp_server::Message::Response(response)) {
+            if let Err(e) = context
+                .connection
+                .sender
+                .send(lsp_server::Message::Response(response))
+            {
                 eprintln!("Error sending unsupported graph type response: {}", e);
             }
             return;
@@ -134,11 +159,16 @@ fn handle_graph_request(
 
     eprintln!("Returning successful response for {} graph", graph_type);
     eprintln!("Response data: {:?}", response);
-    
-    let lsp_response = Response::new_ok(request.id.clone(), serde_json::to_value(response).unwrap());
+
+    let lsp_response =
+        Response::new_ok(request.id.clone(), serde_json::to_value(response).unwrap());
     eprintln!("Created LSP response: {:?}", lsp_response);
-    
-    if let Err(e) = context.connection.sender.send(lsp_server::Message::Response(lsp_response)) {
+
+    if let Err(e) = context
+        .connection
+        .sender
+        .send(lsp_server::Message::Response(lsp_response))
+    {
         eprintln!("Error sending struct dependency response: {}", e);
     }
 }

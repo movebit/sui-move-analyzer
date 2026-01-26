@@ -32,7 +32,7 @@ pub fn on_references_request(context: &mut Context, request: &Request) -> lsp_se
                 id: "".to_string().into(),
                 result: Some(serde_json::json!({"msg": "No available project"})),
                 error: None,
-            }
+            };
         }
     };
     let _ = modules.run_visitor_for_file(&mut goto_definition, &fpath, false);
@@ -92,7 +92,7 @@ pub fn on_references_request(context: &mut Context, request: &Request) -> lsp_se
                 id: "".to_string().into(),
                 result: Some(serde_json::json!({"msg": "No available project"})),
                 error: None,
-            }
+            };
         }
     };
     let mut handle = Handler::new(def_loc, def_loc_range, include_declaration, is_local);
