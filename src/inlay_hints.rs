@@ -250,7 +250,8 @@ fn para_inlay_hints_parts(name: &Name, services: &dyn HandleItemService) -> Inla
         value: format!("{}:", name.value.as_str()),
         tooltip: None,
         location: None,
-        command: mk_command(name.loc, services),
+        command: None,
+        // command: mk_command(name.loc, services),
     }])
 }
 
@@ -317,7 +318,8 @@ fn ty_inlay_hints_label_parts_(
                 value: x.name.0.value.as_str().to_string(),
                 tooltip: None,
                 location: None,
-                command: mk_command(x.name.loc(), services),
+                command: None,
+                // command: mk_command(x.name.loc(), services),
             });
             type_args(ret, tys);
         }
@@ -331,7 +333,8 @@ fn ty_inlay_hints_label_parts_(
             value: x.value.as_str().to_string(),
             tooltip: None,
             location: None,
-            command: mk_command(x.loc, services),
+            command: None,
+            // command: mk_command(x.loc, services),
         }),
         ResolvedType::Ref(is_mut, ty) => {
             ret.push(InlayHintLabelPart {

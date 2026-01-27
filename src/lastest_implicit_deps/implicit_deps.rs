@@ -57,6 +57,7 @@ pub fn implicit_deps() -> Dependencies {
     let deps_to_skip = ["DeepBook".to_string()];
     let packages = latest_system_packages();
     let Some(git_revision) = get_latest_sui_commit_in_move_home() else {
+        println!("cant found any git_revision in MOVEHOME");
         return Default::default();
     };
     println!("git_revision for implicit dep: {}", git_revision);
@@ -108,11 +109,12 @@ fn find_latest_commit(path: &str, _repo: &str) -> Option<String> {
 }
 
 pub fn get_latest_sui_commit_in_move_home() -> Option<String> {
-    return find_latest_commit("/workspace/.move/", "MystenLabs/sui");
+    return find_latest_commit(crate::project::MOVE_HOME, "MystenLabs/sui");
 }
 
 pub fn merge_implicit_deps_to_manifest(manifest: &SourceManifest) -> Dependencies {
     let mut implicit_deps = implicit_deps();
+    println!("implicit_deps: {:?}", implicit_deps);
     let mut merged = manifest.dev_dependencies.clone();
     for (k, v) in manifest.dependencies.iter() {
         merged.entry(*k).or_insert(v.clone()); // 如果 key 已经存在，不覆盖

@@ -79,6 +79,8 @@ impl Project {
     }
 }
 
+pub static MOVE_HOME: &str = "/workspace/.move";
+
 impl Project {
     pub fn new(
         root_dir: impl Into<PathBuf>,
@@ -159,7 +161,7 @@ impl Project {
         }
         self.manifest_paths.push(manifest_path.clone());
 
-        println!("load manifest file at {:?}", &manifest_path);
+        println!("load manifest file at {:?}, version 2.", &manifest_path);
         if let Some(x) = multi.asts.get(&manifest_path) {
             self.modules.insert(manifest_path.clone(), x.clone());
         } else {
@@ -207,10 +209,9 @@ impl Project {
 
         let all_deps =
             crate::lastest_implicit_deps::implicit_deps::merge_implicit_deps_to_manifest(&manifest);
-
         for (dep_name, de) in all_deps.iter() {
             // println!("dep_name{}, dep: {:?}", dep_name, de);
-            let move_home = "/workspace/.move";
+            // let move_home = "/workspace/.move/git";
 
             let repository_path = |kind: &DependencyKind| -> PathBuf {
                 match kind {
@@ -222,7 +223,7 @@ impl Project {
                         git_rev,
                         subdir: _,
                     }) => [
-                        &*move_home,
+                        &*MOVE_HOME,
                         &format!(
                             "{}_{}",
                             regex::Regex::new(r"/|:|\.|@")
@@ -236,7 +237,7 @@ impl Project {
 
                     // Downloaded packages are of the form <sanitized_node_url>_<address>_<package>
                     DependencyKind::OnChain(OnChainInfo { id }) => [
-                        &*move_home,
+                        &*MOVE_HOME,
                         &regex::Regex::new(r"/|:|\.|@")
                             .unwrap()
                             .replace_all(id.as_str(), "_")

@@ -246,13 +246,13 @@ fn handle_open_document<'a>(context: &'a mut Context, request: lsp_server::Reque
         Some(x) => x,
         None => {
             println!("not move project.");
-            GLOBAL_CONNECTION.with(|conn| {
-                crate::context::send_popup_message(
-                    conn.get().unwrap(),
-                    lsp_types::MessageType::WARNING,
-                    format!("{} not in move project", fpath.as_path().to_string_lossy()),
-                );
-            });
+            // GLOBAL_CONNECTION.with(|conn| {
+            //     crate::context::send_popup_message(
+            //         conn.get().unwrap(),
+            //         lsp_types::MessageType::WARNING,
+            //         format!("{} not in move project", fpath.as_path().to_string_lossy()),
+            //     );
+            // });
             return;
         }
     };
