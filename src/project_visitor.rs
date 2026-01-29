@@ -939,104 +939,13 @@ impl Project {
                     match macro_call {
                         MacroCall::Custom(_) => {
                             // Resolve the macro definition.
-                            //
-                            // In Move 2024, `x.do_mut!(...)` is represented as a DotCall with `is_macro=Some`,
-                            // but the macro itself is declared in the type's defining module as:
+                            // In Move 2024, `x.do_mut!(...)` is represented as a DotCall with `is_macro=Some`.
+                            // The macro is declared in the type's defining module as:
                             // `public macro fun do_mut<...>(...) { ... }`
-                            //
-                            // The normal DotCall resolution path (`find_name_corresponding_item`) is oriented around
-                            // method lookup / `use fun` mappings and can miss macro definitions. For goto-definition,
-                            // we prefer a direct lookup in the receiver type's defining module scope.
                             self.visit_expr(pre_expr, project_context, handler);
-                            let opt_item = {
-                                let recv_ty = self.get_expr_type(pre_expr, project_context);
-                                let recv_ty = match &recv_ty {
-                                    ResolvedType::Ref(_, inner) => inner.as_ref(),
-                                    _ => &recv_ty,
-                                };
-                                
-                                // First, try to find the macro in the receiver type's defining module
-                                let item_in_recv_module = match recv_ty {
-                                    ResolvedType::Struct(sref, _) => {
-                                        eprintln!("DEBUG: Receiver is a struct in addr={:?}, module={:?}", sref.addr, sref.module_name);
-                                        project_context.query_item(
-                                            sref.addr,
-                                            sref.module_name,
-                                            fun_name.value,
-                                            |i| i.clone(),
-                                        )
-                                    }
-                                    _ => {
-                                        eprintln!("DEBUG: Receiver is not a struct: {:?}", recv_ty);
-                                        None
-                                    }
-                                };
-                                
-                                if item_in_recv_module.is_some() {
-                                    eprintln!("DEBUG: Found macro in receiver type's module");
-                                    item_in_recv_module
-                                } else {
-                                    let find_result = project_context.find_name_corresponding_item(self, pre_expr, fun_name);
-                                    if find_result.is_some() {
-                                        find_result
-                                    } else {
-                                        // Fallback: if we still can't resolve, try a global lookup.
-                                        // When multiple macros with the same name exist, try to prefer
-                                        // the one in the receiver type's defining module if we have type info,
-                                        // or the current module if the receiver type is unknown.
-                                        let found: RefCell<Option<Item>> = RefCell::new(None);
-                                        let found_in_recv: RefCell<Option<Item>> = RefCell::new(None);
-                                        let found_in_current: RefCell<Option<Item>> = RefCell::new(None);
-                                        
-                                        let recv_addr = match recv_ty {
-                                            ResolvedType::Struct(sref, _) => {
-                                                eprintln!("DEBUG: Global lookup - receiver addr = {:?}", sref.addr);
-                                                Some(sref.addr)
-                                            }
-                                            _ => {
-                                                eprintln!("DEBUG: Global lookup - receiver is not a struct");
-                                                None
-                                            }
-                                        };
-                                        
-                                        // When receiver type is unknown, use current module context
-                                        let current_addr_module = if recv_addr.is_none() {
-                                            let curr = project_context.get_current_addr_and_module_name();
-                                            eprintln!("DEBUG: recv_addr is None, using current module context: addr={:?}, module={:?}", curr.addr, curr.name);
-                                            Some(curr.addr)
-                                        } else {
-                                            recv_addr
-                                        };
-                                        
-                                        project_context.visit_address(|addrs| {
-                                            for (addr, address) in addrs.address.iter() {
-                                                for (_module_name, module_scope) in address.modules.iter() {
-                                                    let ms = module_scope.as_ref().borrow();
-                                                    if let Some(item) = ms.module.items.get(&fun_name.value) {
-                                                        if matches!(item, Item::Fun(_)) {
-                                                            eprintln!("DEBUG: Found {} at addr {:?}, recv_addr={:?}, current_addr={:?}", fun_name.value, addr, recv_addr, current_addr_module);
-                                                            // If we're looking at the receiver's module, prioritize it
-                                                            if recv_addr == Some(*addr) && found_in_recv.borrow().is_none() {
-                                                                eprintln!("DEBUG: This is receiver's module!");
-                                                                *found_in_recv.borrow_mut() = Some(item.clone());
-                                                            } else if current_addr_module == Some(*addr) && found_in_current.borrow().is_none() {
-                                                                eprintln!("DEBUG: This is current module!");
-                                                                *found_in_current.borrow_mut() = Some(item.clone());
-                                                            } else if found_in_recv.borrow().is_none() && found_in_current.borrow().is_none() && found.borrow().is_none() {
-                                                                *found.borrow_mut() = Some(item.clone());
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        });
-                                        
-                                        eprintln!("DEBUG: found_in_recv = {:?}, found_in_current = {:?}, found = {:?}", found_in_recv.borrow().is_some(), found_in_current.borrow().is_some(), found.borrow().is_some());
-                                        // Return receiver's module version if found, then current module version, otherwise return the generic one
-                                        found_in_recv.into_inner().or_else(|| found_in_current.into_inner()).or_else(|| found.into_inner())
-                                    }
-                                }
-                            };
+                            
+                            let opt_item = project_context.find_name_corresponding_item(self, pre_expr, fun_name);
+                            
                             let item = ItemOrAccess::Access(Access::MacroCall(
                                 macro_call,
                                 chain.clone(),

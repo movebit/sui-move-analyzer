@@ -707,7 +707,9 @@ impl Project {
                         }
                     }
                     NameAccessChain_::Path(_) => {
-                        return ResolvedType::UnKnown;
+                        // For path calls like dynamic_field::borrow_mut, we should try to
+                        // resolve the return type through initialize_fun_call instead of
+                        // returning UnKnown immediately.
                     }
                 }
 
@@ -719,7 +721,13 @@ impl Project {
                             None
                         }
                     }
-                    NameAccessChain_::Path(_) => None,
+                    NameAccessChain_::Path(name_path) => {
+                        // For path calls like dynamic_field::borrow_mut<K, V>, extract type args
+                        // from the last entry in the path
+                        name_path.entries.last().and_then(|entry| {
+                            entry.tyargs.as_ref().map(|tyargs| tyargs.value.clone())
+                        })
+                    }
                 };
 
                 let (item, _) = project_context.find_name_chain_item(name, self);
