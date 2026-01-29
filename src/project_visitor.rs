@@ -817,7 +817,6 @@ impl Project {
                 match chain_clone.value {
                     NameAccessChain_::Single(path_entry) => {
                         if path_entry.is_macro().is_some() {
-                            eprintln!("DEBUG: Call is_macro=true, chain={:?}", chain);
                             let c = MacroCall::from_chain(chain).unwrap_or_default();
                             match c {
                                 MacroCall::Custom(_) => {
@@ -948,7 +947,6 @@ impl Project {
                             // The normal DotCall resolution path (`find_name_corresponding_item`) is oriented around
                             // method lookup / `use fun` mappings and can miss macro definitions. For goto-definition,
                             // we prefer a direct lookup in the receiver type's defining module scope.
-                            eprintln!("DEBUG: DotCall is_macro=Some, fun_name={:?}, exp = {:?}", fun_name, exp);
                             self.visit_expr(pre_expr, project_context, handler);
                             let opt_item = {
                                 let recv_ty = self.get_expr_type(pre_expr, project_context);
@@ -956,8 +954,6 @@ impl Project {
                                     ResolvedType::Ref(_, inner) => inner.as_ref(),
                                     _ => &recv_ty,
                                 };
-                                
-                                eprintln!("DEBUG: recv_ty = {:?}", recv_ty);
                                 
                                 // First, try to find the macro in the receiver type's defining module
                                 let item_in_recv_module = match recv_ty {
@@ -1207,10 +1203,40 @@ impl Project {
                 self.visit_expr(e.as_ref(), project_context, handler);
             }
             Exp_::Block(b) => self.visit_block(b, project_context, handler),
-            Exp_::Lambda(_, _, _) => {
-                // TODO have lambda expression in ast structure.
-                // But I don't find in msl spec.
-                // log::error!("lambda expression in ast.");
+            Exp_::Lambda(bind_list, _, exp) => {
+                // Handle lambda expression parameters and body
+                // Enter a new scope for the lambda parameters
+                project_context.enter_scope(|scopes| {
+                    // Process lambda parameters
+                    for (bind_group, ty_opt) in bind_list.value.iter() {
+                        for bind in bind_group.value.iter() {
+                            if let Bind_::Var(_mutability, var) = &bind.value {
+                                // Visit the parameter type if it exists
+                                if let Some(ty) = ty_opt {
+                                    self.visit_type_apply(ty, scopes, handler);
+                                    if handler.finished() {
+                                        return;
+                                    }
+                                }
+                                // Get the parameter type from the type annotation
+                                let param_ty = if let Some(ty) = ty_opt {
+                                    scopes.resolve_type(ty, self)
+                                } else {
+                                    ResolvedType::UnKnown
+                                };
+                                // Create and register the parameter as an item in the scope
+                                let item = ItemOrAccess::Item(Item::Parameter(*var, param_ty));
+                                handler.handle_item_or_access(self, scopes, &item);
+                                if handler.finished() {
+                                    return;
+                                }
+                                scopes.enter_item(self, var.value(), item);
+                            }
+                        }
+                    }
+                    // Visit the lambda body
+                    self.visit_expr(exp, scopes, handler);
+                });
             }
 
             Exp_::Quant(_, binds, bodies, where_, result) => {
