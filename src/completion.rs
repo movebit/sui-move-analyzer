@@ -463,7 +463,7 @@ impl ItemOrAccessHandler for Handler {
                             push_items(self, &items);
                         }
                     }
-                    Access::ExprAccessChain(chain, _, _) | Access::MacroCall(_, chain) => {
+                    Access::ExprAccessChain(chain, _, _) | Access::MacroCall(_, chain, _) => {
                         match &chain.value {
                             move_compiler::parser::ast::NameAccessChain_::Single(path_entry) => {
                                 let x = path_entry.name;

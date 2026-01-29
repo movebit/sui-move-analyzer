@@ -813,7 +813,7 @@ async function showStructDependencyGraph(context: Readonly<Context>) {
             const panel = vscode.window.createWebviewPanel(
                 'structDependencyGraph',
                 'Struct Dependency Graph',
-                vscode.ViewColumn.One,
+                vscode.ViewColumn.Beside,
                 {
                     enableScripts: true,
                     retainContextWhenHidden: true
@@ -908,7 +908,7 @@ async function showCallFlowGraph(context: Readonly<Context>) {
             const panel = vscode.window.createWebviewPanel(
                 'callFlowGraph',
                 'Function Call Flow Graph',
-                vscode.ViewColumn.One,
+                vscode.ViewColumn.Beside,
                 {
                     enableScripts: true,
                     retainContextWhenHidden: true

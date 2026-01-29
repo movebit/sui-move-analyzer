@@ -10,8 +10,8 @@ use move_core_types::account_address::AccountAddress;
 use move_command_line_common::files::FileHash;
 use move_ir_types::location::Loc;
 use move_symbol_pool::Symbol;
+use std::borrow::Cow;
 use std::{cell::RefCell, collections::HashMap, rc::Rc, str::FromStr};
-
 #[derive(Clone)]
 pub struct ItemStruct {
     pub(crate) name: DatatypeName,
@@ -455,21 +455,29 @@ pub struct ItemConst {
 #[derive(Clone, Copy, Debug)]
 pub enum MacroCall {
     Assert,
+    Custom(Symbol),
 }
 
 impl MacroCall {
-    pub(crate) fn from_chain(_chain: &NameAccessChain) -> Option<Self> {
-        // match &chain.value {
-        //     NameAccessChain_::One(name) => Self::from_symbol(name.value),
-        //     NameAccessChain_::Two(_, _) => None,
-        //     NameAccessChain_::Three(_, _) => None,
-        // }
-        None
+    pub(crate) fn from_chain(chain: &NameAccessChain) -> Option<Self> {
+        let last = get_name_chain_last_name(chain);
+        Self::from_symbol(last.value)
     }
 
-    pub(crate) fn to_static_str(self) -> &'static str {
+    pub(crate) fn from_symbol(symbol: Symbol) -> Option<Self> {
+        if symbol.as_str().ends_with('!') {
+            return Some(Self::Custom(symbol));
+        }
+        match symbol.as_str() {
+            "assert" => Some(Self::Assert),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn to_name(self) -> Cow<'static, str> {
         match self {
-            MacroCall::Assert => "assert",
+            MacroCall::Assert => Cow::Borrowed("assert"),
+            MacroCall::Custom(s) => Cow::Owned(s.as_str().to_string()),
         }
     }
 }
@@ -584,7 +592,7 @@ pub enum Access {
     KeyWords(&'static str),
     /////////////////
     /// Marco call
-    MacroCall(MacroCall, NameAccessChain),
+    MacroCall(MacroCall, NameAccessChain, Box<Item>),
     Friend(NameAccessChain, ModuleName),
 
     ApplySchemaTo(
@@ -634,7 +642,7 @@ impl std::fmt::Display for Access {
                 write!(f, "access_field {:?}->{:?}", from, to)
             }
             Access::KeyWords(k) => write!(f, "{}", *k),
-            Access::MacroCall(macro_, _) => write!(f, "{:?}", macro_),
+            Access::MacroCall(macro_, _, _) => write!(f, "{:?}", macro_),
             Access::Friend(name, item) => {
                 write!(
                     f,
@@ -685,7 +693,7 @@ impl Access {
                 Loc::new(FileHash::empty(), 0, 0),
                 Loc::new(FileHash::empty(), 0, 0),
             ),
-            Access::MacroCall(_, chain) => (chain.loc, chain.loc),
+            Access::MacroCall(_, chain, item) => (chain.loc, item.def_loc()),
             Access::Friend(name, item) => (get_name_chain_last_name(name).loc, item.loc()),
             Access::ApplySchemaTo(chain, x) => (get_name_chain_last_name(chain).loc, x.def_loc()),
             Access::SpecFor(name, item) => (name.loc, item.as_ref().def_loc()),

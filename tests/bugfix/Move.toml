@@ -8,3 +8,5 @@ edition = "2024.beta"
 [addresses]
 a = "0x1"
 b = "0x2"
+typus_stake_pool = "0x32"
+typus = "0x33"

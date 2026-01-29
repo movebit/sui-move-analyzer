@@ -702,6 +702,7 @@ impl Project {
                             let c = MacroCall::from_chain(name).unwrap_or_default();
                             match c {
                                 MacroCall::Assert => return ResolvedType::new_unit(),
+                                MacroCall::Custom(_) => {}
                             }
                         }
                     }

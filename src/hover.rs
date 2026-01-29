@@ -83,7 +83,7 @@ fn hover_on_item_or_access(ia: &ItemOrAccess) -> String {
                 format!("field {}:{}", to.0.value.as_str(), ty)
             }
             Access::KeyWords(x) => format!("keyword {}", *x),
-            Access::MacroCall(macro_, _) => format!("macro {}", macro_.to_static_str()),
+            Access::MacroCall(macro_, _, _) => format!("macro {}", macro_.to_name()),
             Access::Friend(_, _) => String::from(""),
             Access::ApplySchemaTo(_, item) => item_hover(item.as_ref()),
             Access::SpecFor(_, item) => format!("{}", item.as_ref()),

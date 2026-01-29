@@ -386,4 +386,131 @@ mod tests {
         eprintln!("\n------------------------------\n");
         assert_eq!(actual_r.result, expect_r.result);
     }
+
+    #[test]
+    fn test_issue14_macro_goto() {
+        let (connection, _) = Connection::stdio();
+        let symbols = Arc::new(Mutex::new(symbols::Symbolicator::empty_symbols()));
+
+        let mut mock_ctx = Context {
+            projects: MultiProject::new(),
+            connection: &connection,
+            symbols,
+            ref_caches: Default::default(),
+            diag_version: FileDiags::new(),
+        };
+
+        let fpath = path_concat(
+            std::env::current_dir().unwrap().as_path(),
+            PathBuf::from("tests/bugfix/sources/issue14.move").as_path(),
+        );
+
+        let (mani, _) = discover_manifest_and_kind(&fpath).expect("not move project.");
+        let implicit_deps = sui_move_analyzer::implicit_deps();
+        let p = mock_ctx
+            .projects
+            .load_project(&mock_ctx.connection, &mani, implicit_deps)
+            .expect("load project failed");
+        mock_ctx.projects.insert_project(p);
+
+        // Position of "do_mut!" in issue14.move:201
+        let params_json = json!({
+            "position": {
+                "line": 200,
+                "character": 25
+            },
+            "textDocument": {
+                "uri": "file:///".to_string() + fpath.to_str().unwrap()
+            },
+        });
+        let request = Request {
+            id: "issue14_goto_def".to_string().into(),
+            method: String::from("textDocument/definition"),
+            params: params_json,
+        };
+
+        let actual_r = goto_definition::on_go_to_def_request(&mock_ctx, &request);
+        let fpath = path_concat(
+            std::env::current_dir().unwrap().as_path(),
+            PathBuf::from("tests/bugfix/sources/keyed_big_vector.move").as_path(),
+        );
+        let expect_r = Response::new_ok(
+            "issue14_goto_def".to_string().into(),
+            json!([{
+                "range":{
+                    "end":{
+                        "character":27,
+                        "line":356
+                    },
+                    "start":{
+                        "character":21,
+                        "line":356
+                    }
+                },
+                "uri": ("file://".to_string() + fpath.to_str().unwrap()).replace('\\', "/")
+            }]),
+        );
+        eprintln!("\n------------------------------\n");
+        eprintln!("actual_r = {:?}", actual_r);
+        eprintln!("\n");
+        eprintln!("expect_r = {:?}", expect_r);
+        eprintln!("\n------------------------------\n");
+        assert_eq!(actual_r.result, expect_r.result);
+    }
+
+    #[test]
+    fn test_issue14_macro_body_hover() {
+        let (connection, _) = Connection::stdio();
+        let symbols = Arc::new(Mutex::new(symbols::Symbolicator::empty_symbols()));
+
+        let mut mock_ctx = Context {
+            projects: MultiProject::new(),
+            connection: &connection,
+            symbols,
+            ref_caches: Default::default(),
+            diag_version: FileDiags::new(),
+        };
+
+        let fpath = path_concat(
+            std::env::current_dir().unwrap().as_path(),
+            PathBuf::from("tests/bugfix/sources/issue14.move").as_path(),
+        );
+
+        let (mani, _) = discover_manifest_and_kind(&fpath).expect("not move project.");
+        let p = mock_ctx
+            .projects
+            .load_project(&mock_ctx.connection, &mani, Default::default())
+            .expect("load project failed");
+        mock_ctx.projects.insert_project(p);
+
+        // Position of "lp_user_share" inside the closure at line 203
+        let params_json = json!({
+            "position": {
+                "line": 202,
+                "character": 15
+            },
+            "textDocument": {
+                "uri": "file:///".to_string() + fpath.to_str().unwrap()
+            },
+        });
+        let request = Request {
+            id: "issue14_hover".to_string().into(),
+            method: String::from("textDocument/hover"),
+            params: params_json,
+        };
+
+        use sui_move_analyzer::hover;
+        let actual_r = hover::on_hover_request(&mut mock_ctx, &request);
+
+        assert!(actual_r.result.is_some());
+        let result_value = actual_r.result.unwrap();
+        // Hover result should contain "lp_user_share" or its type
+        let contents = result_value.get("contents").expect("hover content missing");
+        let value_str = contents
+            .get("value")
+            .expect("hover value missing")
+            .as_str()
+            .unwrap();
+        assert!(value_str.contains("lp_user_share"));
+    }
 }
