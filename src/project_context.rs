@@ -787,7 +787,11 @@ impl ProjectContext {
         item_name: &move_compiler::shared::Name,
     ) -> Option<Item> {
         let struct_ty = project.get_expr_type(pre_expr, self);
-        log::debug!("find_name_corresponding_item: looking for '{}', pre expr type: {:?}", item_name.value, struct_ty);
+        log::debug!(
+            "find_name_corresponding_item: looking for '{}', pre expr type: {:?}",
+            item_name.value,
+            struct_ty
+        );
         let struct_ty = match &struct_ty {
             ResolvedType::Ref(_, ty) => ty.as_ref(),
             _ => &struct_ty,
@@ -801,9 +805,14 @@ impl ProjectContext {
         if let ResolvedType::Struct(sref, _) = struct_ty {
             let module_name_symbol = Symbol::from(sref.module_name.to_string());
             let item_name_sym = item_name.value;
-            log::debug!("find_name_corresponding_item: Struct receiver found, module='{}', item_name='{}'", sref.module_name, item_name_sym);
+            log::debug!(
+                "find_name_corresponding_item: Struct receiver found, module='{}', item_name='{}'",
+                sref.module_name,
+                item_name_sym
+            );
             let found = self.visit_address(|addrs| {
-                addrs.address
+                addrs
+                    .address
                     .get(&sref.addr)
                     .and_then(|addr| addr.modules.get(&module_name_symbol))
                     .and_then(|module_scope| {
@@ -816,7 +825,10 @@ impl ProjectContext {
                             .cloned()
                     })
             });
-            log::debug!("find_name_corresponding_item: found in struct's module: {:?}", found.is_some());
+            log::debug!(
+                "find_name_corresponding_item: found in struct's module: {:?}",
+                found.is_some()
+            );
             if let Some(Item::Fun(_)) = found {
                 log::debug!("find_name_corresponding_item: returning found macro/function");
                 return found;

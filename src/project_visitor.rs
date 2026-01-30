@@ -949,9 +949,10 @@ impl Project {
                             // The macro is declared in the type's defining module as:
                             // `public macro fun do_mut<...>(...) { ... }`
                             self.visit_expr(pre_expr, project_context, handler);
-                            
-                            let opt_item = project_context.find_name_corresponding_item(self, pre_expr, fun_name);
-                            
+
+                            let opt_item = project_context
+                                .find_name_corresponding_item(self, pre_expr, fun_name);
+
                             let item = ItemOrAccess::Access(Access::MacroCall(
                                 macro_call,
                                 chain.clone(),
