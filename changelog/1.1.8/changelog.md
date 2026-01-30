@@ -1,4 +1,4 @@
-# lsp-server v1.1.8
+# sui-move-analyzer.server v1.1.8
 
 ## 1. New feature
   Added diagnostic hints and diagnostic information based on lexical and syntax analysis for single file.
@@ -28,13 +28,31 @@
 ### 1.6 Unexpected token
 ![Alt text](img/image-6.png)
 
-# lsp-server v1.1.9
+# sui-move-analyzer.server v1.1.9
 upgrade dependence of MystenLabs/sui
 
-# lsp-server v1.2.0
+# sui-move-analyzer.server v1.2.0
 support method syntax in [move2024] 
 
 example:
 ```move
 clock.timestamp_ms()
 ```
+
+# sui-move-analyzer.server v1.5.0
+1.New feat: showStructDependencyGraph
+
+1.Improve: not load redundant dependencies that are duplicated, greatly improving speed
+
+3.Fix bug #16: failed goto on stdlib when implicit dep absent
+
+4.Fix bug #17: can't find definition like a::b::fun_name()
+
+5.New feat: support new syntax `use fun`
+
+6.New feat: support use alias
+
+7.New feat: support macro fun
+
+8.Fix bug: analyzer to lambda exp
+
