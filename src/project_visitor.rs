@@ -832,7 +832,13 @@ impl Project {
                                         Box::new(item.unwrap_or_default()),
                                     ));
                                     handler.handle_item_or_access(self, project_context, &item);
-                                    // For built-in macros like assert!, we don't necessarily want to visit as a function
+                                    // For built-in macros like assert!, we need to visit the arguments
+                                    for expr in exprs.value.iter() {
+                                        self.visit_expr(expr, project_context, handler);
+                                        if handler.finished() {
+                                            return;
+                                        }
+                                    }
                                     return;
                                 }
                             }
