@@ -1061,12 +1061,11 @@ impl ProjectContext {
     pub(crate) fn resolve_type(&self, ty: &Type, name_to_addr: &impl Name2Addr) -> ResolvedType {
         let r = match &ty.value {
             Type_::Apply(chain) => {
-                let mut types = Default::default();
                 let tyargs = match &chain.value {
                     NameAccessChain_::Single(path_entry) => &path_entry.tyargs,
                     NameAccessChain_::Path(name_path) => &name_path.entries.last().unwrap().tyargs,
                 };
-                types = match tyargs {
+                let types = match tyargs {
                     Some(x) => x
                         .value
                         .iter()

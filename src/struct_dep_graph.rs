@@ -83,7 +83,7 @@ impl<'a> StructDependencyVisitor<'a> {
     }
 
     /// Recursively extract dependencies from a type
-    fn extract_dependencies(&mut self, from_node_id: &str, field_name: &str, ty: &ResolvedType) {
+    fn extract_dependencies(&mut self, from_node_id: &str, label: &str, ty: &ResolvedType) {
         match ty {
             ResolvedType::Struct(struct_ref, type_args) => {
                 let to_node = StructNode {
@@ -96,29 +96,27 @@ impl<'a> StructDependencyVisitor<'a> {
                 };
                 let to_node_id = format!("{}.{}.{}", to_node.address, to_node.module, to_node.name);
 
-                // Avoid self-loops if desired, or keep them. keeping them for now.
-                // Also avoid adding edge if we don't know the struct (e.g. error/unknown) - though StructRef usually implies it exists or is at least named.
-
                 self.add_node(to_node.clone());
-                self.add_edge(from_node_id.to_string(), to_node_id, field_name.to_string());
+                self.add_edge(from_node_id.to_string(), to_node_id, label.to_string());
 
                 // Recursively handle type arguments (e.g. vector<Coin<SUI>>)
+                // Generic type arguments dependency should be labeled as "<>"
                 for arg in type_args {
-                    self.extract_dependencies(from_node_id, field_name, arg);
+                    self.extract_dependencies(from_node_id, "<>", arg);
                 }
             }
             ResolvedType::Vec(inner_ty) => {
-                self.extract_dependencies(from_node_id, field_name, inner_ty);
+                self.extract_dependencies(from_node_id, label, inner_ty);
             }
             ResolvedType::Ref(_, inner_ty) => {
-                self.extract_dependencies(from_node_id, field_name, inner_ty);
+                self.extract_dependencies(from_node_id, label, inner_ty);
             }
             ResolvedType::Multiple(tys) => {
                 for t in tys {
-                    self.extract_dependencies(from_node_id, field_name, t);
+                    self.extract_dependencies(from_node_id, label, t);
                 }
             }
-            // Handle other types as needed (e.g. TParam might be relevant if we track generic constraints, but usually we care about concrete struct dependencies or instantiated ones)
+            // Handle other types as needed
             _ => {}
         }
     }

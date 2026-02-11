@@ -61,8 +61,8 @@ mod tests {
         assert!(has_node("Account"), "Missing node Account");
         assert!(has_node("S2"), "Missing node S2");
 
-        // 验证边 S2 -> Account (通过 S1 的范型参数)
-        let has_edge = |from: &str, to: &str| {
+        // 验证边 S2 -> Account (通过 S1 的范型参数，标签应为 <>)
+        let has_edge = |from: &str, to: &str, label: &str| {
             graph.edges.iter().any(|e| {
                 graph.nodes.iter().any(|n_from| {
                     n_from.name == from
@@ -70,14 +70,17 @@ mod tests {
                 }) && graph.nodes.iter().any(|n_to| {
                     n_to.name == to
                         && format!("{}.{}.{}", n_to.address, n_to.module, n_to.name) == e.to
-                })
+                }) && e.field_names.contains(&label.to_string())
             })
         };
 
-        assert!(has_edge("S2", "S1"), "Missing edge S2 -> S1");
         assert!(
-            has_edge("S2", "Account"),
-            "Missing edge S2 -> Account via generic param"
+            has_edge("S2", "S1", "f1"),
+            "Missing edge S2 -> S1 with label f1"
+        );
+        assert!(
+            has_edge("S2", "Account", "<>"),
+            "Missing edge S2 -> Account via generic param with label <>"
         );
 
         // 清理
