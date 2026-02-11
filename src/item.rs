@@ -343,8 +343,12 @@ impl Item {
     pub(crate) fn to_type(&self) -> Option<ResolvedType> {
         let x = match self {
             Item::TParam(name, ab) => ResolvedType::TParam(*name, ab.clone()),
-            Item::Struct(x) => ResolvedType::Struct(
+            Item::Struct(x) => ResolvedType::GeneralStruct(
                 x.to_struct_ref(),
+                x.type_parameters
+                    .iter()
+                    .map(|tp| ResolvedType::TParam(tp.name, tp.constraints.clone()))
+                    .collect(),
                 x.fields.iter().map(|field| field.1.clone()).collect(),
             ),
             Item::StructNameRef(x) => ResolvedType::Struct(x.clone(), Default::default()),

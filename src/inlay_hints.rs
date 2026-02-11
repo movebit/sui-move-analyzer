@@ -335,7 +335,7 @@ fn ty_inlay_hints_label_parts_(
 
     match ty {
         ResolvedType::UnKnown => {}
-        ResolvedType::Struct(x, tys) => {
+        ResolvedType::Struct(x, tys) | ResolvedType::GeneralStruct(x, tys, _) => {
             ret.push(InlayHintLabelPart {
                 value: x.name.0.value.as_str().to_string(),
                 tooltip: None,

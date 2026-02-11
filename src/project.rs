@@ -1142,7 +1142,7 @@ pub(crate) fn infer_type_parameter_on_expression(
                     bind(ret, x.as_ref(), y.as_ref());
                 }
             }
-            ResolvedType::Struct(_, ptys) => {
+            ResolvedType::Struct(_, ptys) | ResolvedType::GeneralStruct(_, ptys, _) => {
                 if let ResolvedType::Struct(_, etypes) = expr_type {
                     for (p, e) in ptys.iter().zip(etypes.iter()) {
                         bind(ret, p, e);

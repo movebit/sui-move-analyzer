@@ -17,6 +17,7 @@ use std::{cmp::PartialEq, collections::HashMap, fmt::Debug, vec};
 pub enum ResolvedType {
     UnKnown,
     Struct(ItemStructNameRef, Vec<ResolvedType>),
+    GeneralStruct(ItemStructNameRef, Vec<ResolvedType>, Vec<ResolvedType>),
     BuildInType(BuildInType),
     /// T : drop
     TParam(Name, Vec<Ability>),
@@ -44,6 +45,9 @@ impl PartialEq for ResolvedType {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (ResolvedType::Struct(n1, _), ResolvedType::Struct(n2, _)) => n1 == n2,
+            (ResolvedType::GeneralStruct(n1, _, _), ResolvedType::GeneralStruct(n2, _, _)) => {
+                n1 == n2
+            }
 
             (ResolvedType::BuildInType(b1), ResolvedType::BuildInType(b2)) => b1 == b2,
             (ResolvedType::Ref(_, t1), ResolvedType::Ref(_, t2)) => t1 == t2,
@@ -172,6 +176,14 @@ impl ResolvedType {
                     ts.get_mut(index).unwrap().bind_type_parameter(types);
                 }
             }
+            ResolvedType::GeneralStruct(_, tps, fields) => {
+                for t in tps.iter_mut() {
+                    t.bind_type_parameter(types);
+                }
+                for f in fields.iter_mut() {
+                    f.bind_type_parameter(types);
+                }
+            }
             ResolvedType::Range => {}
             ResolvedType::Lambda { args, ret_ty } => {
                 for a in args.iter_mut() {
@@ -195,6 +207,7 @@ impl ResolvedType {
     pub(crate) fn struct_name(&self) -> Option<Symbol> {
         match self {
             ResolvedType::Struct(s, _) => Some(s.name.value()),
+            ResolvedType::GeneralStruct(s, _, _) => Some(s.name.value()),
             ResolvedType::Ref(_, ty) => ty.struct_name(),
             _ => None,
         }
@@ -207,6 +220,7 @@ impl ResolvedType {
             ResolvedType::TParam(name, _) => name.loc,
             ResolvedType::BuildInType(_) => Loc::new(FileHash::empty(), 0, 0),
             ResolvedType::Struct(ItemStructNameRef { name, .. }, _) => name.loc(),
+            ResolvedType::GeneralStruct(ItemStructNameRef { name, .. }, _, _) => name.loc(),
             ResolvedType::UnKnown => Loc::new(FileHash::empty(), 0, 0),
             ResolvedType::Ref(_, _) => Loc::new(FileHash::empty(), 0, 0),
             ResolvedType::Unit => Loc::new(FileHash::empty(), 0, 0),
@@ -315,6 +329,22 @@ impl std::fmt::Display for ResolvedType {
                     write!(f, "Struct:{}<{}>;", name.value().as_str(), tp_str)
                 }
             }
+            ResolvedType::GeneralStruct(
+                ItemStructNameRef {
+                    name,
+                    type_parameters,
+                    ..
+                },
+                _ty_params,
+                _fields,
+            ) => {
+                let ty_str = type_parameters
+                    .iter()
+                    .map(|tp| tp.name.value.as_str())
+                    .collect::<Vec<_>>()
+                    .join(",");
+                write!(f, "GeneralStruct:{}<{}>", name.value().as_str(), ty_str)
+            }
             ResolvedType::BuildInType(x) => write!(f, "{}", x.to_static_str()),
             ResolvedType::TParam(name, _) => {
                 write!(f, "TParam:{}", name.value.as_str())
@@ -380,6 +410,17 @@ impl ResolvedType {
                     type_parameters: _type_parameters,
                     is_test: _is_test,
                 },
+                v,
+            )
+            | Self::GeneralStruct(
+                ItemStructNameRef {
+                    addr,
+                    module_name,
+                    name,
+                    type_parameters: _type_parameters,
+                    is_test: _is_test,
+                },
+                _,
                 v,
             ) => {
                 log::debug!("struct_ref_to_struct => {:?}", v);

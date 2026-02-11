@@ -1062,20 +1062,22 @@ impl ProjectContext {
         let r = match &ty.value {
             Type_::Apply(chain) => {
                 let mut types = Default::default();
-                if let NameAccessChain_::Single(path_entry) = &chain.value {
-                    // Special handle for vector.
-                    types = match path_entry.clone().tyargs {
-                        Some(x) => x
-                            .value
-                            .iter()
-                            .map(|ty| self.resolve_type(ty, name_to_addr))
-                            .collect(),
-                        None => vec![],
-                    };
+                let tyargs = match &chain.value {
+                    NameAccessChain_::Single(path_entry) => &path_entry.tyargs,
+                    NameAccessChain_::Path(name_path) => &name_path.entries.last().unwrap().tyargs,
+                };
+                types = match tyargs {
+                    Some(x) => x
+                        .value
+                        .iter()
+                        .map(|ty| self.resolve_type(ty, name_to_addr))
+                        .collect(),
+                    None => vec![],
+                };
 
+                if let NameAccessChain_::Single(path_entry) = &chain.value {
                     let e_ty = types.get(0).unwrap_or(&UNKNOWN_TYPE).clone();
                     if path_entry.name.value.as_str() == "vector" {
-                        // let e_ty = types.get(0).unwrap_or(&UNKNOWN_TYPE).clone();
                         return ResolvedType::new_vector(e_ty);
                     } else if BuildInType::is_num_types_str(path_entry.name.value.as_str()) {
                         return ResolvedType::new_build_in_from_str(path_entry.name.value.as_str());
@@ -1084,15 +1086,12 @@ impl ProjectContext {
                 let (chain_ty, _) = self.find_name_chain_ty(chain, name_to_addr);
                 let mut chain_ty = chain_ty.unwrap_or_default();
                 let chain_ty = match &mut chain_ty {
-                    ResolvedType::Struct(
-                        ItemStructNameRef {
-                            type_parameters: _type_parameters,
-                            ..
-                        },
-                        m,
-                    ) => {
+                    ResolvedType::Struct(_, m) => {
                         let _ = std::mem::replace(m, types);
                         chain_ty
+                    }
+                    ResolvedType::GeneralStruct(s_ref, _, _) => {
+                        ResolvedType::Struct(s_ref.clone(), types)
                     }
                     _ => chain_ty,
                 };
