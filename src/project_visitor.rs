@@ -15,34 +15,6 @@ use move_symbol_pool::Symbol;
 use std::{cell::RefCell, collections::HashSet, path::PathBuf, rc::Rc, vec};
 
 impl Project {
-    // /// Collect field name like a in  spec schema IncrementAborts {
-    // ///                   a: address;
-    // /// }
-
-    //     &self,
-    //     project_context: &ProjectContext,
-    //     members: &[SpecBlockMember],
-    // ) -> HashMap<Symbol, (Name, ResolvedType)> {
-    //     let mut ret = HashMap::new();
-    //     for member in members.iter() {
-    //         if let SpecBlockMember_::Variable {
-    //             is_global: _is_global,
-    //             name,
-    //             type_parameters: _type_parameters,
-    //             type_,
-    //             init,
-    //         } = &member.value
-    //         {
-    //             let mut ty = project_context.resolve_type(type_, self);
-    //             if ty.is_err() && init.is_some() {
-    //                 ty = self.get_expr_type(init.as_ref().unwrap(), project_context);
-    //             }
-    //             ret.insert(name.value, (*name, ty));
-    //         }
-    //     }
-    //     ret
-    // }
-
     pub(crate) fn get_defs(
         &self,
         filepath: &PathBuf,
@@ -500,6 +472,16 @@ impl Project {
             if !handler.function_or_spec_body_should_visit(range.as_ref().unwrap()) {
                 return;
             }
+            enter_function(
+                self,
+                f,
+                project_context,
+                handler,
+                addr,
+                module_name,
+                false,
+                false,
+            );
             let _guard = project_context.clone_scope_and_enter(addr, module_name, false);
             self.visit_function(f, project_context, handler);
         });

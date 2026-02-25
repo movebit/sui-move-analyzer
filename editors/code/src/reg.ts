@@ -1011,13 +1011,16 @@ function getGraphHtml(graphData: any, title: string, _context: Readonly<Context>
         data: { id: mod, label: `Module: ${mod}` }
     }));
 
-    const edges = parsedData.edges.map((edge: any) => ({
+    const edges = parsedData.edges.map((edge: any, index: number) => ({
         group: 'edges',
         data: {
-            id: `${edge.from}-${edge.to}`,
+            id: `${edge.from}-${edge.to}-${index}`,
             source: edge.from,
             target: edge.to,
-            label: edge.label || ''
+            label: edge.label || '',
+            filepath: edge.filepath,
+            line: edge.line,
+            col: edge.col
         }
     }));
 
@@ -1055,7 +1058,7 @@ function getGraphHtml(graphData: any, title: string, _context: Readonly<Context>
         </div>
         <div id="cy"></div>
         <div class="info-panel">
-            <b>Sui Move Struct Graph</b><br/>
+            <b>${title} Graph</b><br/>
             Nodes: ${nodes.length} | Edges: ${edges.length}
         </div>
         <script>
@@ -1141,6 +1144,32 @@ function getGraphHtml(graphData: any, title: string, _context: Readonly<Context>
                     }
                 }
             });
+
+                cy.on('tap', 'node', function(evt){
+                    const node = evt.target;
+                    const data = node.data();
+                    if (data.filepath) {
+                        vscode.postMessage({
+                            command: 'openLocation',
+                            filepath: data.filepath,
+                            line: data.line,
+                            col: data.col
+                        });
+                    }
+                });
+
+                cy.on('tap', 'edge', function(evt){
+                    const edge = evt.target;
+                    const data = edge.data();
+                    if (data.filepath) {
+                        vscode.postMessage({
+                            command: 'openLocation',
+                            filepath: data.filepath,
+                            line: data.line,
+                            col: data.col
+                        });
+                    }
+                });
 
             window.cy = cy;
             window.runLayout = (name) => {

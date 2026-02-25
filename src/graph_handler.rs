@@ -1,11 +1,7 @@
 // Copyright (c) The BitsLab.MoveBit Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    context::Context,
-    struct_dep_graph::StructDepGraph,
-    // call_flow_graph::CallFlowGraph,  // Temporarily commented out
-};
+use crate::{call_flow_graph::CallFlowGraph, context::Context, struct_dep_graph::StructDepGraph};
 use lsp_server::{Request, Response};
 use lsp_types::TextDocumentIdentifier;
 use serde::{Deserialize, Serialize};
@@ -131,7 +127,7 @@ fn handle_graph_request(context: &Context, request: &Request, graph_type: &str) 
         }
         "call_flow" => {
             eprintln!("Generating call flow graph for project...");
-            let graph = crate::call_flow_graph::CallFlowGraph::generate_for_project(project);
+            let graph = CallFlowGraph::generate_for_project(project);
             graph.to_json()
         }
         unsupported => {
